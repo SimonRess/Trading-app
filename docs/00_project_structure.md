@@ -312,7 +312,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Ship stats & costs | **Missing** | — |
 | Political milestones | **Missing** | — |
 | Combat system detail | **Missing** | — |
-| MVP scope | **Missing** | — |
+| MVP scope | Draft | design/mvp-scope.md |
 | Save file schema | **Missing** | — |
 
 ---
