@@ -305,8 +305,8 @@ A living index of decisions and their status. Update this table whenever an ADR 
 |--------|--------|------|
 | Technology stack reference | Accepted | design/tech-stack.md |
 | Game mechanics (overview) | Draft | design/game-mechanics.md |
-| City graph & routes | **Missing** | — |
-| Market formula | **Missing** | — |
+| City graph & routes | Draft | design/city-graph.md |
+| Market formula | Draft | design/market-formula.md |
 | Starting scenario | **Missing** | — |
 | Event probability table | **Missing** | — |
 | Ship stats & costs | **Missing** | — |
