@@ -303,6 +303,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 
 | System | Status | File |
 |--------|--------|------|
+| Technology stack reference | Accepted | design/tech-stack.md |
 | Game mechanics (overview) | Draft | design/game-mechanics.md |
 | City graph & routes | **Missing** | — |
 | Market formula | **Missing** | — |
