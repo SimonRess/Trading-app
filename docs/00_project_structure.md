@@ -293,10 +293,11 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 006 | Turn-based vs real-time | Accepted | decisions/adr-006-turn-vs-realtime.md |
 | 007 | Multiplayer scope | Accepted | decisions/adr-007-multiplayer.md |
 | 008 | Distribution & monetisation | Accepted | decisions/adr-008-distribution.md |
-| 009 | Market price formula | **Open** | — |
+| 009 | Market price formula | Accepted | decisions/adr-009-market-price-formula.md |
 | 010 | Combat mechanic detail | **Open** | — |
-| 011 | Save file format & versioning | **Open** | — |
+| 011 | Save file format & versioning | Accepted | decisions/adr-011-save-file-format.md |
 | 012 | Game client abstraction | Accepted | decisions/adr-012-game-client-abstraction.md |
+| 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
 
 ---
 
@@ -308,7 +309,9 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Game mechanics (overview) | Draft | design/game-mechanics.md |
 | City graph & routes | Draft | design/city-graph.md |
 | Market formula | Draft | design/market-formula.md |
-| Starting scenario | **Missing** | — |
+| Starting scenario | Draft | design/starting-scenario.md |
+| Save file schema | Draft | design/save-file-schema.md |
+| Turn resolution order | Draft | design/turn-resolution-order.md |
 | Event probability table | **Missing** | — |
 | Ship stats & costs | **Missing** | — |
 | Political milestones | **Missing** | — |
