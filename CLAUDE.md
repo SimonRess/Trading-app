@@ -17,16 +17,29 @@ Planning guide: `docs/00_project_structure.md`
 
 ```
 src/
-├── game/       ← pure game logic; NO imports from ui/ or render/
-│   ├── state/  ← domain Svelte stores (player, fleet, cities, market, calendar)
-│   ├── systems/← turn resolution, market simulation, combat, events
-│   └── data/   ← static data: city definitions, goods, ship types, starting config
-├── render/     ← PixiJS scenes (map, port views, ship animations)
-├── ui/         ← Svelte components (menus, panels, dialogs)
-└── main.ts     ← entry point: mounts Svelte app + PixiJS canvas
+├── game/           ← pure game logic; NO imports from ui/ or render/
+│   ├── client/     ← GameClient interface + LocalGameClient implementation
+│   ├── state/      ← domain Svelte stores (player, fleet, cities, market, calendar)
+│   ├── systems/    ← turn resolution, market simulation, combat, events
+│   └── data/       ← static data: city definitions, goods, ship types, starting config
+├── render/         ← PixiJS scenes (map, port views, ship animations)
+├── ui/             ← Svelte components (menus, panels, dialogs)
+└── main.ts         ← entry point: mounts Svelte app + PixiJS canvas; injects GameClient
 ```
 
-**Hard rule:** `src/game/` has zero dependency on `src/ui/` or `src/render/`. Game logic is pure functions: `(state, action) => newState`. This is what makes logic unit-testable and save/load trivial.
+**Hard rule 1:** `src/game/` has zero dependency on `src/ui/` or `src/render/`. Game logic is pure functions: `(state, action) => newState`. This is what makes logic unit-testable and save/load trivial.
+
+**Hard rule 2:** UI components never import from `src/game/systems/` directly. All game actions go through the `GameClient` interface (`src/game/client/game-client.ts`). This keeps the seam clean for a future backend migration (see ADR-012).
+
+```typescript
+// WRONG — UI importing game logic directly
+import { resolveMarket } from '../game/systems/market-system';
+
+// CORRECT — UI dispatches through GameClient
+const newState = await gameClient.sendAction({ type: 'END_TURN' });
+```
+
+`GameAction` must always be a serialisable discriminated union — no functions or class instances, since actions must be transmittable to a remote server at v3.
 
 UI state (active screen, open dialog) lives in a separate store and is **never** written to save files.
 
@@ -86,6 +99,8 @@ npm run format     # Prettier --write
 ## What NOT to Do
 
 - Do not import `src/ui/` or `src/render/` from `src/game/`
+- Do not import `src/game/systems/` from UI components — use `GameClient` instead
+- Do not put non-serialisable values (functions, class instances) in `GameAction` objects
 - Do not mutate state in place — return new state objects
 - Do not use `any` types
 - Do not use `export default`

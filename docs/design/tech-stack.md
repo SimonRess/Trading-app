@@ -36,6 +36,7 @@ Trading-app/
 │   └── design/               ← System design docs (this folder)
 ├── src/
 │   ├── game/                 ← Pure game logic; zero imports from ui/ or render/
+│   │   ├── client/           ← GameClient interface + LocalGameClient (+ RemoteGameClient at v3)
 │   │   ├── state/            ← Domain stores: player, fleet, cities, market, calendar
 │   │   ├── systems/          ← Turn resolution, market simulation, combat, events
 │   │   └── data/             ← Static data: city definitions, goods, ship types
@@ -61,5 +62,6 @@ Enforced by: CLAUDE.md (AI sessions), ESLint import boundary rule (tooling).
 - ADR-002 — Language & Framework (TypeScript + Svelte + PixiJS)
 - ADR-003 — Rendering (PixiJS canvas + Svelte DOM overlay)
 - ADR-004 — Architecture & State (domain-sliced stores, pure functions)
+- ADR-012 — Game Client Abstraction (UI dispatches through GameClient, never imports systems/ directly)
 - ADR-005 — Art Style (pixel art + illustrated key scenes)
 - ADR-008 — Distribution (open source → itch.io → Steam)

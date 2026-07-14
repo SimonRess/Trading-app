@@ -296,6 +296,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 009 | Market price formula | **Open** | — |
 | 010 | Combat mechanic detail | **Open** | — |
 | 011 | Save file format & versioning | **Open** | — |
+| 012 | Game client abstraction | Accepted | decisions/adr-012-game-client-abstraction.md |
 
 ---
 
