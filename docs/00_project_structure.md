@@ -317,8 +317,6 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Political milestones | **Missing** | — |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
-| Save file schema | **Missing** | — |
-
 ---
 
 ## 5. Contribution Workflow
