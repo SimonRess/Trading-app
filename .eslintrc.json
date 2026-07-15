@@ -1,0 +1,51 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json",
+    "extraFileExtensions": [".svelte"]
+  },
+  "plugins": ["@typescript-eslint", "import"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/strict-type-checked"
+  ],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["*/ui/*", "*/render/*"],
+            "message": "src/game/ must not import from src/ui/ or src/render/."
+          }
+        ]
+      }
+    ],
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/consistent-type-imports": "error",
+    "import/no-default-export": "error"
+  },
+  "overrides": [
+    {
+      "files": ["src/ui/**/*.ts", "src/ui/**/*.svelte"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["*/game/systems/*"],
+                "message": "UI must not import game systems directly. Use GameClient instead."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "env": {
+    "browser": true,
+    "es2022": true
+  }
+}
