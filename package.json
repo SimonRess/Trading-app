@@ -15,9 +15,9 @@
     "format": "prettier --write src"
   },
   "dependencies": {
+    "howler": "^2.2.4",
     "pixi.js": "^8.0.0",
-    "svelte": "^4.0.0",
-    "howler": "^2.2.4"
+    "svelte": "^4.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
@@ -25,6 +25,7 @@
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.0.0",
     "eslint-plugin-import": "^2.29.0",
+    "playwright": "^1.61.1",
     "prettier": "^3.0.0",
     "prettier-plugin-svelte": "^3.0.0",
     "typescript": "^5.0.0",
