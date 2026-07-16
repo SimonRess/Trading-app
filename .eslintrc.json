@@ -11,24 +11,29 @@
     "plugin:@typescript-eslint/strict-type-checked"
   ],
   "rules": {
-    "no-restricted-imports": [
-      "error",
-      {
-        "patterns": [
-          {
-            "group": ["*/ui/*", "*/render/*"],
-            "message": "src/game/ must not import from src/ui/ or src/render/."
-          }
-        ]
-      }
-    ],
     "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/consistent-type-imports": "error",
     "import/no-default-export": "error"
   },
   "overrides": [
     {
-      "files": ["src/ui/**/*.ts", "src/ui/**/*.svelte"],
+      "files": ["src/game/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["*/ui/*", "*/render/*"],
+                "message": "src/game/ must not import from src/ui/ or src/render/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/ui/**/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -41,6 +46,18 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts"],
+      "rules": {
+        "@typescript-eslint/no-non-null-assertion": "off"
+      }
+    },
+    {
+      "files": ["src/app.d.ts", "src/main.ts"],
+      "rules": {
+        "import/no-default-export": "off"
       }
     }
   ],

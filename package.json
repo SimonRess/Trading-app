@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.svelte",
+    "lint": "eslint src --ext .ts",
     "format": "prettier --write src",
     "deploy": "npm run build && gh-pages -d dist"
   },

@@ -1,4 +1,4 @@
-import type { GameState, Season, GoodId, Ship } from '../state/types.ts';
+import type { GameState, Season, Ship } from '../state/types.ts';
 import type { FleetState, MarketState } from '../state/types.ts';
 import { isInTransit } from './fleet-system.ts';
 import { applyStormDamage, applyPirateRaid } from './fleet-system.ts';
@@ -67,11 +67,12 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
     const newSupply = Math.min(100, grain.supply + 30);
     market = { ...market, danzig: { ...danzig, grain: { ...grain, supply: newSupply } } };
     messages.push('A bumper harvest in the east — grain prices in Danzig collapsed.');
-  } else if (eventId === 'pirate_raid') {
+  } else {
     const result = applyPirateRaid(fleet);
     fleet = result.fleet;
-    if (result.raidedShipName) {
-      messages.push(`Pirates intercepted the ${result.raidedShipName}! Part of the cargo was seized.`);
+    const name = result.raidedShipName;
+    if (name !== null) {
+      messages.push(`Pirates intercepted the ${name}! Part of the cargo was seized.`);
     }
   }
 

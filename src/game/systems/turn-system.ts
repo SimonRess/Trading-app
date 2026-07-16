@@ -3,10 +3,9 @@ import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
 import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts';
-import { advanceShips, setDestination, isInPort, cargoSpace, cargoTotal } from './fleet-system.ts';
+import { advanceShips, setDestination, isInPort, cargoSpace } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
-import { shipNetWorth } from '../data/ships.ts';
-import { SHIP_TYPES } from '../data/ships.ts';
+import { shipNetWorth, SHIP_TYPES } from '../data/ships.ts';
 
 export function computeNetWorth(state: GameState): number {
   const shipValue = state.fleet.ships.reduce((sum, ship) => {
@@ -56,18 +55,16 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // Step 5: Trigger and apply random event
   const stateForEvent: GameState = { ...state, fleet, market, calendar };
   const eventId = selectEvent(stateForEvent);
-  let wreckedShipIds = new Set<string>();
+  let finalMarket = market;
 
   if (eventId) {
     const eventResult = applyEvent(eventId, stateForEvent);
     fleet = eventResult.fleet;
-    const newMarket = eventResult.market;
+    finalMarket = eventResult.market;
     events.push(...eventResult.messages);
-    wreckedShipIds = new Set(eventResult.wreckedShips.map(s => s.id));
-    Object.assign(market, newMarket);
   }
 
-  const newState: GameState = { ...state, player: state.player, fleet, market, calendar };
+  const newState: GameState = { ...state, fleet, market: finalMarket, calendar };
 
   // Step 6: Check win/lose
   const netWorth = computeNetWorth(newState);
@@ -123,9 +120,9 @@ export function executeSell(
   const totalRevenue = price * quantity;
 
   const newQty = currentQty - quantity;
-  const newCargo = { ...ship.cargo };
-  if (newQty === 0) delete newCargo[goodId];
-  else newCargo[goodId] = newQty;
+  const { [goodId]: _drop, ...rest } = ship.cargo;
+  void _drop;
+  const newCargo: typeof ship.cargo = newQty === 0 ? rest : { ...rest, [goodId]: newQty };
 
   const newShip = { ...ship, cargo: newCargo };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };

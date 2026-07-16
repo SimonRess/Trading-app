@@ -16,42 +16,43 @@ export class LocalGameClient implements GameClient {
     return this.state;
   }
 
-  async sendAction(action: GameAction): Promise<TurnResult | GameState> {
+  sendAction(action: GameAction): Promise<TurnResult | GameState> {
     switch (action.type) {
       case 'NEW_GAME':
         this.state = buildStartingState(action.playerName);
-        return this.state;
+        return Promise.resolve(this.state);
 
       case 'LOAD_SAVE':
         this.state = action.state;
-        return this.state;
+        return Promise.resolve(this.state);
 
       case 'SET_DESTINATION': {
         const ship = this.state.fleet.ships.find(s => s.id === action.shipId);
-        if (!ship) return this.state;
-        const updatedShip = setDestination(ship, action.destination);
-        this.state = {
-          ...this.state,
-          fleet: {
-            ships: this.state.fleet.ships.map(s => (s.id === action.shipId ? updatedShip : s)),
-          },
-        };
-        return this.state;
+        if (ship) {
+          const updatedShip = setDestination(ship, action.destination);
+          this.state = {
+            ...this.state,
+            fleet: {
+              ships: this.state.fleet.ships.map(s => (s.id === action.shipId ? updatedShip : s)),
+            },
+          };
+        }
+        return Promise.resolve(this.state);
       }
 
       case 'BUY_GOOD':
         this.state = executeBuy(this.state, action.shipId, action.cityId, action.goodId, action.quantity);
-        return this.state;
+        return Promise.resolve(this.state);
 
       case 'SELL_GOOD':
         this.state = executeSell(this.state, action.shipId, action.cityId, action.goodId, action.quantity);
-        return this.state;
+        return Promise.resolve(this.state);
 
       case 'END_TURN': {
         const result = resolveTurn(this.state, action.orders);
         this.state = result.state;
         saveToLocalStorage(this.state);
-        return result;
+        return Promise.resolve(result);
       }
     }
   }

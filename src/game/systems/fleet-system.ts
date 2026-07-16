@@ -67,7 +67,8 @@ export function applyPirateRaid(fleet: FleetState): { fleet: FleetState; raidedS
   const inTransit = fleet.ships.filter(isInTransit);
   if (inTransit.length === 0) return { fleet, raidedShipName: null, loot: {} };
 
-  const target = inTransit[Math.floor(Math.random() * inTransit.length)]!;
+  const target = inTransit[Math.floor(Math.random() * inTransit.length)];
+  if (!target) return { fleet, raidedShipName: null, loot: {} };
   const loot: Partial<Record<GoodId, number>> = {};
 
   const newCargo: Partial<Record<GoodId, number>> = {};
@@ -87,7 +88,7 @@ export function applyPirateRaid(fleet: FleetState): { fleet: FleetState; raidedS
 }
 
 export function cargoTotal(ship: Ship): number {
-  return Object.values(ship.cargo).reduce((sum, qty) => sum + (qty ?? 0), 0);
+  return Object.values(ship.cargo).reduce<number>((sum, qty) => sum + qty, 0);
 }
 
 export function cargoCapacity(ship: Ship): number {

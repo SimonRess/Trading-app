@@ -58,7 +58,7 @@ export function exportToFile(state: GameState): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `hanse_${state.player.name}_year${state.calendar.year}_turn${state.calendar.turn}.json`;
+  a.download = `hanse_${state.player.name}_year${String(state.calendar.year)}_turn${String(state.calendar.turn)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -74,7 +74,7 @@ export function importFromFile(file: File): Promise<GameState> {
         if (!state) throw new Error('Invalid save file');
         resolve(state);
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     };
     reader.readAsText(file);
@@ -85,7 +85,7 @@ function parseSaveFile(raw: string): GameState | null {
   try {
     const file = JSON.parse(raw) as SaveFile;
     if (file.meta.schemaVersion !== SCHEMA_VERSION) {
-      console.warn(`Save schema v${file.meta.schemaVersion} does not match app schema v${SCHEMA_VERSION}`);
+      console.warn(`Save schema v${String(file.meta.schemaVersion)} does not match app schema v${String(SCHEMA_VERSION)}`);
       return null;
     }
     return file.state;

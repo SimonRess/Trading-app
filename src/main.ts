@@ -5,9 +5,8 @@ import { loadFromLocalStorage } from './game/systems/save-system.ts';
 const savedState = loadFromLocalStorage();
 const gameClient = new LocalGameClient(savedState ?? undefined);
 
-const app = new App({
+// eslint-disable-next-line import/no-default-export
+new App({
   target: document.getElementById('app') as HTMLElement,
   props: { gameClient },
 });
-
-export default app;
