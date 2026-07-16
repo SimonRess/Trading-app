@@ -23,6 +23,7 @@
   let sellQty = 1;
   let busyTurn = false;
   let errorMsg = '';
+  let pendingDest: Record<string, CityId> = {};
 
   const GOOD_NAMES: Record<GoodId, string> = {
     salt: 'Salt', grain: 'Grain', timber: 'Timber', furs: 'Furs', herring: 'Herring',
@@ -39,6 +40,7 @@
     const name = playerName.trim() || 'Merchant';
     await gameClient.sendAction({ type: 'NEW_GAME', playerName: name });
     state = gameClient.getState();
+    pendingDest = {};
     selectedShipId = state.fleet.ships[0]?.id ?? '';
     const city = shipCity(state.fleet.ships.find(s => s.id === selectedShipId));
     if (city) selectedCityId = city;
@@ -82,23 +84,33 @@
     else errorMsg = 'Cannot sell.';
   }
 
-  async function setDest(destination: CityId) {
-    const ship = shipById(selectedShipId);
+  function orderDest(shipId: string, destination: CityId) {
+    const ship = shipById(shipId);
     if (!ship || !isInPort(ship)) return;
-    await gameClient.sendAction({ type: 'SET_DESTINATION', shipId: selectedShipId, destination });
-    state = gameClient.getState();
+    if (pendingDest[shipId] === destination) {
+      cancelOrder(shipId);
+      return;
+    }
+    pendingDest = { ...pendingDest, [shipId]: destination };
+  }
+
+  function cancelOrder(shipId: string) {
+    const { [shipId]: _drop, ...rest } = pendingDest;
+    void _drop;
+    pendingDest = rest;
   }
 
   async function endTurn() {
     if (busyTurn) return;
     busyTurn = true;
     errorMsg = '';
-    const result = await gameClient.sendAction({ type: 'END_TURN', orders: { destinations: {} } });
+    const result = await gameClient.sendAction({ type: 'END_TURN', orders: { destinations: pendingDest } });
     busyTurn = false;
     if (!('summary' in result)) return;
     const turnResult = result as TurnResult;
     state = turnResult.state;
     lastSummary = turnResult.summary;
+    pendingDest = {};
     selectedShipId = state.fleet.ships[0]?.id ?? selectedShipId;
     const city = shipCity(shipById(selectedShipId));
     if (city) selectedCityId = city;
@@ -175,6 +187,9 @@
           >
             <strong>{s.name}</strong>
             <span class="tag">{positionLabel(s)}</span>
+            {#if pendingDest[s.id]}
+              <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name}</span>
+            {/if}
             <span class="tag">Dur {s.durability}/100</span>
             <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
           </div>
@@ -244,9 +259,21 @@
             <h3>Set Destination</h3>
             <div class="dest-btns">
               {#each reachableCities(activeShip) as dest}
-                <button class="dest-btn" on:click={() => setDest(dest)}>{CITIES[dest].name}</button>
+                <button
+                  class="dest-btn"
+                  class:ordered={pendingDest[selectedShipId] === dest}
+                  on:click={() => orderDest(selectedShipId, dest)}
+                >{CITIES[dest].name}</button>
               {/each}
             </div>
+            {#if pendingDest[selectedShipId]}
+              <p class="order-note">
+                ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong> when you end the turn.
+                <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
+              </p>
+            {:else}
+              <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
+            {/if}
           </div>
 
         {:else if activeShip && isInTransit(activeShip)}
@@ -416,6 +443,7 @@
   .ship-card.selected { border-color: #c09040; background: #2a1e0c; }
   .ship-card strong { color: #d4a843; font-size: 0.95rem; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
+  .tag.order { color: #d4a843; }
 
   .city-select { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
   .city-btn {
@@ -461,6 +489,20 @@
   .dest-section { margin-top: 1rem; }
   .dest-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .dest-btn { font-size: 0.82rem; padding: 0.3rem 0.8rem; }
+  .dest-btn.ordered { background: #3a2810; border-color: #d4a843; color: #f0dca0; }
+
+  .order-note { margin-top: 0.7rem; font-size: 0.85rem; color: #c8a840; }
+  .order-note.muted { color: #7a6a50; font-style: italic; }
+  .order-note strong { color: #f0dca0; }
+  .link-btn {
+    background: none;
+    border: none;
+    color: #b08a50;
+    text-decoration: underline;
+    padding: 0 0.2rem;
+    font-size: 0.85rem;
+  }
+  .link-btn:hover { background: none; color: #d4a843; }
 
   footer {
     padding: 0.8rem 1.2rem;

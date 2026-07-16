@@ -6,6 +6,7 @@ import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts
 import { advanceShips, setDestination, isInPort, cargoSpace } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
 import { shipNetWorth, SHIP_TYPES } from '../data/ships.ts';
+import { GOODS } from '../data/goods.ts';
 
 export function computeNetWorth(state: GameState): number {
   const shipValue = state.fleet.ships.reduce((sum, ship) => {
@@ -14,12 +15,8 @@ export function computeNetWorth(state: GameState): number {
   }, 0);
 
   const cargoValue = state.fleet.ships.reduce((sum, ship) => {
-    const cityId: CityId = isInPort(ship)
-      ? ship.position
-      : (ship.position as { from: CityId; to: CityId; turnsRemaining: number }).from;
-    for (const [goodId, qty] of Object.entries(ship.cargo) as Array<[GoodId, number | undefined]>) {
-      if (!qty) continue;
-      sum += currentPrice(state.market[cityId][goodId]) * qty;
+    for (const [goodId, qty] of Object.entries(ship.cargo) as Array<[GoodId, number]>) {
+      sum += GOODS[goodId].basePrice * qty;
     }
     return sum;
   }, 0);

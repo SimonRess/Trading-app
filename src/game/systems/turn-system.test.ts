@@ -16,6 +16,18 @@ describe('computeNetWorth', () => {
     const worth = computeNetWorth(state);
     expect(worth).toBeGreaterThan(900); // 500 cash + 400 ship + cargo
   });
+
+  it('does not drift when holding cargo across turns without trading', () => {
+    let state = buildStartingState('TestPlayer');
+    state = executeBuy(state, state.fleet.ships[0]!.id, 'lubeck', 'furs', 10);
+    const baseline = computeNetWorth(state);
+    for (let t = 0; t < 6; t++) {
+      state = resolveTurn(state, { destinations: {} }).state;
+    }
+    // Cargo is valued at a stable base price, so with no trades and no storm
+    // damage, net worth must not change.
+    expect(computeNetWorth(state)).toBe(baseline);
+  });
 });
 
 describe('executeBuy', () => {
