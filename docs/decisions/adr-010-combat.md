@@ -1,7 +1,7 @@
 # ADR-010: Combat Mechanic
 
 **Date:** 2026-07-14  
-**Status:** Proposed  
+**Status:** Accepted  
 **Deciders:** Simon
 
 ## Context
@@ -14,9 +14,7 @@ The key design question is the degree of player interaction: from fully automati
 
 ## Decision
 
-> **Status: Proposed — awaiting Simon's approval before this becomes Accepted.**
-
-Proposed: **Semi-tactical combat with a pre-battle preparation phase and automatic resolution.**
+**Semi-tactical combat with a pre-battle preparation phase and automatic resolution.**
 
 The player does not control combat turn-by-turn. Instead, before a voyage the player assigns **cannon slots** on their ship and chooses a **combat posture** (aggressive / defensive / flee). When combat is triggered, the outcome is resolved automatically from those pre-set choices plus ship stats and a random element.
 

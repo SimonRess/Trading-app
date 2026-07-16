@@ -75,9 +75,9 @@ The minimum to make the world feel unpredictable.
 
 | Event | Effect |
 |-------|--------|
-| Storm | One ship in transit takes 5 durability damage |
-| Bumper harvest | Grain price in Danzig drops by 30% this turn |
-| Pirate raid | One random ship loses 10% of its cargo |
+| Storm | All ships in transit take 10 durability damage |
+| Bumper harvest | Grain supply in Danzig +30 (price collapses toward floor) |
+| Pirate raid | One random ship loses 15% of its cargo proportionally |
 
 ### Win / Lose Conditions
 - **Win:** Accumulate 10,000 Mark within 40 turns (10 years)

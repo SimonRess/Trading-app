@@ -294,7 +294,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 007 | Multiplayer scope | Accepted | decisions/adr-007-multiplayer.md |
 | 008 | Distribution & monetisation | Accepted | decisions/adr-008-distribution.md |
 | 009 | Market price formula | Accepted | decisions/adr-009-market-price-formula.md |
-| 010 | Combat mechanic detail | Proposed | decisions/adr-010-combat.md |
+| 010 | Combat mechanic detail | Accepted | decisions/adr-010-combat.md |
 | 011 | Save file format & versioning | Accepted | decisions/adr-011-save-file-format.md |
 | 012 | Game client abstraction | Accepted | decisions/adr-012-game-client-abstraction.md |
 | 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
