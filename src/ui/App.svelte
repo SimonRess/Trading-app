@@ -134,8 +134,8 @@
     return [...connected];
   }
 
-  $: activeShip = shipById(selectedShipId);
-  $: portCity = shipCity(activeShip);
+  $: activeShip = state.fleet.ships.find((s) => s.id === selectedShipId);
+  $: portCity = activeShip && isInPort(activeShip) ? (activeShip.position as CityId) : undefined;
   $: netWorth = computeNetWorth(state);
   $: cityMarket = state.market[selectedCityId];
 </script>
