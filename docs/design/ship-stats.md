@@ -63,6 +63,8 @@ ship_value = purchase_price × (durability / 100)
 
 A fully intact Kogge is worth 400 Mark. A critical Kogge (25 durability) is worth 100 Mark.
 
+Ship value is one of the three components of total net worth (cash + ship value + cargo value). Cargo is valued at each good's fixed base price. See **ADR-014** and `mvp-scope.md` for the full net-worth definition.
+
 ---
 
 ## v2 Combat Additions

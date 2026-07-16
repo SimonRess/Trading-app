@@ -298,6 +298,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 011 | Save file format & versioning | Accepted | decisions/adr-011-save-file-format.md |
 | 012 | Game client abstraction | Accepted | decisions/adr-012-game-client-abstraction.md |
 | 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
+| 014 | Net-worth valuation | Accepted | decisions/adr-014-net-worth-valuation.md |
 
 ---
 
@@ -306,14 +307,15 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | System | Status | File |
 |--------|--------|------|
 | Technology stack reference | Accepted | design/tech-stack.md |
-| Game mechanics (overview) | Draft | design/game-mechanics.md |
+| Game mechanics (overview) | Draft | 10_game_mechanics.md |
 | City graph & routes | Draft | design/city-graph.md |
 | Market formula | Draft | design/market-formula.md |
 | Starting scenario | Draft | design/starting-scenario.md |
 | Save file schema | Draft | design/save-file-schema.md |
-| Turn resolution order | Draft | design/turn-resolution-order.md |
+| Turn resolution order | Draft (implemented, see status table) | design/turn-resolution-order.md |
 | Event probability table | Draft | design/event-table.md |
 | Ship stats & costs | Draft | design/ship-stats.md |
+| Deployment | Draft | design/deployment.md |
 | Political milestones | **Missing** | — |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
@@ -326,3 +328,18 @@ A living index of decisions and their status. Update this table whenever an ADR 
 3. **Reversing a decision?** → Write a new superseding ADR; do not edit the old one.
 4. **Code change?** → CLAUDE.md constraints apply. Run `npm test` and `npm run typecheck` before committing.
 5. **Session handoff?** → Ensure open questions are captured in the relevant design doc's "Open Questions" section, not just in chat history.
+
+### Keeping docs in line with the app (required)
+
+The planning files must always describe the app as it actually is. Whenever a change alters behaviour, data, or infrastructure, update the docs **in the same change** as the code — never leave it for later. Concretely:
+
+| What changed | Update |
+|--------------|--------|
+| Any behaviour/data/infra change | Add a `CHANGELOG.md` entry (Added / Changed / Fixed / Removed) |
+| A design decision with real trade-offs | Write or supersede an **ADR**, and link it from the changelog entry |
+| How a system works | Update the matching `docs/design/*.md` (and its "Implementation Status" note if the code diverges from the ideal spec) |
+| A new decision or design doc | Add a row to the trackers in §3 / §4 above |
+
+If code and a doc disagree, that is a bug in the docs — fix the doc (or, if the code is wrong, fix the code and note it). The `/check-conventions` command reviews a diff against this guide.
+
+**`CHANGELOG.md`** (repo root) is the running, human-readable record of *what* changed; ADRs and design docs hold the *why* and *how*. Every meaningful change touches the changelog.

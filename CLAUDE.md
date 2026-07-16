@@ -83,6 +83,19 @@ Save file = `JSON.stringify(gameState)`. Schema version field required — see `
 
 ---
 
+## Keep Docs in Sync With the Code
+
+The planning files must always match the running app. Any change that alters behaviour, data, or infrastructure updates the docs **in the same change** as the code — not afterwards:
+
+- **Always** add a `CHANGELOG.md` entry (Added / Changed / Fixed / Removed).
+- **Design decision with real trade-offs** → write or supersede an **ADR** in `docs/decisions/` and add it to the tracker in `docs/00_project_structure.md`.
+- **Change to how a system works** → update the matching `docs/design/*.md`. If the code diverges from the ideal spec, record it in that doc's "Implementation Status" note rather than silently leaving the spec wrong.
+- If code and a doc disagree, treat it as a doc bug and fix the doc.
+
+Full rules: `docs/00_project_structure.md` §5.
+
+---
+
 ## Key Commands
 
 ```bash
@@ -108,3 +121,4 @@ npm run format     # Prettier --write
 - Do not create new docs or design files without following the templates in `docs/00_project_structure.md`
 - Do not push to `main` directly — always use a feature branch
 - Do not add features beyond the current task scope
+- Do not change behaviour, data, or infra without updating `CHANGELOG.md` and the relevant ADR/design doc in the same change

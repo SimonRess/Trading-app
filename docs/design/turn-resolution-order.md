@@ -33,6 +33,8 @@ When the player clicks "End Turn", the following steps execute in order. All ste
 ### 1. Validate player orders
 Check that all ship orders are legal (destination is reachable, cargo fits capacity). Reject illegal orders with an error shown to the player before resolution begins. Resolution does not start until all orders are valid.
 
+*Implementation note:* Destination orders are chosen in port as **pending orders** — the ship stays docked and the player can change or cancel the order until they end the turn. `resolveTurn` applies the pending `orders.destinations` at this step (via `setDestination`), so the ship departs during resolution, not the moment the destination is clicked.
+
 ### 2. Advance calendar
 `season → next season`, incrementing year when Winter rolls to Spring. Increment `turn` counter.
 
@@ -113,6 +115,24 @@ function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult {
 ```
 
 Each step function is independently unit-testable. `resolveTurn` is the single entry point called by `LocalGameClient.sendAction({ type: 'END_TURN', orders })`.
+
+---
+
+## Implementation Status (as of 2026-07-16)
+
+The idealised 10-step sequence above is the target. The current `src/game/systems/turn-system.ts` implements a condensed version that preserves the **balance-critical ordering** (destinations → move → market → event → check) but differs in a few ways worth recording so the doc matches the code:
+
+| Spec step | Actual behaviour |
+|-----------|------------------|
+| 1 Validate orders | Legality is enforced when the order is *placed* (`setDestination` returns the ship unchanged for an unreachable/occupied destination; buy/sell are validated in `executeBuy`/`executeSell`). There is no separate throwing `validateOrders` pass. |
+| 3 + 4 Move fleet / arrivals | Combined in `advanceShips`, which decrements `turnsRemaining` and detects arrivals in one pass. |
+| 4 Storm on arrival | **Not yet implemented as a per-route roll.** The per-route/season storm-risk table in `city-graph.md` is not consumed yet; storms currently come only from the random **event** (step 7/8), which damages all in-transit ships by 10 durability. Per-leg storm rolls are a follow-up. |
+| 6 Apply player trades | **Trades are applied live, not at resolution.** The player buys/sells during their turn via `BUY_GOOD`/`SELL_GOOD` actions that update state (cash + local supply) immediately. The one-turn price-lag idea in step 6 is therefore not in effect — a trade moves the local price the same turn. |
+| 7 + 8 Event / effects | Combined: `selectEvent` picks (or returns `null`), `applyEvent` applies the effect and produces player-facing messages. |
+| 9 Check win/lose | `computeNetWorth` (cash + ship value + cargo-at-base-price, see **ADR-014**) compared against the thresholds. |
+| 10 Emit summary | `TurnResult.summary` carries the event/arrival messages and the `outcome`. |
+
+When any of these are brought in line with the spec (e.g. per-route storm rolls), update this table and remove the corresponding row.
 
 ---
 

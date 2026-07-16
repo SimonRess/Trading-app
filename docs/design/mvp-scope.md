@@ -80,9 +80,15 @@ The minimum to make the world feel unpredictable.
 | Pirate raid | One random ship loses 15% of its cargo proportionally |
 
 ### Win / Lose Conditions
-- **Win:** Accumulate 10,000 Mark within 40 turns (10 years)
-- **Lose:** Net worth (cash + ship value) drops to zero, or 40 turns elapse without reaching the win threshold
+- **Win:** Net worth ≥ 10,000 Mark within 40 turns (10 years)
+- **Lose:** Net worth drops to zero, or 40 turns elapse without reaching the win threshold
 - No generational play, no Mayor track — those are post-MVP
+
+**Net worth** = cash + ship value + cargo value, where:
+- ship value = `purchase_price × durability / 100` (see `ship-stats.md`)
+- cargo value = `base_price × quantity`, valued at each good's fixed base price (**not** the fluctuating local market price)
+
+Valuing cargo at base price keeps net worth stable while goods are merely held — it moves only on realised trades, ship damage, or cargo loss. See **ADR-014** for the reasoning and the alternatives rejected.
 
 ### Starting State
 - Player name: entered at new game screen
@@ -121,8 +127,9 @@ The minimum to make the world feel unpredictable.
 | Full random event table (8 events) | v1.1 |
 | NPC portrait dialogs | v1.1 |
 | Audio / music | v1.1 |
-| Save / load | v1.1 |
 | Hotseat multiplayer | v3 |
+
+> **Note:** Basic save/load was originally scoped for v1.1 but is already implemented — `localStorage` auto-save on every turn plus JSON export/import (`save-system.ts`, ADR-011, `save-file-schema.md`). A save/load *UI* (named slots, load menu) remains post-MVP.
 
 ---
 
