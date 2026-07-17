@@ -30,6 +30,7 @@ Dates are `YYYY-MM-DD`.
   - New `GameAction`s `BUY_SHIP` and `REPAIR_SHIP`; new pure functions `executeBuyShip`/`executeRepairShip` in `turn-system.ts`; `SHIPYARD_CITIES`, `MAX_SHIPS`, `repairCost`, `nextShipName` added to `src/game/data/ships.ts`.
   - Resolves two open questions in `ship-stats.md`: repair/purchase is restricted to the three shipyard cities (not all five), and the MVP uses a manual shipyard UI rather than auto-charging on port visit.
   - Also documents an existing gap: durability-threshold effects (storm-chance modifiers, travel-time penalty, "cannot depart if critical") are still **not enforced** — see `ship-stats.md` Implementation Status.
+- **Destination travel-time preview** — each destination button in the port view now shows the trip length (e.g. "Danzig (2t)"), and the pending-order note states it too ("depart for Danzig (2 turns)..."). Previously the travel time was only visible after committing to a voyage (on the ship card, post-departure).
 
 ### Changed
 - **Net-worth valuation** — held cargo is now valued at each good's fixed base price instead of the fluctuating local market price. Removes the per-turn "paper" drift while idle and closes a hoard-to-win exploit. See **ADR-014**. `mvp-scope.md` and `ship-stats.md` updated to match.
@@ -40,6 +41,7 @@ Dates are `YYYY-MM-DD`.
 ### Fixed
 - **Svelte reactivity in the port UI** — buy/sell, the trade panel during travel, and setting a new destination after arrival did nothing on screen. Root cause: the reactive statement `$: activeShip = shipById(selectedShipId)` only tracked `selectedShipId`; Svelte cannot see `state` reads inside a called function, so with a single ship (whose id never changes) the derived ship/port never recomputed. Fixed by referencing `state.fleet.ships` directly in the reactive statement.
 - **CI lint** — resolved 32 ESLint errors (import boundaries, `no-default-export`, `require-await`, non-null assertions in tests, template-literal number coercion, dynamic delete) so the deploy pipeline is green.
+- **Travel time silently doubled** — `fleet-system.ts`'s `setDestination` computed `turnsRemaining` as `route.turns × SHIP_TYPES[type].turnsPerLeg`, but `route.turns` (per `city-graph.md`) already *is* the full travel time "assuming a Kogge at standard speed" — the multiplication double-counted the Kogge's speed on every voyage (e.g. Malmö→Riga took 6 turns in-game instead of the documented 3). This was reported as "no storms in 40 turns while sailing Malmö↔Riga": the underlying storm probability was verified correct by simulation (~3.9 storms expected per 40-turn game, 0/200 zero-storm trials), but the doubled travel time roughly halved the number of voyages actually completed, sharply cutting the number of storm rolls a player would see. Fixed by using `route.turns` directly; see `city-graph.md` Implementation Status.
 
 ---
 

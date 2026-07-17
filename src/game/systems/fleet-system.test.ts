@@ -44,7 +44,9 @@ describe('setDestination', () => {
     const result = setDestination(ship, 'danzig');
     expect(isInTransit(result)).toBe(true);
     if (isInTransit(result)) {
-      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(4); // 2 legs × 2 turns/leg
+      // route.turns is already the full travel time (city-graph.md: "assumes
+      // a Kogge at standard speed") — must equal the route table value as-is.
+      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(2);
     }
   });
 
