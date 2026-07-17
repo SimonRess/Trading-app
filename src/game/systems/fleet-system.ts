@@ -17,12 +17,13 @@ export function setDestination(ship: Ship, destination: CityId): Ship {
   const route = findRoute(ship.position, destination);
   if (!route) return ship;
 
-  const def = SHIP_TYPES[ship.type];
-  const turns = route.turns * def.turnsPerLeg;
-
+  // route.turns is already the full travel time "assuming a Kogge at
+  // standard speed" (see city-graph.md) — it must not be multiplied by
+  // turnsPerLeg again, or every voyage silently takes twice as long as
+  // documented.
   return {
     ...ship,
-    position: { from: ship.position, to: destination, turnsRemaining: turns },
+    position: { from: ship.position, to: destination, turnsRemaining: route.turns },
   };
 }
 

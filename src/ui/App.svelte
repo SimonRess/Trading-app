@@ -162,6 +162,12 @@
     return [...connected];
   }
 
+  function travelTurns(from: CityId | undefined, to: CityId | undefined): number | undefined {
+    if (!from || !to) return undefined;
+    const route = ROUTES.find(r => (r.from === from && r.to === to) || (r.from === to && r.to === from));
+    return route?.turns;
+  }
+
   $: activeShip = state.fleet.ships.find((s) => s.id === selectedShipId);
   $: portCity = activeShip && isInPort(activeShip) ? (activeShip.position as CityId) : undefined;
   $: netWorth = computeNetWorth(state);
@@ -281,12 +287,14 @@
                   class="dest-btn"
                   class:ordered={pendingDest[selectedShipId] === dest}
                   on:click={() => orderDest(selectedShipId, dest)}
-                >{CITIES[dest].name}</button>
+                >{CITIES[dest].name} <span class="dest-turns">({travelTurns(portCity, dest)}t)</span></button>
               {/each}
             </div>
             {#if pendingDest[selectedShipId]}
               <p class="order-note">
-                ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong> when you end the turn.
+                ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong>
+                ({travelTurns(portCity, pendingDest[selectedShipId])} turn{travelTurns(portCity, pendingDest[selectedShipId]) === 1 ? '' : 's'})
+                when you end the turn.
                 <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
               </p>
             {:else}
@@ -538,6 +546,8 @@
   .dest-section { margin-top: 1rem; }
   .dest-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .dest-btn { font-size: 0.82rem; padding: 0.3rem 0.8rem; }
+  .dest-turns { font-size: 0.72rem; color: #9a8060; }
+  .dest-btn.ordered .dest-turns { color: #d4c090; }
   .dest-btn.ordered { background: #3a2810; border-color: #d4a843; color: #f0dca0; }
 
   .order-note { margin-top: 0.7rem; font-size: 0.85rem; color: #c8a840; }

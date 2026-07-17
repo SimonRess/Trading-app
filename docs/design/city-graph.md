@@ -113,6 +113,11 @@ Static data lives in `src/game/data/cities.ts` and `src/game/data/routes.ts`.
 
 ---
 
+## Implementation Status (as of 2026-07-17)
+
+- ✅ `route.turns` is used as-is for travel time. **Fixed bug:** the first implementation multiplied `route.turns` by `SHIP_TYPES[type].turnsPerLeg` in `fleet-system.ts`'s `setDestination`, silently doubling every voyage (e.g. Malmö→Riga took 6 turns in-game instead of the documented 3). Since `route.turns` already "assumes a Kogge at standard speed" (per this doc), that multiplication double-counted the Kogge's speed. Fixed by using `route.turns` directly; `turnsPerLeg` remains defined on `ShipTypeDefinition` for when a second ship type (Hulk/Schnigge) is added, but is not applied to the MVP's Kogge-only routes.
+- ❌ The per-route/season **storm-risk table above is not yet consumed** by the game. Storm damage currently comes only from the random event roll in `event-table.md` (flat probability, not route/season-weighted). See `turn-resolution-order.md` Implementation Status for detail.
+
 ## Open Questions
 
 - Should Malmö–Danzig be a direct route (saves the Lübeck detour)? Would add a ~3-turn cross-Baltic option but reduces Lübeck's hub dominance.
