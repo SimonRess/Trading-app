@@ -316,6 +316,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Event probability table | Draft | design/event-table.md |
 | Ship stats & costs | Draft | design/ship-stats.md |
 | Deployment | Draft | design/deployment.md |
+| Map view | Draft | design/map-view.md |
 | Political milestones | **Missing** | — |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |

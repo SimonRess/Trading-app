@@ -16,6 +16,7 @@ Dates are `YYYY-MM-DD`.
 ## [Unreleased]
 
 ### Added
+- **Map view** — the first real use of the PixiJS game-world layer (ADR-003). A new "🗺️ Map" / "⚓ Port" nav toggle in the port-screen header switches between the existing Port view and a new spatial map: the 5 cities at their documented positions (`cities.ts`), route lines between them (`routes.ts`), and ship markers — in port (fanned out if several ships share a city) or interpolated along their route line while in transit, based on `turnsRemaining / route.turns`. The active route a ship is sailing is highlighted; the selected city gets a ring; the selected ship gets a label and a brighter color. Clicking a city or a ship marker selects it and switches back to the Port view, mirroring the existing city-select buttons and ship cards. Placeholder `Graphics`-primitive art (no pixel-art assets exist yet, per ADR-005). New `src/render/map-scene.ts` (plain PixiJS class, no Svelte/game-system dependency) and `src/ui/MapView.svelte` (thin wrapper). Scales/centers to fit its container via `ResizeObserver`, so it also adapts to the foldable Fleet panel, not just window resizes. Documented in `docs/design/map-view.md`.
 - **MVP game systems** — first playable implementation of the core loop:
   - `src/game/data/ships.ts` (Kogge stats, `shipNetWorth`)
   - `src/game/systems/fleet-system.ts` (movement, arrivals, storm damage, pirate raid, cargo helpers)
