@@ -6,6 +6,8 @@ export type GameAction =
   | { type: 'BUY_GOOD'; shipId: string; cityId: CityId; goodId: GoodId; quantity: number }
   | { type: 'SELL_GOOD'; shipId: string; cityId: CityId; goodId: GoodId; quantity: number }
   | { type: 'SET_DESTINATION'; shipId: string; destination: CityId }
+  | { type: 'BUY_SHIP'; cityId: CityId }
+  | { type: 'REPAIR_SHIP'; shipId: string }
   | { type: 'LOAD_SAVE'; state: GameState };
 
 export interface PlayerOrders {

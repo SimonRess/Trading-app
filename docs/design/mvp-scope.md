@@ -115,7 +115,6 @@ Valuing cargo at base price keeps net worth stable while goods are merely held â
 | Stores & agents in cities | v1.1 |
 | Bulk-purchase price pressure | v1.1 |
 | Crew management | v1.1 |
-| Ship repair / shipyard | v1.1 |
 | Banking & loans | v1.1 |
 | Insurance | v1.1 |
 | City reputation system | v1.1 |
@@ -130,6 +129,8 @@ Valuing cargo at base price keeps net worth stable while goods are merely held â
 | Hotseat multiplayer | v3 |
 
 > **Note:** Basic save/load was originally scoped for v1.1 but is already implemented â€” `localStorage` auto-save on every turn plus JSON export/import (`save-system.ts`, ADR-011, `save-file-schema.md`). A save/load *UI* (named slots, load menu) remains post-MVP.
+>
+> **Note:** Ship repair and buying additional ships were listed here as v1.1 but are already implemented â€” repair-to-full and buying a Kogge, both restricted to shipyard cities (LÃ¼beck, Danzig, Hamburg) and the max-3-ships cap. See `ship-stats.md`.
 
 ---
 

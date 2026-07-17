@@ -1,11 +1,11 @@
-import type { GameState, GoodId, CityId } from '../state/types.ts';
+import type { GameState, GoodId, CityId, ShipType } from '../state/types.ts';
 import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
 import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts';
 import { advanceShips, setDestination, isInPort, cargoSpace } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
-import { shipNetWorth, SHIP_TYPES } from '../data/ships.ts';
+import { shipNetWorth, SHIP_TYPES, MAX_SHIPS, isShipyardCity, repairCost, nextShipName } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
 
 export function computeNetWorth(state: GameState): number {
@@ -127,4 +127,42 @@ export function executeSell(
   const newPlayer = { ...state.player, cash: state.player.cash + totalRevenue };
 
   return { ...state, player: newPlayer, fleet: newFleet, market: newMarket };
+}
+
+export function executeBuyShip(state: GameState, cityId: CityId): GameState {
+  if (!isShipyardCity(cityId)) return state;
+  if (state.fleet.ships.length >= MAX_SHIPS) return state;
+
+  const type: ShipType = 'kogge';
+  const price = SHIP_TYPES[type].purchasePrice;
+  if (state.player.cash < price) return state;
+
+  const newShip = {
+    id: `ship-${String(state.fleet.ships.length + 1)}-${String(Date.now())}`,
+    name: nextShipName(state.fleet.ships.length),
+    type,
+    durability: 100,
+    position: cityId,
+    cargo: {},
+  };
+
+  const newFleet = { ships: [...state.fleet.ships, newShip] };
+  const newPlayer = { ...state.player, cash: state.player.cash - price };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+export function executeRepairShip(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship) || !isShipyardCity(ship.position)) return state;
+  if (ship.durability >= 100) return state;
+
+  const cost = repairCost(ship);
+  if (state.player.cash < cost) return state;
+
+  const newShip = { ...ship, durability: 100 };
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newPlayer = { ...state.player, cash: state.player.cash - cost };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
 }

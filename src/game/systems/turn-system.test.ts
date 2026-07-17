@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { buildStartingState } from '../data/starting-config.ts';
-import { resolveTurn, computeNetWorth, executeBuy, executeSell } from './turn-system.ts';
+import {
+  resolveTurn,
+  computeNetWorth,
+  executeBuy,
+  executeSell,
+  executeBuyShip,
+  executeRepairShip,
+} from './turn-system.ts';
 
 describe('computeNetWorth', () => {
   it('includes cash + ship value + cargo value', () => {
@@ -73,6 +80,86 @@ describe('executeSell', () => {
     const state = buildStartingState('TestPlayer');
     const ship = state.fleet.ships[0]!;
     const next = executeSell(state, ship.id, 'lubeck', 'salt', 999);
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeBuyShip', () => {
+  it('deducts cash and adds a new ship in port', () => {
+    const state = buildStartingState('TestPlayer');
+    const before = state.player.cash;
+    const next = executeBuyShip(state, 'lubeck');
+    expect(next.fleet.ships).toHaveLength(2);
+    expect(next.player.cash).toBe(before - 400);
+    const newShip = next.fleet.ships[1]!;
+    expect(newShip.position).toBe('lubeck');
+    expect(newShip.durability).toBe(100);
+  });
+
+  it('rejects buying at a non-shipyard city', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeBuyShip(state, 'riga');
+    expect(next).toBe(state);
+  });
+
+  it('rejects buying if insufficient cash', () => {
+    const state = buildStartingState('TestPlayer');
+    const poorState = { ...state, player: { ...state.player, cash: 0 } };
+    const next = executeBuyShip(poorState, 'lubeck');
+    expect(next).toBe(poorState);
+  });
+
+  it('rejects buying beyond the fleet cap', () => {
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
+    state = executeBuyShip(state, 'lubeck');
+    state = executeBuyShip(state, 'lubeck');
+    expect(state.fleet.ships).toHaveLength(3);
+    const next = executeBuyShip(state, 'lubeck');
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeRepairShip', () => {
+  it('restores durability to 100 and deducts cost', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 60 } : s)) },
+    };
+    const before = state.player.cash;
+    const next = executeRepairShip(state, shipId);
+    expect(next.fleet.ships[0]!.durability).toBe(100);
+    expect(next.player.cash).toBe(before - 80); // 40 points * 2 Mark
+  });
+
+  it('rejects repair when already at full durability', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeRepairShip(state, state.fleet.ships[0]!.id);
+    expect(next).toBe(state);
+  });
+
+  it('rejects repair outside a shipyard city', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50, position: 'riga' as const } : s)) },
+    };
+    const next = executeRepairShip(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects repair if insufficient cash', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      player: { ...state.player, cash: 0 },
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
+    };
+    const next = executeRepairShip(state, shipId);
     expect(next).toBe(state);
   });
 });
