@@ -1,7 +1,7 @@
 # Design: Event Probability Table
 
 **Status:** Draft  
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-17
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Define every random event in the MVP: when it can fire, how likely it is, and ex
 | **Eligibility** | At least one player ship is currently in transit |
 | **Weight** | Spring: 2 · Summer: 1 · Autumn: 3 · Winter: 5 |
 | **Effect** | Each ship currently in transit takes **10 durability damage** |
-| **Player message** | "A violent storm swept the Baltic. Your ships at sea took damage." |
+| **Player message** | "⛈️ A violent storm swept the Baltic. Your ships at sea took 10 durability damage." (or, if a ship is wrecked: "⛈️ A violent storm swept the Baltic. [ship name(s)] sank with all cargo.") |
 
 Notes:
 - If multiple ships are in transit, all are hit
@@ -50,7 +50,7 @@ Notes:
 | **Eligibility** | Always (no target required) |
 | **Weight** | Summer: 2 · Autumn: 3 |
 | **Effect** | Grain supply in Danzig: `+30` (clamped to 100) |
-| **Player message** | "A bumper harvest in the east — grain prices in Danzig collapsed." |
+| **Player message** | "🌾 A bumper harvest in the east — grain prices in Danzig collapsed." |
 
 Notes:
 - Supply spike lasts only this turn's market update; subsequent turns return to normal production/consumption drift
@@ -68,12 +68,27 @@ Notes:
 | **Eligibility** | At least one player ship is currently in transit |
 | **Weight** | Spring: 2 · Summer: 3 · Autumn: 2 · Winter: 1 |
 | **Effect** | One random ship in transit loses **15% of its total cargo** (rounded down, per good proportionally) |
-| **Player message** | "Pirates intercepted the [ship name]! Part of the cargo was seized." |
+| **Player message** | "🏴‍☠️ Pirates intercepted the [ship name]! Part of the cargo was seized." |
 
 Notes:
 - Target ship is chosen randomly if multiple ships are in transit
 - Cargo loss is proportional across all goods in the hold (e.g. 20 last salt + 10 last grain → lose 3 salt + 1 grain)
 - In MVP the player cannot fight back (combat is v2); pirate raid is always a partial loss
+
+---
+
+## Message Icons
+
+Every player-facing message (event messages here, plus the ship-arrival message emitted by `turn-system.ts`) starts with an icon identifying what happened, so a player scanning the turn summary can tell events apart at a glance:
+
+| Message | Icon |
+|---------|------|
+| Ship arrival (not an event — emitted every turn a ship arrives) | ⚓ |
+| Storm | ⛈️ |
+| Bumper harvest | 🌾 |
+| Pirate raid | 🏴‍☠️ |
+
+The icon is baked into the message string itself (not added by the UI), so it survives regardless of which surface renders `TurnSummary.events`.
 
 ---
 
@@ -153,4 +168,4 @@ Not implemented in MVP. Listed for reference so they do not surprise the archite
 - docs/design/turn-resolution-order.md (step 7: trigger event; step 8: apply effects)
 - docs/design/ship-stats.md (storm deals 10 durability damage; pirate raid removes cargo)
 - docs/design/mvp-scope.md (3 events in MVP)
-- `src/game/systems/event-system.ts` (implementation target — does not exist yet)
+- `src/game/systems/event-system.ts` (implemented — `selectEvent`, `applyEvent`)
