@@ -7,7 +7,7 @@
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
   import { ROUTES } from '../game/data/routes.ts';
-  import { SHIP_TYPES } from '../game/data/ships.ts';
+  import { SHIP_TYPES, isShipyardCity, repairCost, MAX_SHIPS } from '../game/data/ships.ts';
 
   export let gameClient: GameClient;
 
@@ -84,6 +84,22 @@
     else errorMsg = 'Cannot sell.';
   }
 
+  async function buyShip() {
+    errorMsg = '';
+    if (!portCity) return;
+    const result = await gameClient.sendAction({ type: 'BUY_SHIP', cityId: portCity });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot buy ship.';
+  }
+
+  async function repairShip() {
+    errorMsg = '';
+    if (!activeShip) return;
+    const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId: activeShip.id });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot repair ship.';
+  }
+
   function orderDest(shipId: string, destination: CityId) {
     const ship = shipById(shipId);
     if (!ship || !isInPort(ship)) return;
@@ -150,6 +166,8 @@
   $: portCity = activeShip && isInPort(activeShip) ? (activeShip.position as CityId) : undefined;
   $: netWorth = computeNetWorth(state);
   $: cityMarket = state.market[selectedCityId];
+  $: atShipyard = portCity !== undefined && isShipyardCity(portCity);
+  $: shipRepairCost = activeShip ? repairCost(activeShip) : 0;
 </script>
 
 {#if screen === 'new-game'}
@@ -175,7 +193,7 @@
 
     <div class="layout">
       <section class="panel fleet-panel">
-        <h2>Fleet</h2>
+        <h2>Fleet ({state.fleet.ships.length}/{MAX_SHIPS})</h2>
         {#each state.fleet.ships as s (s.id)}
           <div
             class="ship-card"
@@ -275,6 +293,37 @@
               <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
             {/if}
           </div>
+
+          {#if atShipyard}
+            <div class="shipyard-section">
+              <h3>Shipyard</h3>
+              <div class="shipyard-row">
+                <span class="shipyard-info">
+                  {#if activeShip.durability >= 100}
+                    {activeShip.name} is fully seaworthy.
+                  {:else}
+                    Repair {activeShip.name} to full ({activeShip.durability}/100) for {shipRepairCost} Mark.
+                  {/if}
+                </span>
+                <button
+                  class="shipyard-btn"
+                  on:click={repairShip}
+                  disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
+                >Repair</button>
+              </div>
+              <div class="shipyard-row">
+                <span class="shipyard-info">Buy a new Kogge for {SHIP_TYPES.kogge.purchasePrice} Mark.</span>
+                <button
+                  class="shipyard-btn"
+                  on:click={buyShip}
+                  disabled={state.fleet.ships.length >= MAX_SHIPS || state.player.cash < SHIP_TYPES.kogge.purchasePrice}
+                >Buy Ship</button>
+              </div>
+              {#if state.fleet.ships.length >= MAX_SHIPS}
+                <p class="order-note muted">Fleet is at the maximum of {MAX_SHIPS} ships.</p>
+              {/if}
+            </div>
+          {/if}
 
         {:else if activeShip && isInTransit(activeShip)}
           <h2>{activeShip.name} is at sea</h2>
@@ -503,6 +552,30 @@
     font-size: 0.85rem;
   }
   .link-btn:hover { background: none; color: #d4a843; }
+
+  .shipyard-section {
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #3a2e18;
+  }
+  .shipyard-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+  }
+  .shipyard-info { color: #b0a090; }
+  .shipyard-btn {
+    padding: 0.3rem 0.9rem;
+    font-size: 0.82rem;
+    background: #2a2810;
+    border-color: #8a7830;
+    color: #e0d090;
+    flex-shrink: 0;
+  }
+  .shipyard-btn:hover:not(:disabled) { background: #3a3810; }
 
   footer {
     padding: 0.8rem 1.2rem;

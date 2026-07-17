@@ -1,7 +1,7 @@
 import type { GameClient, GameAction } from './game-client.ts';
 import type { GameState, TurnResult } from '../state/types.ts';
 import { buildStartingState } from '../data/starting-config.ts';
-import { resolveTurn, executeBuy, executeSell } from '../systems/turn-system.ts';
+import { resolveTurn, executeBuy, executeSell, executeBuyShip, executeRepairShip } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage } from '../systems/save-system.ts';
 
@@ -46,6 +46,14 @@ export class LocalGameClient implements GameClient {
 
       case 'SELL_GOOD':
         this.state = executeSell(this.state, action.shipId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'BUY_SHIP':
+        this.state = executeBuyShip(this.state, action.cityId);
+        return Promise.resolve(this.state);
+
+      case 'REPAIR_SHIP':
+        this.state = executeRepairShip(this.state, action.shipId);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {

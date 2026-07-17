@@ -24,6 +24,12 @@ Dates are `YYYY-MM-DD`.
   - Playable UI in `src/ui/App.svelte` (new-game → port → turn summary → game over)
 - **GitHub Pages deployment** — `.github/workflows/deploy.yml`, `npm run deploy`, and `base` path in `vite.config.ts`. Implements ADR-008. Documented in `docs/design/deployment.md`.
 - **Pending sail orders** — choosing a destination in port now sets a *pending* order (changeable/cancellable) that departs only when the turn is ended, instead of departing immediately. UI shows the order on the ship card and in the destination panel.
+- **Ship buying & repair (shipyard)** — a "Shipyard" section now appears in the port view whenever the selected ship is docked at Lübeck, Danzig, or Hamburg:
+  - **Buy Ship** — 400 Mark for a new Kogge, capped at `MAX_SHIPS` (3) regardless of cash.
+  - **Repair** — restores the selected ship to full durability for `(100 - durability) × 2` Mark; disabled at full durability or insufficient cash.
+  - New `GameAction`s `BUY_SHIP` and `REPAIR_SHIP`; new pure functions `executeBuyShip`/`executeRepairShip` in `turn-system.ts`; `SHIPYARD_CITIES`, `MAX_SHIPS`, `repairCost`, `nextShipName` added to `src/game/data/ships.ts`.
+  - Resolves two open questions in `ship-stats.md`: repair/purchase is restricted to the three shipyard cities (not all five), and the MVP uses a manual shipyard UI rather than auto-charging on port visit.
+  - Also documents an existing gap: durability-threshold effects (storm-chance modifiers, travel-time penalty, "cannot depart if critical") are still **not enforced** — see `ship-stats.md` Implementation Status.
 
 ### Changed
 - **Net-worth valuation** — held cargo is now valued at each good's fixed base price instead of the fluctuating local market price. Removes the per-turn "paper" drift while idle and closes a hoard-to-win exploit. See **ADR-014**. `mvp-scope.md` and `ship-stats.md` updated to match.

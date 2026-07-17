@@ -116,20 +116,33 @@ export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
     repairCostPerPoint: 2,
   },
 };
+
+export const SHIPYARD_CITIES: CityId[] = ['lubeck', 'danzig', 'hamburg'];
+export const MAX_SHIPS = 3;
 ```
 
 ---
 
-## Open Questions
+## Shipyard: Buying & Repairing (implemented)
 
-- Is 10 durability damage per storm the right amount? At that rate a ship on the Riga route in Winter can lose 75 durability in 3 turns — near-critical after one winter run. May need playtesting.
-- Should repair be available at all 5 cities, or only at designated shipyard cities (Lübeck, Danzig, Hamburg)?
-- Should the MVP include a shipyard UI at all, or just auto-repair at the start of each port visit (charging automatically)?
+Both actions are only available while a ship is **in port at a shipyard city** (`SHIPYARD_CITIES`), shown as a "Shipyard" section in the port view.
+
+- **Buy ship** — costs `purchasePrice` (400 Mark for a Kogge), spawns a new ship at full durability and empty cargo in the current port. Blocked once the fleet reaches `MAX_SHIPS` (3), regardless of cash.
+- **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark. There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs.
+
+This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
+
+## Implementation Status (as of 2026-07-17)
+
+- ✅ Buy ship, repair ship, shipyard-city restriction, `MAX_SHIPS` cap — implemented (`src/game/data/ships.ts`, `executeBuyShip`/`executeRepairShip` in `turn-system.ts`)
+- ❌ **Durability-threshold effects are not implemented.** The table above (Worn/Damaged/Critical rows: storm-chance modifiers, travel-time penalty, "cannot depart if critical") is not yet enforced anywhere in code — a ship at 1 durability can currently still be sent on a new voyage. This remains a gap between spec and implementation.
+- ❌ Per-route/season storm risk (`city-graph.md`) is not consumed; storm damage currently only comes from the random event roll (see `turn-resolution-order.md` Implementation Status table).
+- ❌ Wrecked-ship "full repair for 200 Mark" language does not apply in practice — a wrecked ship (0 durability) is removed from the fleet entirely (`fleet-system.ts` `applyStormDamage`), so there is nothing left to repair. Buying a replacement ship is the only recovery path.
 
 ## Related
 
 - ADR-010 (Combat — cannon capacity interacts with cargo; crew field needed before v2)
-- docs/design/city-graph.md (storm risk per route; damage applied per transit turn)
-- docs/design/mvp-scope.md (Kogge-only for MVP; max 3 ships)
+- docs/design/city-graph.md (storm risk per route; damage applied per transit turn — not yet wired in)
+- docs/design/mvp-scope.md (Kogge-only for MVP; max 3 ships; repair/buy now implemented)
 - docs/design/turn-resolution-order.md (step 4: storm damage resolved on arrival)
-- `src/game/data/ships.ts` (implementation target — does not exist yet)
+- `src/game/data/ships.ts`, `src/game/systems/turn-system.ts` (`executeBuyShip`, `executeRepairShip`)
