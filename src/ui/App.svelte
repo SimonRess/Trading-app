@@ -7,7 +7,8 @@
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
   import { ROUTES } from '../game/data/routes.ts';
-  import { SHIP_TYPES, isShipyardCity, repairCost, MAX_SHIPS } from '../game/data/ships.ts';
+  import { SHIP_TYPES, isShipyardCity, repairCost, MAX_SHIPS, SHIPYARD_CITIES } from '../game/data/ships.ts';
+  import { GOOD_ICONS } from './icons.ts';
 
   export let gameClient: GameClient;
 
@@ -24,6 +25,7 @@
   let busyTurn = false;
   let errorMsg = '';
   let pendingDest: Record<string, CityId> = {};
+  let fleetCollapsed = false;
 
   const GOOD_NAMES: Record<GoodId, string> = {
     salt: 'Salt', grain: 'Grain', timber: 'Timber', furs: 'Furs', herring: 'Herring',
@@ -198,26 +200,37 @@
     </header>
 
     <div class="layout">
-      <section class="panel fleet-panel">
-        <h2>Fleet ({state.fleet.ships.length}/{MAX_SHIPS})</h2>
-        {#each state.fleet.ships as s (s.id)}
-          <div
-            class="ship-card"
-            class:selected={s.id === selectedShipId}
-            on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
-            role="button"
-            tabindex="0"
-            on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
-          >
-            <strong>{s.name}</strong>
-            <span class="tag">{positionLabel(s)}</span>
-            {#if pendingDest[s.id]}
-              <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({travelTurns(shipCity(s), pendingDest[s.id])}t)</span>
-            {/if}
-            <span class="tag">Dur {s.durability}/100</span>
-            <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
-          </div>
-        {/each}
+      <section class="panel fleet-panel" class:collapsed={fleetCollapsed}>
+        <div class="fleet-header">
+          {#if !fleetCollapsed}
+            <h2>Fleet ({state.fleet.ships.length}/{MAX_SHIPS})</h2>
+          {/if}
+          <button
+            class="fold-btn"
+            on:click={() => { fleetCollapsed = !fleetCollapsed; }}
+            aria-label={fleetCollapsed ? 'Expand fleet panel' : 'Collapse fleet panel'}
+          >{fleetCollapsed ? '▶' : '◀'}</button>
+        </div>
+        {#if !fleetCollapsed}
+          {#each state.fleet.ships as s (s.id)}
+            <div
+              class="ship-card"
+              class:selected={s.id === selectedShipId}
+              on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
+              role="button"
+              tabindex="0"
+              on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
+            >
+              <strong>{s.name}</strong>
+              <span class="tag">{positionLabel(s)}</span>
+              {#if pendingDest[s.id]}
+                <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({travelTurns(shipCity(s), pendingDest[s.id])}t)</span>
+              {/if}
+              <span class="tag">Dur {s.durability}/100</span>
+              <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
+            </div>
+          {/each}
+        {/if}
       </section>
 
       <section class="panel trade-panel">
@@ -247,7 +260,7 @@
             <tbody>
               {#each GOOD_IDS as goodId}
                 <tr>
-                  <td>{GOOD_NAMES[goodId]}</td>
+                  <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
                   <td>{activeShip.cargo[goodId] ?? 0}</td>
@@ -331,6 +344,13 @@
                 <p class="order-note muted">Fleet is at the maximum of {MAX_SHIPS} ships.</p>
               {/if}
             </div>
+          {:else}
+            <div class="shipyard-section">
+              <p class="order-note muted">
+                {CITIES[portCity].name} has no shipyard. Repairs and new ships are available in
+                {SHIPYARD_CITIES.map(c => CITIES[c].name).join(', ')}.
+              </p>
+            </div>
           {/if}
 
         {:else if activeShip && isInTransit(activeShip)}
@@ -349,7 +369,7 @@
             <tbody>
               {#each GOOD_IDS as goodId}
                 <tr>
-                  <td>{GOOD_NAMES[goodId]}</td>
+                  <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
                 </tr>
@@ -482,7 +502,30 @@
     flex-shrink: 0;
     border-right: 1px solid #3a2e18;
     background: #141008;
+    transition: width 0.18s ease;
   }
+  .fleet-panel.collapsed {
+    width: 40px;
+    padding: 1rem 0.4rem;
+    overflow: hidden;
+  }
+
+  .fleet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .fleet-header h2 { margin-bottom: 0; }
+  .fold-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: #201810;
+    border-color: #4a3a20;
+    color: #c0a880;
+    flex-shrink: 0;
+  }
+  .fleet-panel.collapsed .fold-btn { margin: 0 auto; }
 
   .trade-panel { flex: 1; background: #1a1610; }
 
@@ -608,8 +651,7 @@
   .error { color: #e06060; font-size: 0.85rem; margin-top: 0.5rem; }
 
   .events { text-align: left; max-width: 480px; }
-  .events li { padding: 0.3rem 0; border-bottom: 1px solid #2a2018; list-style: none; }
-  .events li::before { content: '▸ '; color: #c09040; }
+  .events li { padding: 0.4rem 0; border-bottom: 1px solid #2a2018; list-style: none; }
 
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }

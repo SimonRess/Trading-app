@@ -57,22 +57,22 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
     wreckedShips = result.wrecked;
     if (wreckedShips.length > 0) {
       const names = wreckedShips.map(s => s.name).join(', ');
-      messages.push(`A violent storm swept the Baltic. ${names} sank with all cargo.`);
+      messages.push(`⛈️ A violent storm swept the Baltic. ${names} sank with all cargo.`);
     } else {
-      messages.push('A violent storm swept the Baltic. Your ships at sea took 10 durability damage.');
+      messages.push('⛈️ A violent storm swept the Baltic. Your ships at sea took 10 durability damage.');
     }
   } else if (eventId === 'bumper_harvest') {
     const danzig = market['danzig'];
     const grain = danzig['grain'];
     const newSupply = Math.min(100, grain.supply + 30);
     market = { ...market, danzig: { ...danzig, grain: { ...grain, supply: newSupply } } };
-    messages.push('A bumper harvest in the east — grain prices in Danzig collapsed.');
+    messages.push('🌾 A bumper harvest in the east — grain prices in Danzig collapsed.');
   } else {
     const result = applyPirateRaid(fleet);
     fleet = result.fleet;
     const name = result.raidedShipName;
     if (name !== null) {
-      messages.push(`Pirates intercepted the ${name}! Part of the cargo was seized.`);
+      messages.push(`🏴‍☠️ Pirates intercepted the ${name}! Part of the cargo was seized.`);
     }
   }
 

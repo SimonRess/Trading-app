@@ -43,7 +43,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   const { fleet: movedFleet, arrivals } = advanceShips(fleet);
   fleet = movedFleet;
   for (const { ship, city } of arrivals) {
-    events.push(`${ship.name} arrived in ${city}.`);
+    events.push(`⚓ ${ship.name} arrived in ${city}.`);
   }
 
   // Step 4: Update market (natural economy — before player trades)
