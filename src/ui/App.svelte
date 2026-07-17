@@ -9,10 +9,11 @@
   import { ROUTES } from '../game/data/routes.ts';
   import { SHIP_TYPES, isShipyardCity, repairCost, MAX_SHIPS, SHIPYARD_CITIES } from '../game/data/ships.ts';
   import { GOOD_ICONS } from './icons.ts';
+  import MapView from './MapView.svelte';
 
   export let gameClient: GameClient;
 
-  type Screen = 'new-game' | 'port' | 'turn-summary' | 'game-over';
+  type Screen = 'new-game' | 'map' | 'port' | 'turn-summary' | 'game-over';
 
   let screen: Screen = 'new-game';
   let playerName = '';
@@ -118,6 +119,18 @@
     pendingDest = rest;
   }
 
+  function selectCityFromMap(event: CustomEvent<CityId>) {
+    selectedCityId = event.detail;
+    screen = 'port';
+  }
+
+  function selectShipFromMap(event: CustomEvent<string>) {
+    selectedShipId = event.detail;
+    const city = shipCity(shipById(selectedShipId));
+    if (city) selectedCityId = city;
+    screen = 'port';
+  }
+
   async function endTurn() {
     if (busyTurn) return;
     busyTurn = true;
@@ -191,14 +204,29 @@
     </form>
   </main>
 
-{:else if screen === 'port'}
+{:else if screen === 'port' || screen === 'map'}
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
       <span class="hdr-info">{SEASON_LABEL[state.calendar.season]} {state.calendar.year} · Turn {state.calendar.turn}/{state.calendar.maxTurns}</span>
+      <div class="nav-toggle">
+        <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
+        <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
+      </div>
       <span class="hdr-cash">{state.player.cash} Mark · Net {netWorth} Mark</span>
     </header>
 
+    {#if screen === 'map'}
+      <div class="map-wrap">
+        <MapView
+          {state}
+          {selectedShipId}
+          {selectedCityId}
+          on:selectCity={selectCityFromMap}
+          on:selectShip={selectShipFromMap}
+        />
+      </div>
+    {:else}
     <div class="layout">
       <section class="panel fleet-panel" class:collapsed={fleetCollapsed}>
         <div class="fleet-header">
@@ -385,6 +413,7 @@
         {/if}
       </section>
     </div>
+    {/if}
 
     <footer>
       <button class="end-turn-btn" on:click={endTurn} disabled={busyTurn}>
@@ -493,7 +522,19 @@
   .hdr-info { font-size: 0.85rem; color: #9a8060; }
   .hdr-cash { margin-left: auto; font-size: 0.9rem; color: #c8a840; }
 
+  .nav-toggle { display: flex; gap: 0.3rem; }
+  .nav-btn {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    background: #201810;
+    border-color: #4a3a20;
+    color: #c0a880;
+  }
+  .nav-btn.active { background: #3a2810; border-color: #c09040; color: #f0dca0; }
+
   .layout { display: flex; flex: 1; overflow: hidden; }
+
+  .map-wrap { flex: 1; overflow: hidden; background: #0d1b2a; }
 
   .panel { padding: 1rem 1.2rem; overflow-y: auto; }
 
