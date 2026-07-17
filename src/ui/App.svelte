@@ -212,7 +212,7 @@
             <strong>{s.name}</strong>
             <span class="tag">{positionLabel(s)}</span>
             {#if pendingDest[s.id]}
-              <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name}</span>
+              <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({travelTurns(shipCity(s), pendingDest[s.id])}t)</span>
             {/if}
             <span class="tag">Dur {s.durability}/100</span>
             <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
