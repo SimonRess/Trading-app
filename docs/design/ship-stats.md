@@ -146,7 +146,7 @@ export const MAX_SHIPS = 3;
 
 Both actions are only available while a ship is **in port at a shipyard city** (`SHIPYARD_CITIES`), shown as a "Shipyard" section in the port view.
 
-- **Buy ship** — the Shipyard section shows a card per ship type (capacity, price, one-line description) with its own Buy button, each independently disabled if the fleet is at `MAX_SHIPS` (3, shared across all types) or the player can't afford that specific type. Spawns a new ship of the chosen type at full durability and empty cargo in the current port.
+- **Buy ship** — the Shipyard section shows a card per ship type (capacity, price, speed relative to the Kogge — "standard speed" / "1.5x slower" / "2x faster", derived from `speedRatio()` — and a one-line description) with its own Buy button, each independently disabled if the fleet is at `MAX_SHIPS` (3, shared across all types) or the player can't afford that specific type. Spawns a new ship of the chosen type at full durability and empty cargo in the current port.
 - **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark (same rate for every type). There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs.
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
