@@ -77,14 +77,20 @@ const CITY_PIXEL_PATTERN = [
   '.#####.',
 ];
 
+// Sail (rows 0-3) and hull (rows 6-8) are separated by two single-pixel
+// mast rows (4-5) instead of the sail's base flowing straight into the
+// hull's top edge — otherwise the two widen into each other and read as
+// one shape instead of a mast-and-sail atop a hull.
 const SHIP_PIXEL_PATTERN = [
   '....#....',
   '...###...',
   '..#####..',
+  '.#######.',
+  '....#....',
+  '....#....',
   '..#####..',
   '.#######.',
   '#########',
-  '.#######.',
 ];
 
 function drawPixelSprite(pattern: string[], pixelSize: number, color: number): Graphics {
@@ -198,6 +204,13 @@ export class MapScene {
     this.drawStaticRoutes();
     this.drawCities();
     this.drawLegend();
+    // Fallback position using the same fallback dimensions as app.init above,
+    // in case the container is 0×0 at mount (it will be, if MapView is
+    // mounted while its parent is display:none — see MapView.svelte /
+    // map-view.md "Persistent mount") and handleResize's zero-size guard
+    // skips positioning it. Corrected for real once handleResize actually
+    // runs with real dimensions.
+    this.hudLayer.position.set(12, (container.clientHeight || 300) - 54);
 
     this.attachInputHandlers();
 
@@ -206,6 +219,16 @@ export class MapScene {
     });
     this.resizeObserver.observe(container);
     this.handleResize(container);
+  }
+
+  // Called by MapView.svelte whenever the map's container transitions from
+  // hidden to visible. ResizeObserver *should* catch a display:none -> block
+  // transition on its own, but that behaviour has known cross-browser
+  // inconsistencies — this is a deliberate, redundant catch-all so the
+  // layout (in particular the legend's position, which the zero-size guard
+  // in handleResize would otherwise leave un-set) is never left stale.
+  refreshLayout(): void {
+    if (this.container) this.handleResize(this.container);
   }
 
   private attachInputHandlers(): void {
@@ -499,7 +522,7 @@ export class MapScene {
 
   private drawShipMarker(ship: Ship, x: number, y: number, selection: MapSelection): void {
     const selected = ship.id === selection.selectedShipId;
-    const marker = drawPixelSprite(SHIP_PIXEL_PATTERN, 1.9, selected ? SHIP_SELECTED_COLOR : SHIP_COLOR);
+    const marker = drawPixelSprite(SHIP_PIXEL_PATTERN, 1.5, selected ? SHIP_SELECTED_COLOR : SHIP_COLOR);
     marker.position.set(x, y);
     marker.eventMode = 'static';
     marker.cursor = 'pointer';

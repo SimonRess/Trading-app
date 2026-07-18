@@ -6,6 +6,7 @@
   export let state: GameState;
   export let selectedShipId: string;
   export let selectedCityId: CityId | undefined;
+  export let visible = true;
 
   const dispatch = createEventDispatcher<{ selectCity: CityId; selectShip: string }>();
 
@@ -30,6 +31,13 @@
 
   $: if (ready && scene) {
     scene.update(state, { selectedShipId, selectedCityId });
+  }
+
+  // See map-scene.ts's refreshLayout() — a deliberate, redundant catch-all
+  // for the display:none -> visible transition (ResizeObserver *should*
+  // catch this on its own, but that's not consistent across browsers).
+  $: if (ready && scene && visible) {
+    scene.refreshLayout();
   }
 </script>
 

@@ -52,6 +52,16 @@
   const CITY_IDS = Object.keys(CITIES) as CityId[];
   const SHIP_TYPE_IDS = Object.keys(SHIP_TYPES) as ShipType[];
 
+  // Friendly label for the shipyard cards — speedRatio() itself is a raw
+  // multiplier relative to the Kogge (1.5 for Hulk, 0.5 for Schnigge);
+  // phrase it the way a player thinks about it ("slower"/"faster").
+  function speedLabel(type: ShipType): string {
+    const ratio = speedRatio(type);
+    if (ratio === 1) return 'standard speed';
+    if (ratio > 1) return `${ratio}x slower`;
+    return `${Math.round((1 / ratio) * 10) / 10}x faster`;
+  }
+
   async function startGame() {
     const name = playerName.trim() || 'Merchant';
     await gameClient.sendAction({ type: 'NEW_GAME', playerName: name });
@@ -303,6 +313,7 @@
         {state}
         {selectedShipId}
         {selectedCityId}
+        visible={screen === 'map'}
         on:selectCity={selectCityFromMap}
         on:selectShip={selectShipFromMap}
       />
@@ -456,7 +467,7 @@
                   {@const def = SHIP_TYPES[typeId]}
                   <div class="ship-buy-card">
                     <strong>{def.name}</strong>
-                    <span class="ship-buy-stats">{def.cargoCapacity} last · {def.purchasePrice} Mark</span>
+                    <span class="ship-buy-stats">{def.cargoCapacity} last · {def.purchasePrice} Mark · {speedLabel(typeId)}</span>
                     <span class="ship-buy-desc">{def.description}</span>
                     <button
                       class="shipyard-btn"
