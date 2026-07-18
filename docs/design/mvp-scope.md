@@ -47,8 +47,8 @@ One per city as the primary export; all cities buy all goods at varying prices.
 | Furs | Riga |
 | Herring | Malmö |
 
-### Ships — 1 type
-**Kogge only.** 50 last cargo capacity, slow speed. The player starts with one and can buy more. Multiple ship types are post-MVP.
+### Ships — 3 types
+**Kogge, Hulk, Schnigge.** The player starts with a Kogge and can buy any type at a shipyard. Originally scoped as Kogge-only with Hulk/Schnigge as v1.1 — implemented ahead of schedule (see the note below), same pattern as save/load and repair/buy.
 
 ### Fleet
 - Player starts with 1 Kogge
@@ -111,7 +111,6 @@ Valuing cargo at base price keeps net worth stable while goods are merely held �
 
 | Feature | Target version |
 |---------|---------------|
-| Multiple ship types (Hulk, Schnigge) | v1.1 |
 | Stores & agents in cities | v1.1 |
 | Bulk-purchase price pressure | v1.1 |
 | Crew management | v1.1 |
@@ -128,9 +127,9 @@ Valuing cargo at base price keeps net worth stable while goods are merely held �
 | Audio / music | v1.1 |
 | Hotseat multiplayer | v3 |
 
-> **Note:** Basic save/load was originally scoped for v1.1 but is already implemented — `localStorage` auto-save on every turn plus JSON export/import (`save-system.ts`, ADR-011, `save-file-schema.md`). A save/load *UI* (named slots, load menu) remains post-MVP.
+> **Note:** Basic save/load was originally scoped for v1.1 but is already implemented — `localStorage` auto-save on every turn plus JSON export/import (`save-system.ts`, ADR-011, `save-file-schema.md`), with an in-game "💾 Save" menu (export/import buttons) on the port screen and an import option on the new-game screen. A dedicated load screen with named slots (rather than a single auto-save + file import) remains post-MVP.
 >
-> **Note:** Ship repair and buying additional ships were listed here as v1.1 but are already implemented — repair-to-full and buying a Kogge, both restricted to shipyard cities (Lübeck, Danzig, Hamburg) and the max-3-ships cap. See `ship-stats.md`.
+> **Note:** Ship repair and buying additional ships were listed here as v1.1 but are already implemented — repair-to-full and buying any of the three ship types, both restricted to shipyard cities (Lübeck, Danzig, Hamburg) and the max-3-ships cap. See `ship-stats.md`.
 
 ---
 

@@ -6,6 +6,8 @@ import {
   canDepart,
   shipNetWorth,
   repairCost,
+  speedRatio,
+  SHIP_TYPES,
 } from './ships.ts';
 
 describe('durabilityStatus', () => {
@@ -70,5 +72,27 @@ describe('repairCost', () => {
   it('is proportional to missing durability', () => {
     expect(repairCost({ type: 'kogge', durability: 100 })).toBe(0);
     expect(repairCost({ type: 'kogge', durability: 60 })).toBe(80);
+  });
+});
+
+describe('speedRatio', () => {
+  it('is exactly 1.0 for the Kogge (route.turns is Kogge-calibrated)', () => {
+    expect(speedRatio('kogge')).toBe(1);
+  });
+  it('is 1.5 for the Hulk (slower)', () => {
+    expect(speedRatio('hulk')).toBe(1.5);
+  });
+  it('is 0.5 for the Schnigge (faster)', () => {
+    expect(speedRatio('schnigge')).toBe(0.5);
+  });
+});
+
+describe('SHIP_TYPES', () => {
+  it('defines all three MVP ship types with distinct capacity/price', () => {
+    expect(SHIP_TYPES.kogge.cargoCapacity).toBe(50);
+    expect(SHIP_TYPES.hulk.cargoCapacity).toBe(100);
+    expect(SHIP_TYPES.schnigge.cargoCapacity).toBe(20);
+    expect(SHIP_TYPES.hulk.purchasePrice).toBeGreaterThan(SHIP_TYPES.kogge.purchasePrice);
+    expect(SHIP_TYPES.schnigge.purchasePrice).toBeLessThan(SHIP_TYPES.kogge.purchasePrice);
   });
 });

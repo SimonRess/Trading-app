@@ -2,21 +2,53 @@ import type { CityId, ShipType } from '../state/types.ts';
 
 export interface ShipTypeDefinition {
   type: ShipType;
+  name: string;
   cargoCapacity: number;
   turnsPerLeg: number;
   purchasePrice: number;
   repairCostPerPoint: number;
+  description: string;
 }
 
+// turnsPerLeg values are calibrated so the Kogge's ratio to itself is 1.0 —
+// route.turns (routes.ts) already IS the Kogge-standard travel time (see
+// city-graph.md / the ADR fixing the earlier "doubled travel time" bug).
+// Other ship types scale route.turns by their turnsPerLeg relative to the
+// Kogge's, via speedRatio() below — never by multiplying route.turns
+// directly by their own turnsPerLeg in isolation.
 export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
   kogge: {
     type: 'kogge',
+    name: 'Kogge',
     cargoCapacity: 50,
     turnsPerLeg: 2,
     purchasePrice: 400,
     repairCostPerPoint: 2,
+    description: 'The Hanseatic workhorse. Reliable and affordable.',
+  },
+  hulk: {
+    type: 'hulk',
+    name: 'Hulk',
+    cargoCapacity: 100,
+    turnsPerLeg: 3,
+    purchasePrice: 800,
+    repairCostPerPoint: 2,
+    description: 'Large hauler. Twice the hold of a Kogge, but slower.',
+  },
+  schnigge: {
+    type: 'schnigge',
+    name: 'Schnigge',
+    cargoCapacity: 20,
+    turnsPerLeg: 1,
+    purchasePrice: 250,
+    repairCostPerPoint: 2,
+    description: 'Fast courier. Half the travel time of a Kogge, small hold.',
   },
 };
+
+export function speedRatio(type: ShipType): number {
+  return SHIP_TYPES[type].turnsPerLeg / SHIP_TYPES.kogge.turnsPerLeg;
+}
 
 export const SHIPYARD_CITIES: CityId[] = ['lubeck', 'danzig', 'hamburg'];
 
@@ -68,5 +100,5 @@ export function canDepart(durability: number): boolean {
 const NEW_SHIP_NAMES = ['Möwe von Lübeck', 'Greif von Danzig', 'Falke von Hamburg', 'Adler der Ostsee'];
 
 export function nextShipName(existingCount: number): string {
-  return NEW_SHIP_NAMES[existingCount % NEW_SHIP_NAMES.length] ?? `Kogge ${String(existingCount + 1)}`;
+  return NEW_SHIP_NAMES[existingCount % NEW_SHIP_NAMES.length] ?? `Ship ${String(existingCount + 1)}`;
 }

@@ -84,6 +84,24 @@ describe('setDestination', () => {
     }
   });
 
+  it('a Hulk takes 1.5x as long as a Kogge on the same route', () => {
+    const ship = koggeInPort({ type: 'hulk' });
+    const result = setDestination(ship, 'danzig'); // Lubeck-Danzig is 2 turns for a Kogge
+    expect(isInTransit(result)).toBe(true);
+    if (isInTransit(result)) {
+      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(3); // round(2 * 1.5)
+    }
+  });
+
+  it('a Schnigge takes half as long as a Kogge on the same route', () => {
+    const ship = koggeInPort({ type: 'schnigge' });
+    const result = setDestination(ship, 'danzig');
+    expect(isInTransit(result)).toBe(true);
+    if (isInTransit(result)) {
+      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(1); // round(2 * 0.5)
+    }
+  });
+
   it('does not add a travel penalty for a worn ship (51-75 durability)', () => {
     const ship = koggeInPort({ durability: 60 });
     const result = setDestination(ship, 'danzig');

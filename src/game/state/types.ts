@@ -4,7 +4,7 @@ export type CityId = 'lubeck' | 'hamburg' | 'danzig' | 'riga' | 'malmo';
 
 export type GoodId = 'salt' | 'grain' | 'timber' | 'furs' | 'herring';
 
-export type ShipType = 'kogge';
+export type ShipType = 'kogge' | 'hulk' | 'schnigge';
 
 export type PoliticalRank = 0 | 1 | 2 | 3; // citizen, guild, council, mayor
 

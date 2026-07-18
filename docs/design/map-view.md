@@ -1,7 +1,7 @@
 # Design: Map View
 
 **Status:** Draft
-**Last updated:** 2026-07-17
+**Last updated:** 2026-07-18
 
 ## Purpose
 
@@ -43,16 +43,26 @@ export class MapScene {
 
 `MapView.svelte` creates a `MapScene` in `onMount`, calls `.update(...)` in a reactive statement whenever `state`/selection props change, and calls `.destroy()` in `onDestroy`. This mirrors the existing pattern of `App.svelte` re-fetching `state` from `GameClient` after every action and passing it down as a prop — no new state-management approach introduced.
 
-## Visual Design (placeholder art)
+### Persistent mount (fixed a real perf issue)
 
-ADR-005 commits the project to pixel art long-term, but no asset pipeline or artist exists yet. The MVP map uses **PixiJS `Graphics` primitives** (circles, lines, polygons) rather than sprites:
+`App.svelte` originally used `{#if screen === 'map'}<MapView .../>{/if}`, which Svelte tears down and recreates on every truthiness change — so toggling Map/Port destroyed and recreated the entire `MapScene` (a new PixiJS `Application`, WebGL context, shader compilation, font texture generation) on *every single switch*, not just the first. This was reported as "opening the map takes a while the first time, faster afterwards" — the "faster afterwards" was the browser's GPU driver caching compiled shaders across the repeated context creations, not the app actually reusing anything.
+
+Fixed by keeping `<MapView>` permanently mounted inside the port screen and toggling only its container's CSS visibility (`class:hidden`, `display: none`) based on `screen`. `MapScene.update()` still runs on every state change regardless of visibility, so the map is current the instant it's shown. `ResizeObserver` already handles the `0×0 → real size` transition correctly (the existing zero-size guard in `handleResize` no-ops while hidden). This scope is intentionally narrow — switching *away* from the port/map screen entirely (e.g. to the turn-summary screen) still unmounts and remounts on return, since that toggle is far less frequent than Map/Port switching within a turn.
+
+## Visual Design (procedural pixel art)
+
+ADR-005 commits the project to pixel art long-term, but no asset pipeline or artist exists yet. Rather than block on that, cities and ships are drawn as **procedural pixel-grid sprites**: `drawPixelSprite(pattern, pixelSize, color)` takes a small ASCII grid (`'#'` = filled, `'.'` = empty) and renders one PixiJS `Graphics.rect()` per filled cell. A city is a 7×8 castle/tower silhouette (`CITY_PIXEL_PATTERN`); a ship is a 9×7 sailboat silhouette (`SHIP_PIXEL_PATTERN`). Because `Graphics` fills are vector (always crisp rectangle edges regardless of zoom), this reads as genuine blocky pixel art without needing a texture atlas or sprite-sheet pipeline — confirmed by zooming to 3.5× in a live check, the icons stay crisp rather than blurring.
+
+This is still explicitly placeholder art relative to ADR-005's long-term direction (a real pixel artist producing an actual sprite sheet) — but it is categorically closer to "pixel art" than the earlier smooth vector circles/triangles were, and needs no further rework when a real sprite sheet arrives: swapping `drawPixelSprite(...)` for `new Sprite(texture)` only touches `drawCities()`/`drawShipMarker()`, not the positioning, interpolation, or interaction code around them.
 
 - **Sea background:** solid dark blue fill (`0x0d1b2a`), matching the existing UI's dark palette
-- **Routes:** straight lines between connected cities (per `ROUTES`); a route with a player ship currently on it is drawn brighter/thicker
-- **Cities:** a filled circle per city at its documented `position` (`cities.ts`), with a permanent text label (name) beneath it — labels are always visible (only 5 cities; avoids relying on hover, which doesn't exist on touch/mobile). The selected city (`selectedCityId`) gets a highlighted ring
-- **Ships:** a small triangle marker. In port, ships fan out slightly above their city's dot so multiple ships at one city don't fully overlap. In transit, the marker is linearly interpolated along its route line based on `turnsRemaining / route.turns`. The selected ship (`selectedShipId`) is drawn in a brighter color
+- **Routes:** straight lines between connected cities (per `ROUTES`), tinted by current combined storm+pirate danger (see "Route Danger Colouring" below); a route with a player ship currently on it overrides to gold and thicker
+- **Cities:** a pixel-art castle icon per city at its documented `position` (`cities.ts`), with a permanent text label (name) beneath it — labels are always visible (only 5 cities; avoids relying on hover, which doesn't exist on touch/mobile). The selected city (`selectedCityId`) gets a highlighted ring
+- **Ships:** a small pixel-art sailboat icon. In port, ships fan out slightly above their city's icon so multiple ships at one city don't fully overlap. In transit, the marker is linearly interpolated along its route line based on `turnsRemaining / route.turns`. The selected ship (`selectedShipId`) is drawn in a brighter color with its name labelled
 
-This is explicitly placeholder/programmer art. When pixel art assets exist (post-MVP, per ADR-005), `map-scene.ts`'s draw functions are the only place that needs to change — city/ship positions and the interpolation math stay the same.
+## Route Danger Colouring (ADR-015)
+
+Once per-route/session risk actually drove gameplay (ADR-015), the map gained a visual read on it: every route line is tinted along a gradient from calm blue (`ROUTE_COLOR`) to danger red (`ROUTE_DANGER_COLOR`), based on the same `routeDangerFactor` normalisation used for event-pool weighting (deliberately duplicated here rather than imported from `risk-system.ts`, to keep `map-scene.ts` free of any `src/game/systems/` dependency — see "Architecture" above). A small fixed-position legend (bottom-left, drawn into a `hudLayer` that is a child of `app.stage`, not `worldLayer`, so it doesn't scale/pan with zoom) explains the three line states: calm, dangerous, ship en route.
 
 ## World Coordinate Space & Scaling
 
@@ -95,14 +105,15 @@ All zoom/pan state lives in `MapScene` itself (`zoom`, `pan`, `containerSize`), 
 
 ## Not in This Pass
 
-- Per-route storm/pirate-risk visualisation (e.g. tinting a route by current danger) — the risk data is now consumed by the event system (ADR-015) but not yet shown on the map itself; a natural follow-up now that the data exists
 - Animated ship movement between turns (the marker jumps to its new interpolated position on state update, it does not tween)
+- Real sprite-sheet pixel art (the current pixel-grid icons are procedural placeholders, per "Visual Design" above)
 
 ## Related
 
 - ADR-003 (Rendering — PixiJS for the game world; this is PixiJS's first real use)
 - ADR-004 (Architecture — render layer consumes `GameState`, UI selection state is not persisted)
-- ADR-005 (Art style — pixel art is the target; this pass uses `Graphics` primitives as a placeholder)
-- `docs/design/city-graph.md` (city positions, routes, the still-unconsumed storm-risk table)
+- ADR-005 (Art style — pixel art is the target; this pass uses procedural pixel-grid sprites as a placeholder)
+- ADR-015 (Per-route & session event risk — the data now visualised as route danger colouring)
+- `docs/design/city-graph.md` (city positions, routes, stormRisk/pirateRisk tables)
 - `docs/design/mvp-scope.md` (Map view is UI screen #2 of 5)
 - `src/render/map-scene.ts`, `src/ui/MapView.svelte` (implementation)

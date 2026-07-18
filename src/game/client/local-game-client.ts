@@ -3,7 +3,7 @@ import type { GameState, TurnResult } from '../state/types.ts';
 import { buildStartingState } from '../data/starting-config.ts';
 import { resolveTurn, executeBuy, executeSell, executeBuyShip, executeRepairShip } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
-import { saveToLocalStorage } from '../systems/save-system.ts';
+import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -49,7 +49,7 @@ export class LocalGameClient implements GameClient {
         return Promise.resolve(this.state);
 
       case 'BUY_SHIP':
-        this.state = executeBuyShip(this.state, action.cityId);
+        this.state = executeBuyShip(this.state, action.cityId, action.shipType);
         return Promise.resolve(this.state);
 
       case 'REPAIR_SHIP':
@@ -63,5 +63,16 @@ export class LocalGameClient implements GameClient {
         return Promise.resolve(result);
       }
     }
+  }
+
+  exportSave(): void {
+    exportToFile(this.state);
+  }
+
+  async importSave(file: File): Promise<GameState> {
+    const state = await importFromFile(file);
+    this.state = state;
+    saveToLocalStorage(this.state);
+    return this.state;
   }
 }
