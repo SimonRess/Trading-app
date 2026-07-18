@@ -1,6 +1,6 @@
 # Design: Political Rank & Reputation Progression
 
-**Status:** Proposed — not implemented  
+**Status:** Implemented (first pass — thresholds not yet simulation-tuned, see "Open Questions")  
 **Last updated:** 2026-07-18
 
 ## Purpose
@@ -56,14 +56,25 @@ Both conditions must hold — net worth alone would let a player "buy" the mayor
 - A small rank badge/label already fits next to the existing header player-info span (`{name} · Age {age} · {maritalStatus}` — see `CHANGELOG.md` "Player name, age, and marital status in the header"): extend to `{name} · Age {age} · {maritalStatus} · {rankLabel}`.
 - A progress indicator (e.g. "2,340 / 4,000 Mark · 42 / 50 reputation to Council") could live in a new collapsible panel, following the same disclosure pattern already used for `showSeasonInfo`/`showSaveMenu` — deferred to implementation, not a blocker for the mechanic itself.
 
+## Implementation Status (as of 2026-07-18)
+
+- ✅ Reputation gain — `gainReputation()` in `political-system.ts`, wired into `executeSell` (+1 per sale in that city, capped at 100).
+- ✅ Rank-up thresholds and evaluation — `evaluateRankUp()`, called once per turn in `resolveTurn` (`turn-system.ts`) alongside the existing net-worth calculation. Never demotes; both net worth and Lübeck reputation must clear a threshold.
+- ✅ Turn-summary announcement — `rankUpMessage()` appended to `TurnResult.summary.events`, surfaced through the existing turn-summary overlay.
+- ✅ Header badge — `{name} · Age {age} · {maritalStatus} · {rankLabel}` in `App.svelte`, using `RANK_LABELS`.
+- ✅ **Reaching Mayor does not end the game** — confirmed explicitly by the player: it's a milestone only, independent of the existing 40-turn/bankruptcy/10,000-net-worth win-lose outcomes.
+- ❌ Progress indicator (partial progress toward the next rank) — deferred, not implemented; the header only shows the current rank, not how close the player is to the next one.
+- ❌ Threshold numbers are a first pass, not yet simulation-tuned (see below).
+
 ## Open Questions
 
-- Should reaching Mayor (rank 3) be a win condition on its own, independent of the existing 40-turn/bankruptcy end states? Leaning yes, but that's a `turn-system.ts`/`GameState.calendar` interaction that needs its own small design pass.
 - Exact reputation-gain amount and rank thresholds need playtesting/simulation, not just gut numbers — same caution as ADR-015's risk-weighting bug (a plausible-looking formula produced a badly skewed real distribution until measured).
+- Should a progress indicator be added, and if so where — collapsible panel (matching `showSeasonInfo`/`showSaveMenu`) vs. inline in the fleet/shipyard area?
 
 ## Related
 
 - ADR-014 (Net worth valuation — `computeNetWorth` reused here)
 - ADR-015 (Per-route & session event risk — precedent for "simulate before tuning thresholds")
-- `src/game/state/types.ts` (`PoliticalRank`, `PlayerState.reputation` — already defined, unused)
-- `src/game/data/starting-config.ts` (starting reputation seed)
+- `src/game/state/types.ts` (`PoliticalRank`, `PlayerState.reputation`)
+- `src/game/systems/political-system.ts` (`gainReputation`, `evaluateRankUp`, `rankUpMessage`, `RANK_LABELS`)
+- `src/game/systems/turn-system.ts` (`executeSell`, `resolveTurn`)

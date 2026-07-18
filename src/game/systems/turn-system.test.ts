@@ -82,6 +82,14 @@ describe('executeSell', () => {
     const next = executeSell(state, ship.id, 'lubeck', 'salt', 999);
     expect(next).toBe(state);
   });
+
+  it('gains reputation in the city where the sale happened', () => {
+    const state = buildStartingState('TestPlayer');
+    const ship = state.fleet.ships[0]!;
+    const before = state.player.reputation.lubeck;
+    const next = executeSell(state, ship.id, 'lubeck', 'salt', 10);
+    expect(next.player.reputation.lubeck).toBe(before + 1);
+  });
 });
 
 describe('executeBuyShip', () => {
@@ -207,5 +215,35 @@ describe('resolveTurn', () => {
     const finalTurn = { ...state, calendar: { ...state.calendar, turn: 40, maxTurns: 40 } };
     const { summary } = resolveTurn(finalTurn, { destinations: {} });
     expect(summary.outcome).toBe('lose');
+  });
+
+  it('promotes political rank and announces it once thresholds are met', () => {
+    const state = buildStartingState('TestPlayer');
+    const eligible = {
+      ...state,
+      player: { ...state.player, cash: 2_000, reputation: { ...state.player.reputation, lubeck: 30 } },
+    };
+    const { state: next, summary } = resolveTurn(eligible, { destinations: {} });
+    expect(next.player.politicalRank).toBe(1);
+    expect(summary.events.some(e => e.includes('Guild'))).toBe(true);
+  });
+
+  it('reaching Mayor rank does not itself trigger a win outcome', () => {
+    const state = buildStartingState('TestPlayer');
+    const eligible = {
+      ...state,
+      player: { ...state.player, cash: 100, reputation: { ...state.player.reputation, lubeck: 75 } },
+    };
+    // Below the 10,000 net-worth win threshold, but rank thresholds use a
+    // lower bar — should not accidentally end the game.
+    const { summary } = resolveTurn(eligible, { destinations: {} });
+    expect(summary.outcome).toBeNull();
+  });
+
+  it('does not promote rank when only one condition is met', () => {
+    const state = buildStartingState('TestPlayer');
+    const richButUnknown = { ...state, player: { ...state.player, cash: 5_000 } };
+    const { state: next } = resolveTurn(richButUnknown, { destinations: {} });
+    expect(next.player.politicalRank).toBe(0);
   });
 });

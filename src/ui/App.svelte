@@ -4,6 +4,7 @@
   import { currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoSpace, cargoTotal } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
+  import { RANK_LABELS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
   import { ROUTES } from '../game/data/routes.ts';
@@ -294,7 +295,7 @@
           on:click={() => { showSeasonInfo = !showSeasonInfo; }}
         >ⓘ</button>
       </span>
-      <span class="hdr-player">{state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]}</span>
+      <span class="hdr-player">{state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]} · {RANK_LABELS[state.player.politicalRank]}</span>
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>

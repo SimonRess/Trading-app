@@ -8,6 +8,7 @@ import { selectEvent, applyEvent } from './event-system.ts';
 import { driftRiskState } from './risk-system.ts';
 import { shipNetWorth, SHIP_TYPES, MAX_SHIPS, isShipyardCity, repairCost, nextShipName } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
+import { evaluateRankUp, gainReputation, rankUpMessage } from './political-system.ts';
 
 export function computeNetWorth(state: GameState): number {
   const shipValue = state.fleet.ships.reduce((sum, ship) => {
@@ -65,10 +66,19 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(...eventResult.messages);
   }
 
-  const newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
+  let newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
 
-  // Step 6: Check win/lose
+  // Step 6: Net worth, then political rank (needs net worth + Lübeck
+  // reputation — see docs/design/political-rank.md). Reaching Mayor is a
+  // milestone only in this pass, not a win condition of its own.
   const netWorth = computeNetWorth(newState);
+  const nextRank = evaluateRankUp(newState.player, netWorth);
+  if (nextRank !== newState.player.politicalRank) {
+    newState = { ...newState, player: { ...newState.player, politicalRank: nextRank } };
+    events.push(rankUpMessage(nextRank));
+  }
+
+  // Step 7: Check win/lose
   let outcome: 'win' | 'lose' | null = null;
   if (netWorth >= 10_000) {
     outcome = 'win';
@@ -128,7 +138,11 @@ export function executeSell(
   const newShip = { ...ship, cargo: newCargo };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: resolveTrade(market, -quantity) } };
-  const newPlayer = { ...state.player, cash: state.player.cash + totalRevenue };
+  const newPlayer = {
+    ...state.player,
+    cash: state.player.cash + totalRevenue,
+    reputation: gainReputation(state.player.reputation, cityId),
+  };
 
   return { ...state, player: newPlayer, fleet: newFleet, market: newMarket };
 }
