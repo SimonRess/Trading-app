@@ -16,6 +16,7 @@ Dates are `YYYY-MM-DD`.
 ## [Unreleased]
 
 ### Fixed
+- **Ship pixel-art hull was upside down** — the hull tapered wide-to-narrow going *down* (narrow deck, wide keel), reading as a wedge balanced on its point. Flipped so it's wide at the top (deck) and tapers to a point at the bottom (keel), matching an actual hull silhouette.
 - **Map legend not appearing** — `MapScene.mount()` runs while its container is still `display:none` (the "persistent mount" perf fix keeps `<MapView>` always-mounted), so the zero-size guard in `handleResize` skipped positioning the legend's `hudLayer`, leaving it un-positioned unless a `ResizeObserver` firing on the `0×0 → real size` transition happened to correct it — not a reliable cross-browser guarantee. `mount()` now sets an immediate fallback position, and a new `MapScene.refreshLayout()` method is called explicitly by `MapView.svelte` (via a new `visible` prop) whenever `App.svelte` switches to the map screen, so layout no longer depends solely on `ResizeObserver` firing.
 - **Ship sprite's sail and hull merging into one shape** — `SHIP_PIXEL_PATTERN` widened straight from the sail's triangular base into the hull's top edge with no separation. Redrawn as a 9-row pattern (was 7) with two single-pixel mast rows between sail and hull, so the icon reads as mast-and-sail atop a hull rather than one blob.
 

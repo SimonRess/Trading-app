@@ -92,7 +92,10 @@ const CITY_PIXEL_PATTERN = [
 // Sail (rows 0-3) and hull (rows 6-8) are separated by two single-pixel
 // mast rows (4-5) instead of the sail's base flowing straight into the
 // hull's top edge — otherwise the two widen into each other and read as
-// one shape instead of a mast-and-sail atop a hull.
+// one shape instead of a mast-and-sail atop a hull. The hull is widest at
+// the top (deck) and tapers to a point at the bottom (keel) rather than
+// the other way round, so it reads as a hull rather than a wedge sitting
+// on its point.
 const SHIP_PIXEL_PATTERN = [
   '....#....',
   '...###...',
@@ -100,9 +103,9 @@ const SHIP_PIXEL_PATTERN = [
   '.#######.',
   '....#....',
   '....#....',
-  '..#####..',
-  '.#######.',
   '#########',
+  '.#######.',
+  '..#####..',
 ];
 
 function drawPixelSprite(pattern: string[], pixelSize: number, color: number): Graphics {
