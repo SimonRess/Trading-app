@@ -1,6 +1,6 @@
 import type { Ship, FleetState, CityId, GoodId } from '../state/types.ts';
 import { findRoute } from '../data/routes.ts';
-import { SHIP_TYPES } from '../data/ships.ts';
+import { SHIP_TYPES, canDepart, durabilityTravelTimePenalty } from '../data/ships.ts';
 
 export function isInTransit(ship: Ship): ship is Ship & { position: { from: CityId; to: CityId; turnsRemaining: number } } {
   return typeof ship.position !== 'string';
@@ -13,6 +13,7 @@ export function isInPort(ship: Ship): ship is Ship & { position: CityId } {
 export function setDestination(ship: Ship, destination: CityId): Ship {
   if (!isInPort(ship)) return ship;
   if (ship.position === destination) return ship;
+  if (!canDepart(ship.durability)) return ship;
 
   const route = findRoute(ship.position, destination);
   if (!route) return ship;
@@ -20,10 +21,14 @@ export function setDestination(ship: Ship, destination: CityId): Ship {
   // route.turns is already the full travel time "assuming a Kogge at
   // standard speed" (see city-graph.md) — it must not be multiplied by
   // turnsPerLeg again, or every voyage silently takes twice as long as
-  // documented.
+  // documented. A Damaged ship (26-50 durability) additionally takes +1
+  // turn per leg (ship-stats.md durability thresholds); MVP routes are
+  // always a single leg, so this is a flat +1.
+  const turns = route.turns + durabilityTravelTimePenalty(ship.durability);
+
   return {
     ...ship,
-    position: { from: ship.position, to: destination, turnsRemaining: route.turns },
+    position: { from: ship.position, to: destination, turnsRemaining: turns },
   };
 }
 
@@ -46,13 +51,19 @@ export function advanceShips(fleet: FleetState): { fleet: FleetState; arrivals: 
   return { fleet: { ships }, arrivals };
 }
 
-export function applyStormDamage(fleet: FleetState, damage: number): { fleet: FleetState; wrecked: Ship[] } {
+// damageForShip lets the caller (event-system.ts) vary damage per ship
+// based on that ship's route risk and durability status — see
+// docs/design/event-table.md "Per-Route & Session Risk".
+export function applyStormDamage(
+  fleet: FleetState,
+  damageForShip: (ship: Ship) => number,
+): { fleet: FleetState; wrecked: Ship[] } {
   const wrecked: Ship[] = [];
 
   const ships = fleet.ships
     .map(ship => {
       if (!isInTransit(ship)) return ship;
-      const newDurability = ship.durability - damage;
+      const newDurability = ship.durability - damageForShip(ship);
       if (newDurability <= 0) {
         wrecked.push(ship);
         return null;
@@ -64,14 +75,17 @@ export function applyStormDamage(fleet: FleetState, damage: number): { fleet: Fl
   return { fleet: { ships }, wrecked };
 }
 
-export function applyPirateRaid(fleet: FleetState): { fleet: FleetState; raidedShipName: string | null; loot: Partial<Record<GoodId, number>> } {
-  const inTransit = fleet.ships.filter(isInTransit);
-  if (inTransit.length === 0) return { fleet, raidedShipName: null, loot: {} };
-
-  const target = inTransit[Math.floor(Math.random() * inTransit.length)];
+// targetShipId is chosen by the caller (event-system.ts), weighted by
+// route pirate-risk — this function only applies the raid once a target is
+// already decided, keeping the RNG centralised in one place.
+export function applyPirateRaid(
+  fleet: FleetState,
+  targetShipId: string,
+): { fleet: FleetState; raidedShipName: string | null; loot: Partial<Record<GoodId, number>> } {
+  const target = fleet.ships.find(s => s.id === targetShipId);
   if (!target) return { fleet, raidedShipName: null, loot: {} };
-  const loot: Partial<Record<GoodId, number>> = {};
 
+  const loot: Partial<Record<GoodId, number>> = {};
   const newCargo: Partial<Record<GoodId, number>> = {};
   for (const [goodId, qty] of Object.entries(target.cargo) as Array<[GoodId, number]>) {
     if (!qty) continue;

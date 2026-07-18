@@ -299,6 +299,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 012 | Game client abstraction | Accepted | decisions/adr-012-game-client-abstraction.md |
 | 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
 | 014 | Net-worth valuation | Accepted | decisions/adr-014-net-worth-valuation.md |
+| 015 | Per-route & session event risk | Accepted | decisions/adr-015-per-route-session-risk.md |
 
 ---
 

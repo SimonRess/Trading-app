@@ -5,6 +5,7 @@ import { advanceCalendar } from './calendar-system.ts';
 import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts';
 import { advanceShips, setDestination, isInPort, cargoSpace } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
+import { driftRiskState } from './risk-system.ts';
 import { shipNetWorth, SHIP_TYPES, MAX_SHIPS, isShipyardCity, repairCost, nextShipName } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
 
@@ -49,8 +50,11 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // Step 4: Update market (natural economy — before player trades)
   const market = updateAllMarkets(state.market);
 
+  // Step 4b: Drift regional risk modifiers (session-persistent, see risk-system.ts)
+  const risk = driftRiskState(state.risk);
+
   // Step 5: Trigger and apply random event
-  const stateForEvent: GameState = { ...state, fleet, market, calendar };
+  const stateForEvent: GameState = { ...state, fleet, market, calendar, risk };
   const eventId = selectEvent(stateForEvent);
   let finalMarket = market;
 
@@ -61,7 +65,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(...eventResult.messages);
   }
 
-  const newState: GameState = { ...state, fleet, market: finalMarket, calendar };
+  const newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
 
   // Step 6: Check win/lose
   const netWorth = computeNetWorth(newState);

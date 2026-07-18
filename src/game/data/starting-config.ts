@@ -1,6 +1,7 @@
 import type { Season } from '../state/types.ts';
 import { buildInitialMarket } from './goods.ts';
 import type { GameState } from '../state/types.ts';
+import { buildInitialRiskState } from '../systems/risk-system.ts';
 
 export function buildStartingState(playerName: string): GameState {
   return {
@@ -43,5 +44,6 @@ export function buildStartingState(playerName: string): GameState {
       turn: 1,
       maxTurns: 40,
     },
+    risk: buildInitialRiskState(),
   };
 }

@@ -67,6 +67,31 @@ describe('setDestination', () => {
     const result = setDestination(ship, 'riga'); // no direct route lubeck→riga
     expect(result).toEqual(ship);
   });
+
+  it('refuses to depart a critical ship (durability <= 25)', () => {
+    const ship = koggeInPort({ durability: 25 });
+    const result = setDestination(ship, 'danzig');
+    expect(result).toEqual(ship);
+    expect(isInPort(result)).toBe(true);
+  });
+
+  it('adds a +1 turn penalty for a damaged ship (26-50 durability)', () => {
+    const ship = koggeInPort({ durability: 40 });
+    const result = setDestination(ship, 'danzig');
+    expect(isInTransit(result)).toBe(true);
+    if (isInTransit(result)) {
+      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(3); // route 2 + penalty 1
+    }
+  });
+
+  it('does not add a travel penalty for a worn ship (51-75 durability)', () => {
+    const ship = koggeInPort({ durability: 60 });
+    const result = setDestination(ship, 'danzig');
+    expect(isInTransit(result)).toBe(true);
+    if (isInTransit(result)) {
+      expect((result.position as { turnsRemaining: number }).turnsRemaining).toBe(2);
+    }
+  });
 });
 
 describe('advanceShips', () => {
@@ -96,39 +121,47 @@ describe('advanceShips', () => {
 });
 
 describe('applyStormDamage', () => {
-  it('damages ships in transit', () => {
+  it('damages ships in transit using the per-ship damage function', () => {
     const fleet: FleetState = { ships: [koggeInTransit()] };
-    const { fleet: next } = applyStormDamage(fleet, 10);
+    const { fleet: next } = applyStormDamage(fleet, () => 10);
     expect(next.ships[0]!.durability).toBe(90);
   });
 
   it('does not damage ships in port', () => {
     const fleet: FleetState = { ships: [koggeInPort()] };
-    const { fleet: next } = applyStormDamage(fleet, 10);
+    const { fleet: next } = applyStormDamage(fleet, () => 10);
     expect(next.ships[0]!.durability).toBe(100);
   });
 
   it('wrecks ships at 0 durability', () => {
     const ship = koggeInTransit({ durability: 10 });
-    const { fleet: next, wrecked } = applyStormDamage({ ships: [ship] }, 10);
+    const { fleet: next, wrecked } = applyStormDamage({ ships: [ship] }, () => 10);
     expect(wrecked).toHaveLength(1);
     expect(next.ships).toHaveLength(0);
+  });
+
+  it('supports per-ship damage amounts', () => {
+    const shipA = koggeInTransit({ id: 'a', durability: 100 });
+    const shipB = koggeInTransit({ id: 'b', durability: 100 });
+    const { fleet: next } = applyStormDamage({ ships: [shipA, shipB] }, ship => (ship.id === 'a' ? 5 : 20));
+    expect(next.ships.find(s => s.id === 'a')!.durability).toBe(95);
+    expect(next.ships.find(s => s.id === 'b')!.durability).toBe(80);
   });
 });
 
 describe('applyPirateRaid', () => {
-  it('takes 15% of cargo proportionally', () => {
+  it('takes 15% of cargo proportionally from the given target', () => {
     const ship = koggeInTransit({ cargo: { salt: 20, grain: 10 } });
-    const { fleet: next, raidedShipName } = applyPirateRaid({ ships: [ship] });
+    const { fleet: next, raidedShipName } = applyPirateRaid({ ships: [ship] }, ship.id);
     expect(raidedShipName).toBe('Wulf');
     const remaining = next.ships[0]!.cargo;
     expect(remaining['salt']).toBe(17); // 20 - floor(20*0.15) = 20-3
     expect(remaining['grain']).toBe(9); // 10 - floor(10*0.15) = 10-1
   });
 
-  it('returns null if no ships in transit', () => {
+  it('returns null if the target id does not exist in the fleet', () => {
     const fleet: FleetState = { ships: [koggeInPort()] };
-    const { raidedShipName } = applyPirateRaid(fleet);
+    const { raidedShipName } = applyPirateRaid(fleet, 'no-such-ship');
     expect(raidedShipName).toBeNull();
   });
 });

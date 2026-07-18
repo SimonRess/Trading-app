@@ -68,6 +68,18 @@ worldLayer.position = centered within the canvas
 
 A `ResizeObserver` on the mount container (not just a `window resize` listener) drives re-scaling, so the map also adapts when the Fleet panel is folded/unfolded — a plain `window.resize` listener would miss that, since the window itself doesn't change size.
 
+## Zoom & Pan
+
+Added after playtesting feedback that city/ship markers were hard to hit precisely at the default fit-to-container scale, especially on smaller screens. On top of the base "fit to container" scale above, `MapScene` layers a user-controlled zoom/pan:
+
+- **Mouse wheel** — zooms in/out (1.0×–3.5×), centered on the current view
+- **Click-and-drag** (or touch-drag) — pans the view once zoomed in; a small movement threshold (4px) distinguishes a genuine drag from a click, so tapping a city/ship still works normally
+- **Two-finger pinch** (touch) — zooms, tracked via native Pointer Events (`activePointers` map keyed by `pointerId`), not the Pixi interaction system — panning/zooming is a viewport transform, not something that needs Pixi's hit-testing
+- **Double-click/double-tap** — resets zoom and pan to the default fit-to-container view
+- **Pan clamping** — the world can be dragged around but not fully off-screen; `applyTransform` computes `maxPanX`/`maxPanY` from how much larger the zoomed world is than the container, so at the default zoom (1.0, already fit) there's nothing to pan
+
+All zoom/pan state lives in `MapScene` itself (`zoom`, `pan`, `containerSize`), not in `GameState` or Svelte component state — it's pure view state, reset on remount, consistent with ADR-004's "ui state is not part of GameState" principle applied to the render layer too.
+
 ## Interaction
 
 - **Click a city** → `selectedCityId` is set to that city, and `screen` switches to `'port'` (consistent with "the map is for navigating, the port is for acting" — matches how the existing city-select buttons work, just spatial instead of a button list)
@@ -83,9 +95,8 @@ A `ResizeObserver` on the mount container (not just a `window resize` listener) 
 
 ## Not in This Pass
 
-- Per-route storm-risk visualisation (e.g. tinting a route red in Winter) — `city-graph.md`'s storm-risk table still isn't consumed anywhere in the game logic (see its Implementation Status note); the map has nothing to visualise yet
+- Per-route storm/pirate-risk visualisation (e.g. tinting a route by current danger) — the risk data is now consumed by the event system (ADR-015) but not yet shown on the map itself; a natural follow-up now that the data exists
 - Animated ship movement between turns (the marker jumps to its new interpolated position on state update, it does not tween)
-- Zoom/pan — 5 cities fit comfortably in one fixed view at MVP scope
 
 ## Related
 

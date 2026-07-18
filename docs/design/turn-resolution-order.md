@@ -118,21 +118,21 @@ Each step function is independently unit-testable. `resolveTurn` is the single e
 
 ---
 
-## Implementation Status (as of 2026-07-16)
+## Implementation Status (as of 2026-07-18)
 
-The idealised 10-step sequence above is the target. The current `src/game/systems/turn-system.ts` implements a condensed version that preserves the **balance-critical ordering** (destinations → move → market → event → check) but differs in a few ways worth recording so the doc matches the code:
+The idealised 10-step sequence above is the target. The current `src/game/systems/turn-system.ts` implements a condensed version that preserves the **balance-critical ordering** (destinations → move → market → risk drift → event → check) but differs in a few ways worth recording so the doc matches the code:
 
 | Spec step | Actual behaviour |
 |-----------|------------------|
-| 1 Validate orders | Legality is enforced when the order is *placed* (`setDestination` returns the ship unchanged for an unreachable/occupied destination; buy/sell are validated in `executeBuy`/`executeSell`). There is no separate throwing `validateOrders` pass. |
+| 1 Validate orders | Legality is enforced when the order is *placed* (`setDestination` returns the ship unchanged for an unreachable/occupied destination, or if the ship is Critical/Wrecked durability per ADR-015; buy/sell are validated in `executeBuy`/`executeSell`). There is no separate throwing `validateOrders` pass. |
 | 3 + 4 Move fleet / arrivals | Combined in `advanceShips`, which decrements `turnsRemaining` and detects arrivals in one pass. |
-| 4 Storm on arrival | **Not yet implemented as a per-route roll.** The per-route/season storm-risk table in `city-graph.md` is not consumed yet; storms currently come only from the random **event** (step 7/8), which damages all in-transit ships by 10 durability. Per-leg storm rolls are a follow-up. |
+| 4 Storm on arrival | **Not a per-leg-per-ship independent roll**, as the original prose in `city-graph.md` described. Instead (ADR-015), per-route storm risk shapes *which* event fires this turn (pool weighting) and, once storm is selected, *how much damage* each ship in transit takes (6–22, varying by route risk and durability) — see `event-table.md` "Per-Route & Session Risk". A new step 4b drifts session risk modifiers (`driftRiskState`) before event selection. |
 | 6 Apply player trades | **Trades are applied live, not at resolution.** The player buys/sells during their turn via `BUY_GOOD`/`SELL_GOOD` actions that update state (cash + local supply) immediately. The one-turn price-lag idea in step 6 is therefore not in effect — a trade moves the local price the same turn. |
-| 7 + 8 Event / effects | Combined: `selectEvent` picks (or returns `null`), `applyEvent` applies the effect and produces player-facing messages. |
+| 7 + 8 Event / effects | Combined: `selectEvent` picks (or returns `null`), `applyEvent` applies the effect and produces player-facing messages. Pirate raid targeting is now weighted by route pirate-risk (ADR-015), not uniform among ships in transit. |
 | 9 Check win/lose | `computeNetWorth` (cash + ship value + cargo-at-base-price, see **ADR-014**) compared against the thresholds. |
 | 10 Emit summary | `TurnResult.summary` carries the event/arrival messages and the `outcome`. |
 
-When any of these are brought in line with the spec (e.g. per-route storm rolls), update this table and remove the corresponding row.
+When any of these are brought in line with the spec, update this table and remove the corresponding row.
 
 ---
 
@@ -151,7 +151,7 @@ Multiple events per turn compound unpredictably and are hard to communicate clea
 
 ## Open Questions
 
-- Should storm damage roll per transit turn or once on arrival? Current proposal: once on arrival for simplicity. Per-transit-turn would be more realistic but harder to surface in the UI.
+- Should storm damage roll per transit turn (independently of the event system) rather than only when the "storm" event happens to be selected that turn? Still open — ADR-015 resolved the *related* question of whether all ships take identical damage (no, it now varies per ship's route/durability) but storm damage still only occurs on turns where the storm event wins the pool selection, not as a separate per-leg roll every transit turn.
 - Is 25% event probability per turn too high (nearly every turn has an event) or too low? Needs playtesting.
 - Should step 6 (player trades) apply immediately to prices the same turn, or with a one-turn lag as proposed? The lag is more realistic but may confuse players.
 

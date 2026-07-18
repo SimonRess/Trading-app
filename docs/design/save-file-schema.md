@@ -53,6 +53,7 @@ interface PersistedGameState {
   cities: CitiesState;
   market: MarketState;
   calendar: CalendarState;
+  risk: RiskState;         // added in ADR-015; additive, no schema bump needed
   // ui state is deliberately excluded
 }
 ```
@@ -134,6 +135,17 @@ interface CalendarState {
   pendingEvents: GameEvent[];   // events queued to resolve this turn
 }
 ```
+
+### `RiskState` (added in ADR-015)
+
+```typescript
+interface RiskState {
+  routeModifiers: Record<string, number>;              // key: sorted "cityA-cityB"; multiplier, drifts each turn
+  cityModifiers: Partial<Record<CityId, number>>;       // per harvest-eligible city (currently just Danzig)
+}
+```
+
+Session-persistent regional danger multipliers (see `event-table.md` "Per-Route & Session Risk"). Saving/loading a game simply carries whatever modifier values were current — there is no separate history or decay-on-load; a fresh `NEW_GAME` resets every modifier to 1.0 via `buildInitialRiskState`.
 
 ---
 
