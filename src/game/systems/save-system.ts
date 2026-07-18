@@ -88,7 +88,13 @@ function parseSaveFile(raw: string): GameState | null {
       console.warn(`Save schema v${String(file.meta.schemaVersion)} does not match app schema v${String(SCHEMA_VERSION)}`);
       return null;
     }
-    return file.state;
+    // maritalStatus was added after schema v1 shipped; additive field with a
+    // sensible default, so no schema bump per save-file-schema.md — older
+    // saves on disk may genuinely lack it despite what the SaveFile type
+    // claims, so read it through Partial rather than trusting the cast.
+    const rawPlayer = file.state.player as Partial<GameState['player']>;
+    const player = { ...file.state.player, maritalStatus: rawPlayer.maritalStatus ?? 'single' };
+    return { ...file.state, player };
   } catch {
     return null;
   }

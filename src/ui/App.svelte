@@ -39,6 +39,11 @@
   let fleetCollapsed = false;
   let showSaveMenu = false;
   let saveMsg = '';
+  let showSeasonInfo = false;
+
+  const MARITAL_LABEL: Record<string, string> = {
+    single: 'Single', married: 'Married', widowed: 'Widowed',
+  };
 
   const GOOD_NAMES: Record<GoodId, string> = {
     salt: 'Salt', grain: 'Grain', timber: 'Timber', furs: 'Furs', herring: 'Herring',
@@ -277,11 +282,19 @@
     {#if saveMsg}<p class="save-msg">{saveMsg}</p>{/if}
   </main>
 
-{:else if screen === 'port' || screen === 'map'}
+{:else if screen === 'port' || screen === 'map' || screen === 'turn-summary'}
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
-      <span class="hdr-info">{SEASON_LABEL[state.calendar.season]} {state.calendar.year} · Turn {state.calendar.turn}/{state.calendar.maxTurns}</span>
+      <span class="hdr-info">
+        {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · Turn {state.calendar.turn}/{state.calendar.maxTurns}
+        <button
+          class="info-btn"
+          aria-label="Season order and duration"
+          on:click={() => { showSeasonInfo = !showSeasonInfo; }}
+        >ⓘ</button>
+      </span>
+      <span class="hdr-player">{state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]}</span>
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
@@ -289,6 +302,13 @@
       </div>
       <span class="hdr-cash">{state.player.cash} Mark · Net {netWorth} Mark</span>
     </header>
+
+    {#if showSeasonInfo}
+      <div class="season-info">
+        Seasons run in order — <strong>Spring → Summer → Autumn → Winter</strong> — each lasting exactly 1 turn. A new year begins right after Winter. At {state.calendar.maxTurns} turns total, this game runs {state.calendar.maxTurns / 4} years.
+        <button class="link-btn" on:click={() => { showSeasonInfo = false; }}>close</button>
+      </div>
+    {/if}
 
     {#if showSaveMenu}
       <div class="save-menu">
@@ -529,22 +549,33 @@
         {busyTurn ? 'Resolving...' : 'End Turn →'}
       </button>
     </footer>
-  </main>
 
-{:else if screen === 'turn-summary'}
-  <main class="screen center">
-    <h2>Turn {state.calendar.turn - 1} Summary</h2>
-    {#if lastSummary && lastSummary.events.length > 0}
-      <ul class="events">
-        {#each lastSummary.events as evt}
-          <li>{evt}</li>
-        {/each}
-      </ul>
-    {:else}
-      <p>A quiet turn — nothing unusual happened.</p>
+    <!-- Rendered as an overlay on top of the persistent port/map view rather
+         than a separate {#if screen === 'turn-summary'} branch (as it used
+         to be) — swapping to a whole separate <main> branch on every single
+         End Turn unmounted MapView (and destroyed its MapScene/PixiJS
+         Application) each time, which meant the ship-glide animation could
+         never actually play across a turn: a brand new MapScene always
+         starts markers already at their final position, with no "before"
+         state to animate from. See map-view.md "Persistent mount". -->
+    {#if screen === 'turn-summary'}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card">
+          <h2>Turn {state.calendar.turn - 1} Summary</h2>
+          {#if lastSummary && lastSummary.events.length > 0}
+            <ul class="events">
+              {#each lastSummary.events as evt}
+                <li>{evt}</li>
+              {/each}
+            </ul>
+          {:else}
+            <p>A quiet turn — nothing unusual happened.</p>
+          {/if}
+          <p class="net-worth">Net worth: {netWorth} Mark</p>
+          <button on:click={continuePlaying}>Continue →</button>
+        </div>
+      </div>
     {/if}
-    <p class="net-worth">Net worth: {netWorth} Mark</p>
-    <button on:click={continuePlaying}>Continue →</button>
   </main>
 
 {:else if screen === 'game-over'}
@@ -629,7 +660,27 @@
   }
   .title { font-size: 1.1rem; color: #d4a843; font-weight: bold; }
   .hdr-info { font-size: 0.85rem; color: #9a8060; }
+  .hdr-player { font-size: 0.85rem; color: #9a8060; }
   .hdr-cash { margin-left: auto; font-size: 0.9rem; color: #c8a840; }
+
+  .info-btn {
+    background: none;
+    border: none;
+    color: #9a8060;
+    padding: 0 0.2rem;
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+  .info-btn:hover { background: none; color: #d4a843; }
+
+  .season-info {
+    padding: 0.6rem 1.2rem;
+    background: #1c1508;
+    border-bottom: 1px solid #3a2e18;
+    font-size: 0.85rem;
+    color: #c0a880;
+  }
+  .season-info strong { color: #f0dca0; }
 
   .nav-toggle { display: flex; gap: 0.3rem; }
   .nav-btn {
@@ -855,6 +906,28 @@
   .events { text-align: left; max-width: 480px; }
   .events li { padding: 0.4rem 0; border-bottom: 1px solid #2a2018; list-style: none; }
 
+  .turn-summary-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 8, 4, 0.82);
+    z-index: 20;
+  }
+  .turn-summary-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 2rem;
+    text-align: center;
+    background: #1a1408;
+    border: 1px solid #4a3a20;
+    border-radius: 6px;
+    max-width: 520px;
+  }
+
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }
   .lose { color: #c86060; }
@@ -871,7 +944,8 @@
       padding: 0.5rem 0.8rem;
     }
     .hdr-info { flex-basis: 100%; order: 3; font-size: 0.8rem; }
-    .hdr-cash { flex-basis: 100%; order: 4; margin-left: 0; font-size: 0.85rem; }
+    .hdr-player { flex-basis: 100%; order: 4; font-size: 0.8rem; }
+    .hdr-cash { flex-basis: 100%; order: 5; margin-left: 0; font-size: 0.85rem; }
     .nav-toggle { order: 2; margin-left: auto; }
 
     .layout { flex-direction: column; overflow-y: auto; }

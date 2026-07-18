@@ -8,6 +8,8 @@ export type ShipType = 'kogge' | 'hulk' | 'schnigge';
 
 export type PoliticalRank = 0 | 1 | 2 | 3; // citizen, guild, council, mayor
 
+export type MaritalStatus = 'single' | 'married' | 'widowed';
+
 export interface RoutePosition {
   from: CityId;
   to: CityId;
@@ -18,6 +20,7 @@ export interface PlayerState {
   name: string;
   cash: number;
   age: number;
+  maritalStatus: MaritalStatus;
   politicalRank: PoliticalRank;
   reputation: Record<CityId, number>;
 }

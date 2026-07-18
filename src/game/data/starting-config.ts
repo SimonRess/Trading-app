@@ -9,6 +9,7 @@ export function buildStartingState(playerName: string): GameState {
       name: playerName,
       cash: 500,
       age: 22,
+      maritalStatus: 'single',
       politicalRank: 0,
       reputation: {
         lubeck: 20,

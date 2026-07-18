@@ -179,6 +179,8 @@ export class MapScene {
 
   private shipMarkers = new Map<string, ShipMarker>();
   private lastState: GameState | undefined;
+  private isVisible = true;
+  private hiddenSince: number | undefined;
 
   private activePointers = new Map<number, PointerPoint>();
   private dragStart: PointerPoint = { x: 0, y: 0 };
@@ -263,6 +265,40 @@ export class MapScene {
   // in handleResize would otherwise leave un-set) is never left stale.
   refreshLayout(): void {
     if (this.container) this.handleResize(this.container);
+  }
+
+  // Ship-move tweens run on wall-clock time (performance.now()), independent
+  // of whether the map is actually on screen — so a ship that departs while
+  // the player is on the Port screen finishes its glide invisibly, and by
+  // the time they switch to the map it has already snapped to its final
+  // position with no motion to see. Call this whenever MapView's visibility
+  // toggles. tickShipAnimations() skips repositioning entirely while hidden
+  // (see there), so a marker's on-screen position stays exactly as it was
+  // at the moment we hid — what changes here is only animStart's bookkeeping,
+  // so that resuming continues from that same frozen progress rather than
+  // wherever wall-clock math would place it.
+  setVisible(visible: boolean): void {
+    if (visible === this.isVisible) return;
+    this.isVisible = visible;
+
+    if (!visible) {
+      this.hiddenSince = performance.now();
+      return;
+    }
+
+    if (this.hiddenSince === undefined) return;
+    const hiddenSince = this.hiddenSince;
+    this.hiddenSince = undefined;
+
+    const now = performance.now();
+    for (const marker of this.shipMarkers.values()) {
+      // How far into its glide this marker had actually gotten by the
+      // moment we hid (0 if its target changed after we'd already gone
+      // hidden — it never got to show any progress, so it should restart
+      // the full glide now rather than resume a fraction of one).
+      const elapsedAtHide = Math.min(SHIP_MOVE_DURATION_MS, Math.max(0, hiddenSince - marker.animStart));
+      marker.animStart = now - elapsedAtHide;
+    }
   }
 
   private attachInputHandlers(): void {
@@ -613,6 +649,13 @@ export class MapScene {
   }
 
   private tickShipAnimations = (): void => {
+    // Skip repositioning entirely while hidden: wall-clock time keeps
+    // passing regardless, so if this kept interpolating in the background
+    // the glide would simply finish off-screen — setVisible()'s animStart
+    // shift assumes no progress was made while hidden, which only holds if
+    // we actually freeze position updates here.
+    if (!this.isVisible) return;
+
     const now = performance.now();
     for (const marker of this.shipMarkers.values()) {
       const t = easeOutCubic((now - marker.animStart) / SHIP_MOVE_DURATION_MS);
