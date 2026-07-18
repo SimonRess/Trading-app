@@ -88,7 +88,7 @@ describe('executeBuyShip', () => {
   it('deducts cash and adds a new ship in port', () => {
     const state = buildStartingState('TestPlayer');
     const before = state.player.cash;
-    const next = executeBuyShip(state, 'lubeck');
+    const next = executeBuyShip(state, 'lubeck', 'kogge');
     expect(next.fleet.ships).toHaveLength(2);
     expect(next.player.cash).toBe(before - 400);
     const newShip = next.fleet.ships[1]!;
@@ -98,25 +98,41 @@ describe('executeBuyShip', () => {
 
   it('rejects buying at a non-shipyard city', () => {
     const state = buildStartingState('TestPlayer');
-    const next = executeBuyShip(state, 'riga');
+    const next = executeBuyShip(state, 'riga', 'kogge');
     expect(next).toBe(state);
   });
 
   it('rejects buying if insufficient cash', () => {
     const state = buildStartingState('TestPlayer');
     const poorState = { ...state, player: { ...state.player, cash: 0 } };
-    const next = executeBuyShip(poorState, 'lubeck');
+    const next = executeBuyShip(poorState, 'lubeck', 'kogge');
     expect(next).toBe(poorState);
   });
 
   it('rejects buying beyond the fleet cap', () => {
     let state = buildStartingState('TestPlayer');
     state = { ...state, player: { ...state.player, cash: 10_000 } };
-    state = executeBuyShip(state, 'lubeck');
-    state = executeBuyShip(state, 'lubeck');
+    state = executeBuyShip(state, 'lubeck', 'kogge');
+    state = executeBuyShip(state, 'lubeck', 'kogge');
     expect(state.fleet.ships).toHaveLength(3);
-    const next = executeBuyShip(state, 'lubeck');
+    const next = executeBuyShip(state, 'lubeck', 'kogge');
     expect(next).toBe(state);
+  });
+
+  it('buys a Hulk at its own price and capacity', () => {
+    const state = buildStartingState('TestPlayer');
+    const richState = { ...state, player: { ...state.player, cash: 1000 } };
+    const next = executeBuyShip(richState, 'lubeck', 'hulk');
+    expect(next.player.cash).toBe(1000 - 800);
+    expect(next.fleet.ships[1]!.type).toBe('hulk');
+  });
+
+  it('buys a Schnigge at its own price', () => {
+    const state = buildStartingState('TestPlayer');
+    const before = state.player.cash;
+    const next = executeBuyShip(state, 'lubeck', 'schnigge');
+    expect(next.player.cash).toBe(before - 250);
+    expect(next.fleet.ships[1]!.type).toBe('schnigge');
   });
 });
 

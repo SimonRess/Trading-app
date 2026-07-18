@@ -196,23 +196,44 @@ content:  JSON.stringify(SaveFile, null, 2)  // pretty-printed for debuggability
 
 ## Load Screen Display
 
-The denormalised fields in `SaveMeta` let the load screen show save info without parsing the full state:
+The denormalised fields in `SaveMeta` let a load screen show save info without parsing the full state:
 
 ```
 "Erik Thorvaldsen — Spring 1323 (Turn 12)"
 ```
 
+This richer preview is **not yet implemented** — see Implementation Status below for what actually exists.
+
 ---
+
+## UI (implemented)
+
+A "💾 Save" button in the port-screen header opens a small menu with:
+
+- **Export Save** — calls `GameClient.exportSave()`, which triggers `exportToFile(state)` (browser file download, per "Export File Format" above)
+- **Import Save** — a file `<input type="file">`; on selection, calls `GameClient.importSave(file)`, which parses the file, replaces the in-memory game state, and re-saves it to `localStorage` (so the imported save becomes the new auto-save baseline). Invalid files show an inline error rather than crashing.
+
+The same import control appears on the New Game screen, so a player can load an exported file (their own earlier backup, or one shared by someone else) without first starting a fresh game.
+
+`GameClient` (not `LocalGameClient` alone) gained `exportSave()`/`importSave()` methods rather than the UI calling `save-system.ts` directly — export/import are I/O side effects that don't fit the `(state, action) => newState` `GameAction` shape, but must still go through the client abstraction per CLAUDE.md Hard Rule 2 (UI never imports `src/game/systems/` directly).
+
+## Implementation Status (as of 2026-07-18)
+
+- ✅ `saveToLocalStorage`/`loadFromLocalStorage` (auto-save every `END_TURN`), `exportToFile`/`importFromFile`, and the in-game Save menu described above — all implemented
+- ❌ The richer "Load Screen Display" (a dedicated screen listing save summaries like `"Erik Thorvaldsen — Spring 1323 (Turn 12)"`) is **not implemented** — there is exactly one `localStorage` slot (auto-save, loaded silently on page load by `main.ts`) plus raw file import with no preview of the file's contents before loading
+- ❌ Multiple named save slots are not implemented (see Open Questions)
 
 ## Open Questions
 
 - Should there be multiple save slots in localStorage, or one auto-save slot only?
 - Should the export file be minified (smaller) or pretty-printed (debuggable)? Current choice: pretty-printed.
 - When a migration fails, should the player be offered a raw JSON download before the save is discarded?
+- Should the import control show the `SaveMeta` summary (player/turn/date) before committing to load, rather than loading immediately on file selection?
 
 ## Related
 
 - ADR-004 (Architecture — save = JSON.stringify(GameState minus ui))
 - ADR-011 (Save file format decision — to be created)
+- ADR-012 (Game client abstraction — why export/import go through `GameClient`, not directly from the UI)
 - docs/design/starting-scenario.md (initial state that a new game produces)
-- `src/game/systems/save-system.ts` (implementation target)
+- `src/game/systems/save-system.ts`, `src/game/client/game-client.ts`, `src/game/client/local-game-client.ts` (implementation)

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { GameClient } from '../game/client/game-client.ts';
-  import type { GameState, TurnResult, Ship, CityId, GoodId } from '../game/state/types.ts';
+  import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
   import { currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoSpace, cargoTotal } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
@@ -16,6 +16,7 @@
     durabilityStatus,
     durabilityTravelTimePenalty,
     canDepart,
+    speedRatio,
   } from '../game/data/ships.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
@@ -36,6 +37,8 @@
   let errorMsg = '';
   let pendingDest: Record<string, CityId> = {};
   let fleetCollapsed = false;
+  let showSaveMenu = false;
+  let saveMsg = '';
 
   const GOOD_NAMES: Record<GoodId, string> = {
     salt: 'Salt', grain: 'Grain', timber: 'Timber', furs: 'Furs', herring: 'Herring',
@@ -47,6 +50,7 @@
 
   const GOOD_IDS = Object.keys(GOODS) as GoodId[];
   const CITY_IDS = Object.keys(CITIES) as CityId[];
+  const SHIP_TYPE_IDS = Object.keys(SHIP_TYPES) as ShipType[];
 
   async function startGame() {
     const name = playerName.trim() || 'Merchant';
@@ -57,6 +61,32 @@
     const city = shipCity(state.fleet.ships.find(s => s.id === selectedShipId));
     if (city) selectedCityId = city;
     screen = 'port';
+  }
+
+  function exportSave() {
+    gameClient.exportSave();
+    saveMsg = 'Save exported.';
+  }
+
+  async function importSaveFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+    try {
+      state = await gameClient.importSave(file);
+      pendingDest = {};
+      showSaveMenu = false;
+      lastSummary = null;
+      selectedShipId = state.fleet.ships[0]?.id ?? '';
+      const city = shipCity(shipById(selectedShipId));
+      if (city) selectedCityId = city;
+      screen = 'port';
+      errorMsg = '';
+      saveMsg = '';
+    } catch {
+      saveMsg = 'Could not load that save file.';
+    }
   }
 
   function shipById(id: string): Ship | undefined {
@@ -96,10 +126,10 @@
     else errorMsg = 'Cannot sell.';
   }
 
-  async function buyShip() {
+  async function buyShip(shipType: ShipType) {
     errorMsg = '';
     if (!portCity) return;
-    const result = await gameClient.sendAction({ type: 'BUY_SHIP', cityId: portCity });
+    const result = await gameClient.sendAction({ type: 'BUY_SHIP', cityId: portCity, shipType });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot buy ship.';
   }
@@ -192,12 +222,14 @@
     return route?.turns;
   }
 
-  // Same as travelTurns, but includes the ship's own +1 Damaged-durability
-  // penalty so the preview matches what will actually happen (ship-stats.md).
+  // Same as travelTurns, but includes the ship's own type speed ratio and
+  // +1 Damaged-durability penalty so the preview matches what
+  // setDestination (fleet-system.ts) will actually compute.
   function shipTravelTurns(ship: Ship | undefined, from: CityId | undefined, to: CityId | undefined): number | undefined {
     const base = travelTurns(from, to);
     if (base === undefined || !ship) return base;
-    return base + durabilityTravelTimePenalty(ship.durability);
+    const scaled = Math.max(1, Math.round(base * speedRatio(ship.type)));
+    return scaled + durabilityTravelTimePenalty(ship.durability);
   }
 
   const DURABILITY_LABELS: Record<string, string> = {
@@ -227,6 +259,12 @@
       </label>
       <button type="submit">Begin Trading</button>
     </form>
+    <p class="subtext">or</p>
+    <label class="import-label centered">
+      Load a save file
+      <input type="file" accept="application/json,.json" on:change={importSaveFile} />
+    </label>
+    {#if saveMsg}<p class="save-msg">{saveMsg}</p>{/if}
   </main>
 
 {:else if screen === 'port' || screen === 'map'}
@@ -237,21 +275,39 @@
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
+        <button class="nav-btn" on:click={() => { showSaveMenu = !showSaveMenu; saveMsg = ''; }}>💾 Save</button>
       </div>
       <span class="hdr-cash">{state.player.cash} Mark · Net {netWorth} Mark</span>
     </header>
 
-    {#if screen === 'map'}
-      <div class="map-wrap">
-        <MapView
-          {state}
-          {selectedShipId}
-          {selectedCityId}
-          on:selectCity={selectCityFromMap}
-          on:selectShip={selectShipFromMap}
-        />
+    {#if showSaveMenu}
+      <div class="save-menu">
+        <button class="shipyard-btn" on:click={exportSave}>Export Save (.json)</button>
+        <label class="import-label">
+          Import Save
+          <input type="file" accept="application/json,.json" on:change={importSaveFile} />
+        </label>
+        {#if saveMsg}<span class="save-msg">{saveMsg}</span>{/if}
+        <button class="link-btn" on:click={() => { showSaveMenu = false; }}>close</button>
       </div>
-    {:else}
+    {/if}
+
+    <!-- MapView stays mounted across screen switches instead of being torn
+         down by an {#if} — recreating the PixiJS Application (WebGL context,
+         shader compilation, font textures) on every Map/Port toggle is what
+         made the first-open-after-switch noticeably slow. Only its
+         container's visibility toggles now; MapScene.update() still runs
+         every time state changes so it stays current even while hidden. -->
+    <div class="map-wrap" class:hidden={screen !== 'map'}>
+      <MapView
+        {state}
+        {selectedShipId}
+        {selectedCityId}
+        on:selectCity={selectCityFromMap}
+        on:selectShip={selectShipFromMap}
+      />
+    </div>
+    {#if screen === 'port'}
     <div class="layout">
       <section class="panel fleet-panel" class:collapsed={fleetCollapsed}>
         <div class="fleet-header">
@@ -275,6 +331,7 @@
               on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
             >
               <strong>{s.name}</strong>
+              <span class="tag">{SHIP_TYPES[s.type].name}</span>
               <span class="tag">{positionLabel(s)}</span>
               {#if pendingDest[s.id]}
                 <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
@@ -394,13 +451,20 @@
                   disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
                 >Repair</button>
               </div>
-              <div class="shipyard-row">
-                <span class="shipyard-info">Buy a new Kogge for {SHIP_TYPES.kogge.purchasePrice} Mark.</span>
-                <button
-                  class="shipyard-btn"
-                  on:click={buyShip}
-                  disabled={state.fleet.ships.length >= MAX_SHIPS || state.player.cash < SHIP_TYPES.kogge.purchasePrice}
-                >Buy Ship</button>
+              <div class="ship-buy-grid">
+                {#each SHIP_TYPE_IDS as typeId}
+                  {@const def = SHIP_TYPES[typeId]}
+                  <div class="ship-buy-card">
+                    <strong>{def.name}</strong>
+                    <span class="ship-buy-stats">{def.cargoCapacity} last · {def.purchasePrice} Mark</span>
+                    <span class="ship-buy-desc">{def.description}</span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyShip(typeId)}
+                      disabled={state.fleet.ships.length >= MAX_SHIPS || state.player.cash < def.purchasePrice}
+                    >Buy {def.name}</button>
+                  </div>
+                {/each}
               </div>
               {#if state.fleet.ships.length >= MAX_SHIPS}
                 <p class="order-note muted">Fleet is at the maximum of {MAX_SHIPS} ships.</p>
@@ -569,6 +633,7 @@
   .layout { display: flex; flex: 1; overflow: hidden; }
 
   .map-wrap { flex: 1; overflow: hidden; background: #0d1b2a; }
+  .map-wrap.hidden { display: none; }
 
   .panel { padding: 1rem 1.2rem; overflow-y: auto; }
 
@@ -686,6 +751,32 @@
   }
   .link-btn:hover { background: none; color: #d4a843; }
 
+  .save-menu {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    padding: 0.6rem 1.2rem;
+    background: #1c1508;
+    border-bottom: 1px solid #3a2e18;
+    font-size: 0.85rem;
+  }
+  .import-label {
+    display: inline-flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.5rem;
+    color: #c0a880;
+    cursor: pointer;
+  }
+  .import-label.centered { justify-content: center; }
+  .import-label input[type="file"] {
+    font-size: 0.78rem;
+    color: #c0a880;
+    max-width: 220px;
+  }
+  .save-msg { color: #d4a843; font-size: 0.82rem; }
+
   .shipyard-section {
     margin-top: 1.2rem;
     padding-top: 1rem;
@@ -709,6 +800,26 @@
     flex-shrink: 0;
   }
   .shipyard-btn:hover:not(:disabled) { background: #3a3810; }
+
+  .ship-buy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.4rem;
+  }
+  .ship-buy-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #3a2e18;
+    border-radius: 4px;
+    background: #1c1508;
+  }
+  .ship-buy-card strong { color: #d4a843; font-size: 0.9rem; }
+  .ship-buy-stats { font-size: 0.75rem; color: #9a8a70; }
+  .ship-buy-desc { font-size: 0.72rem; color: #7a6a50; flex: 1; }
+  .ship-buy-card .shipyard-btn { align-self: stretch; text-align: center; }
 
   footer {
     padding: 0.8rem 1.2rem;

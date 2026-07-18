@@ -1,6 +1,6 @@
 import type { Ship, FleetState, CityId, GoodId } from '../state/types.ts';
 import { findRoute } from '../data/routes.ts';
-import { SHIP_TYPES, canDepart, durabilityTravelTimePenalty } from '../data/ships.ts';
+import { SHIP_TYPES, canDepart, durabilityTravelTimePenalty, speedRatio } from '../data/ships.ts';
 
 export function isInTransit(ship: Ship): ship is Ship & { position: { from: CityId; to: CityId; turnsRemaining: number } } {
   return typeof ship.position !== 'string';
@@ -18,13 +18,17 @@ export function setDestination(ship: Ship, destination: CityId): Ship {
   const route = findRoute(ship.position, destination);
   if (!route) return ship;
 
-  // route.turns is already the full travel time "assuming a Kogge at
-  // standard speed" (see city-graph.md) — it must not be multiplied by
-  // turnsPerLeg again, or every voyage silently takes twice as long as
-  // documented. A Damaged ship (26-50 durability) additionally takes +1
-  // turn per leg (ship-stats.md durability thresholds); MVP routes are
-  // always a single leg, so this is a flat +1.
-  const turns = route.turns + durabilityTravelTimePenalty(ship.durability);
+  // route.turns is the Kogge-standard travel time (see city-graph.md) — for
+  // a Kogge, speedRatio() is exactly 1.0, so this reduces to the original
+  // fixed value (the earlier "doubled travel time" bug came from multiplying
+  // route.turns by turnsPerLeg directly instead of by a ratio relative to
+  // the Kogge). Other ship types scale it: a Hulk (turnsPerLeg 3) takes 1.5x
+  // as long, a Schnigge (turnsPerLeg 1) takes half as long, floored at 1
+  // turn. A Damaged ship (26-50 durability) additionally takes +1 turn
+  // (ship-stats.md durability thresholds); MVP routes are always a single
+  // leg, so this is a flat +1 regardless of ship type.
+  const baseTurns = Math.max(1, Math.round(route.turns * speedRatio(ship.type)));
+  const turns = baseTurns + durabilityTravelTimePenalty(ship.durability);
 
   return {
     ...ship,

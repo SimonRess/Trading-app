@@ -133,11 +133,10 @@ export function executeSell(
   return { ...state, player: newPlayer, fleet: newFleet, market: newMarket };
 }
 
-export function executeBuyShip(state: GameState, cityId: CityId): GameState {
+export function executeBuyShip(state: GameState, cityId: CityId, type: ShipType): GameState {
   if (!isShipyardCity(cityId)) return state;
   if (state.fleet.ships.length >= MAX_SHIPS) return state;
 
-  const type: ShipType = 'kogge';
   const price = SHIP_TYPES[type].purchasePrice;
   if (state.player.cash < price) return state;
 

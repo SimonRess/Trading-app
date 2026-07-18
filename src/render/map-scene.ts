@@ -1,13 +1,14 @@
 import { Application, Container, Graphics, Text } from 'pixi.js';
-import type { GameState, CityId, Ship, RoutePosition } from '../game/state/types.ts';
+import type { GameState, CityId, Ship, RoutePosition, RiskState, Season } from '../game/state/types.ts';
 import { CITIES } from '../game/data/cities.ts';
-import { ROUTES, routeKey } from '../game/data/routes.ts';
+import { ROUTES, routeKey, type Route } from '../game/data/routes.ts';
 
 const WORLD_WIDTH = 800;
 const WORLD_HEIGHT = 420;
 
 const SEA_COLOR = 0x0d1b2a;
 const ROUTE_COLOR = 0x3a5a70;
+const ROUTE_DANGER_COLOR = 0xc23b3b;
 const ROUTE_ACTIVE_COLOR = 0xd4a843;
 const CITY_COLOR = 0xd4a843;
 const CITY_RING_COLOR = 0xf0dca0;
@@ -19,6 +20,91 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 3.5;
 const DRAG_THRESHOLD_PX = 4;
 const WHEEL_ZOOM_SPEED = 0.0012;
+
+// Route-danger colouring (see ADR-015 for the risk model). This duplicates
+// the tiny "normalise route risk against the network average" calculation
+// from risk-system.ts rather than importing it, deliberately keeping
+// map-scene.ts free of any src/game/systems/ dependency — see map-view.md
+// "Architecture".
+const RISK_FACTOR_MIN = 0.3;
+const RISK_FACTOR_MAX = 3.0;
+
+function networkAverageRisk(kind: 'storm' | 'pirate'): number {
+  const values = ROUTES.flatMap(r => Object.values(kind === 'storm' ? r.stormRisk : r.pirateRisk));
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+const STORM_RISK_BASELINE = networkAverageRisk('storm');
+const PIRATE_RISK_BASELINE = networkAverageRisk('pirate');
+
+function routeDangerFactor(route: Route, season: Season, risk: RiskState, kind: 'storm' | 'pirate'): number {
+  const baseline = kind === 'storm' ? STORM_RISK_BASELINE : PIRATE_RISK_BASELINE;
+  const base = kind === 'storm' ? route.stormRisk[season] : route.pirateRisk[season];
+  const modifier = risk.routeModifiers[routeKey(route.from, route.to)] ?? 1.0;
+  return Math.min(RISK_FACTOR_MAX, Math.max(RISK_FACTOR_MIN, (base * modifier) / baseline));
+}
+
+function lerpColor(from: number, to: number, t: number): number {
+  const clamped = Math.min(1, Math.max(0, t));
+  const fr = (from >> 16) & 0xff;
+  const fg = (from >> 8) & 0xff;
+  const fb = from & 0xff;
+  const tr = (to >> 16) & 0xff;
+  const tg = (to >> 8) & 0xff;
+  const tb = to & 0xff;
+  const r = Math.round(fr + (tr - fr) * clamped);
+  const g = Math.round(fg + (tg - fg) * clamped);
+  const b = Math.round(fb + (tb - fb) * clamped);
+  return (r << 16) | (g << 8) | b;
+}
+
+// Placeholder pixel-art icons (ADR-005 commits to pixel art long-term; no
+// asset pipeline or artist exists yet — see map-view.md "Visual Design").
+// Drawn as a grid of filled Graphics rects rather than a smooth circle/
+// triangle: PixiJS Graphics fills are vector (always crisp-edged
+// rectangles regardless of scale), so a deliberately blocky pixel-grid
+// pattern reads as pixel art without needing a texture/sprite-sheet
+// pipeline. Swapping in real sprite-sheet assets later only touches this
+// function and the two pattern constants below.
+const CITY_PIXEL_PATTERN = [
+  '#.#.#.#',
+  '#######',
+  '.#####.',
+  '.#####.',
+  '.#.#.#.',
+  '.#####.',
+  '.#####.',
+  '.#####.',
+];
+
+const SHIP_PIXEL_PATTERN = [
+  '....#....',
+  '...###...',
+  '..#####..',
+  '..#####..',
+  '.#######.',
+  '#########',
+  '.#######.',
+];
+
+function drawPixelSprite(pattern: string[], pixelSize: number, color: number): Graphics {
+  const g = new Graphics();
+  const width = Math.max(...pattern.map(row => row.length));
+  const offsetX = (width * pixelSize) / 2;
+  const offsetY = (pattern.length * pixelSize) / 2;
+
+  for (let y = 0; y < pattern.length; y++) {
+    const row = pattern[y] ?? '';
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === '#') {
+        g.rect(x * pixelSize - offsetX, y * pixelSize - offsetY, pixelSize, pixelSize);
+      }
+    }
+  }
+
+  g.fill({ color });
+  return g;
+}
 
 export interface MapSelection {
   selectedShipId?: string;
@@ -45,6 +131,7 @@ export class MapScene {
   private routeLayer: Container;
   private cityLayer: Container;
   private shipLayer: Container;
+  private hudLayer: Container;
   private callbacks: MapSceneCallbacks;
   private resizeObserver: ResizeObserver | undefined;
   private container: HTMLElement | undefined;
@@ -77,6 +164,7 @@ export class MapScene {
     this.routeLayer = new Container();
     this.cityLayer = new Container();
     this.shipLayer = new Container();
+    this.hudLayer = new Container();
 
     this.boundHandlers = {
       wheel: this.handleWheel.bind(this),
@@ -105,9 +193,11 @@ export class MapScene {
 
     this.worldLayer.addChild(this.routeLayer, this.cityLayer, this.shipLayer);
     this.app.stage.addChild(this.worldLayer);
+    this.app.stage.addChild(this.hudLayer);
 
     this.drawStaticRoutes();
     this.drawCities();
+    this.drawLegend();
 
     this.attachInputHandlers();
 
@@ -224,6 +314,7 @@ export class MapScene {
     this.app.renderer.resize(width, height);
     this.baseScale = Math.min(width / WORLD_WIDTH, height / WORLD_HEIGHT);
     this.applyTransform();
+    this.hudLayer.position.set(12, height - 54);
   }
 
   // Combines the base "fit to container" scale with user zoom/pan, and
@@ -248,6 +339,34 @@ export class MapScene {
     this.worldLayer.position.set(centeredX + this.pan.x, centeredY + this.pan.y);
   }
 
+  // Fixed-position legend for the route-danger colouring, drawn once into
+  // hudLayer (a child of app.stage, not worldLayer — it must not scale or
+  // pan with the map, only reposition on resize).
+  private drawLegend(): void {
+    this.hudLayer.removeChildren();
+
+    const rowGap = 16;
+    const swatches: Array<{ label: string; color: number; y: number }> = [
+      { label: 'Calm route', color: ROUTE_COLOR, y: 0 },
+      { label: 'Dangerous route', color: ROUTE_DANGER_COLOR, y: rowGap },
+      { label: 'Ship en route', color: ROUTE_ACTIVE_COLOR, y: rowGap * 2 },
+    ];
+
+    for (const swatch of swatches) {
+      const line = new Graphics()
+        .moveTo(0, swatch.y)
+        .lineTo(18, swatch.y)
+        .stroke({ width: 3, color: swatch.color, alpha: 0.9 });
+      const label = new Text({
+        text: swatch.label,
+        style: { fill: CITY_LABEL_COLOR, fontSize: 11, fontFamily: 'Georgia' },
+      });
+      label.anchor.set(0, 0.5);
+      label.position.set(24, swatch.y);
+      this.hudLayer.addChild(line, label);
+    }
+  }
+
   private drawStaticRoutes(): void {
     this.routeLayer.removeChildren();
     for (const route of ROUTES) {
@@ -264,10 +383,7 @@ export class MapScene {
   private drawCities(): void {
     this.cityLayer.removeChildren();
     for (const city of Object.values(CITIES)) {
-      const dot = new Graphics()
-        .circle(0, 0, 10)
-        .fill({ color: CITY_COLOR })
-        .stroke({ width: 2, color: 0x3a2810 });
+      const dot = drawPixelSprite(CITY_PIXEL_PATTERN, 2.6, CITY_COLOR);
       dot.position.set(city.position.x, city.position.y);
       dot.eventMode = 'static';
       dot.cursor = 'pointer';
@@ -301,7 +417,13 @@ export class MapScene {
     this.cityLayer.addChild(ring);
   }
 
-  private drawActiveRoutes(state: GameState): void {
+  // Routes are tinted by their current combined storm+pirate danger (ADR-015
+  // risk model — see routeDangerFactor above) so the player gets a visual
+  // read on regional risk directly from the map. A route a ship is actively
+  // sailing is drawn gold and thicker instead, taking priority over the
+  // danger tint — "something is happening here right now" is a more
+  // actionable signal than ambient danger level.
+  private drawRoutes(state: GameState): void {
     const activeRouteKeys = new Set<string>();
     for (const ship of state.fleet.ships) {
       if (isInTransitPosition(ship.position)) {
@@ -309,18 +431,29 @@ export class MapScene {
       }
     }
 
+    const season = state.calendar.season;
+
     this.routeLayer.removeChildren();
     for (const route of ROUTES) {
       const from = CITIES[route.from].position;
       const to = CITIES[route.to].position;
       const isActive = activeRouteKeys.has(routeKey(route.from, route.to));
+
+      const stormFactor = routeDangerFactor(route, season, state.risk, 'storm');
+      const pirateFactor = routeDangerFactor(route, season, state.risk, 'pirate');
+      const danger = (stormFactor + pirateFactor) / 2;
+      // danger is centred on 1.0 (RISK_FACTOR_MIN..MAX = 0.3..3.0); map the
+      // "above average" half of that range onto the calm->danger gradient.
+      const dangerT = (danger - 1.0) / (RISK_FACTOR_MAX - 1.0);
+      const dangerColor = lerpColor(ROUTE_COLOR, ROUTE_DANGER_COLOR, dangerT);
+
       const line = new Graphics()
         .moveTo(from.x, from.y)
         .lineTo(to.x, to.y)
         .stroke({
-          width: isActive ? 3 : 2,
-          color: isActive ? ROUTE_ACTIVE_COLOR : ROUTE_COLOR,
-          alpha: isActive ? 0.9 : 0.7,
+          width: isActive ? 4 : 2.5,
+          color: isActive ? ROUTE_ACTIVE_COLOR : dangerColor,
+          alpha: isActive ? 0.95 : 0.8,
         });
       this.routeLayer.addChild(line);
     }
@@ -366,10 +499,7 @@ export class MapScene {
 
   private drawShipMarker(ship: Ship, x: number, y: number, selection: MapSelection): void {
     const selected = ship.id === selection.selectedShipId;
-    const marker = new Graphics()
-      .poly([0, -7, 6, 6, -6, 6], true)
-      .fill({ color: selected ? SHIP_SELECTED_COLOR : SHIP_COLOR })
-      .stroke({ width: 1.5, color: 0x2a1c08 });
+    const marker = drawPixelSprite(SHIP_PIXEL_PATTERN, 1.9, selected ? SHIP_SELECTED_COLOR : SHIP_COLOR);
     marker.position.set(x, y);
     marker.eventMode = 'static';
     marker.cursor = 'pointer';
@@ -391,7 +521,7 @@ export class MapScene {
   }
 
   update(state: GameState, selection: MapSelection): void {
-    this.drawActiveRoutes(state);
+    this.drawRoutes(state);
     this.drawSelectionRing(selection);
     this.drawShips(state, selection);
   }
