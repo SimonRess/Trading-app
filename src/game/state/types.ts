@@ -59,12 +59,22 @@ export interface CalendarState {
   maxTurns: number;
 }
 
+// Session-persistent regional danger levels. Multipliers around 1.0 that
+// drift slightly each turn (see risk-system.ts), representing e.g. "pirate
+// activity in the Riga approach is currently elevated this session" without
+// requiring any player-facing configuration.
+export interface RiskState {
+  routeModifiers: Record<string, number>; // key: sorted "cityA-cityB"
+  cityModifiers: Partial<Record<CityId, number>>;
+}
+
 export interface GameState {
   player: PlayerState;
   fleet: FleetState;
   cities: CitiesState;
   market: MarketState;
   calendar: CalendarState;
+  risk: RiskState;
 }
 
 export type GameOutcome = 'win' | 'lose' | null;

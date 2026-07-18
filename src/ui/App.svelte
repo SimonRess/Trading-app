@@ -7,7 +7,16 @@
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
   import { ROUTES } from '../game/data/routes.ts';
-  import { SHIP_TYPES, isShipyardCity, repairCost, MAX_SHIPS, SHIPYARD_CITIES } from '../game/data/ships.ts';
+  import {
+    SHIP_TYPES,
+    isShipyardCity,
+    repairCost,
+    MAX_SHIPS,
+    SHIPYARD_CITIES,
+    durabilityStatus,
+    durabilityTravelTimePenalty,
+    canDepart,
+  } from '../game/data/ships.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
 
@@ -183,6 +192,22 @@
     return route?.turns;
   }
 
+  // Same as travelTurns, but includes the ship's own +1 Damaged-durability
+  // penalty so the preview matches what will actually happen (ship-stats.md).
+  function shipTravelTurns(ship: Ship | undefined, from: CityId | undefined, to: CityId | undefined): number | undefined {
+    const base = travelTurns(from, to);
+    if (base === undefined || !ship) return base;
+    return base + durabilityTravelTimePenalty(ship.durability);
+  }
+
+  const DURABILITY_LABELS: Record<string, string> = {
+    seaworthy: 'Seaworthy',
+    worn: 'Worn',
+    damaged: 'Damaged',
+    critical: 'Critical',
+    wrecked: 'Wrecked',
+  };
+
   $: activeShip = state.fleet.ships.find((s) => s.id === selectedShipId);
   $: portCity = activeShip && isInPort(activeShip) ? (activeShip.position as CityId) : undefined;
   $: netWorth = computeNetWorth(state);
@@ -252,9 +277,11 @@
               <strong>{s.name}</strong>
               <span class="tag">{positionLabel(s)}</span>
               {#if pendingDest[s.id]}
-                <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({travelTurns(shipCity(s), pendingDest[s.id])}t)</span>
+                <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
               {/if}
-              <span class="tag">Dur {s.durability}/100</span>
+              <span class="tag durability-{durabilityStatus(s.durability)}">
+                Dur {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
+              </span>
               <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
             </div>
           {/each}
@@ -322,24 +349,31 @@
 
           <div class="dest-section">
             <h3>Set Destination</h3>
-            <div class="dest-btns">
-              {#each reachableCities(activeShip) as dest}
-                <button
-                  class="dest-btn"
-                  class:ordered={pendingDest[selectedShipId] === dest}
-                  on:click={() => orderDest(selectedShipId, dest)}
-                >{CITIES[dest].name} <span class="dest-turns">({travelTurns(portCity, dest)}t)</span></button>
-              {/each}
-            </div>
-            {#if pendingDest[selectedShipId]}
-              <p class="order-note">
-                ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong>
-                ({travelTurns(portCity, pendingDest[selectedShipId])} turn{travelTurns(portCity, pendingDest[selectedShipId]) === 1 ? '' : 's'})
-                when you end the turn.
-                <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
+            {#if !canDepart(activeShip.durability)}
+              <p class="order-note critical">
+                ⚠️ {activeShip.name} is critically damaged ({activeShip.durability}/100) and cannot depart.
+                Repair it at a shipyard before setting sail.
               </p>
             {:else}
-              <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
+              <div class="dest-btns">
+                {#each reachableCities(activeShip) as dest}
+                  <button
+                    class="dest-btn"
+                    class:ordered={pendingDest[selectedShipId] === dest}
+                    on:click={() => orderDest(selectedShipId, dest)}
+                  >{CITIES[dest].name} <span class="dest-turns">({shipTravelTurns(activeShip, portCity, dest)}t)</span></button>
+                {/each}
+              </div>
+              {#if pendingDest[selectedShipId]}
+                <p class="order-note">
+                  ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong>
+                  ({shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId])} turn{shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId]) === 1 ? '' : 's'})
+                  when you end the turn.
+                  <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
+                </p>
+              {:else}
+                <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
+              {/if}
             {/if}
           </div>
 
@@ -585,6 +619,10 @@
   .ship-card strong { color: #d4a843; font-size: 0.95rem; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
+  .tag.durability-seaworthy { color: #8a7a60; }
+  .tag.durability-worn { color: #d4b843; }
+  .tag.durability-damaged { color: #d48a43; }
+  .tag.durability-critical { color: #e06060; font-weight: bold; }
 
   .city-select { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
   .city-btn {
@@ -636,6 +674,7 @@
 
   .order-note { margin-top: 0.7rem; font-size: 0.85rem; color: #c8a840; }
   .order-note.muted { color: #7a6a50; font-style: italic; }
+  .order-note.critical { color: #e06060; font-weight: bold; }
   .order-note strong { color: #f0dca0; }
   .link-btn {
     background: none;
@@ -697,4 +736,40 @@
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }
   .lose { color: #c86060; }
+
+  /* Mobile: below this width the two-column port layout (fixed-width
+     fleet sidebar + trade panel) squeezes the trade panel too narrow for
+     its 6-column market table -- the Buy/Sell columns become inaccessible.
+     Stack the panels instead, and let the fold button collapse the fleet
+     panel's height rather than its width once it's already full-width. */
+  @media (max-width: 700px) {
+    header {
+      flex-wrap: wrap;
+      row-gap: 0.35rem;
+      padding: 0.5rem 0.8rem;
+    }
+    .hdr-info { flex-basis: 100%; order: 3; font-size: 0.8rem; }
+    .hdr-cash { flex-basis: 100%; order: 4; margin-left: 0; font-size: 0.85rem; }
+    .nav-toggle { order: 2; margin-left: auto; }
+
+    .layout { flex-direction: column; overflow-y: auto; }
+
+    .fleet-panel {
+      width: 100% !important;
+      max-height: 190px;
+      overflow-y: auto;
+      border-right: none;
+      border-bottom: 1px solid #3a2e18;
+    }
+    .fleet-panel.collapsed {
+      max-height: 44px;
+      padding: 0.5rem 0.8rem;
+    }
+    .fleet-panel.collapsed .fold-btn { margin: 0 0 0 auto; }
+
+    .qty-row { flex-wrap: wrap; row-gap: 0.5rem; }
+
+    /* Slightly larger touch targets. */
+    .trade-btn, .dest-btn, .city-btn, .shipyard-btn { padding: 0.45rem 0.7rem; }
+  }
 </style>

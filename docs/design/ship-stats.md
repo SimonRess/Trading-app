@@ -132,17 +132,19 @@ Both actions are only available while a ship is **in port at a shipyard city** (
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 
-## Implementation Status (as of 2026-07-17)
+## Implementation Status (as of 2026-07-18)
 
 - ✅ Buy ship, repair ship, shipyard-city restriction, `MAX_SHIPS` cap — implemented (`src/game/data/ships.ts`, `executeBuyShip`/`executeRepairShip` in `turn-system.ts`)
-- ❌ **Durability-threshold effects are not implemented.** The table above (Worn/Damaged/Critical rows: storm-chance modifiers, travel-time penalty, "cannot depart if critical") is not yet enforced anywhere in code — a ship at 1 durability can currently still be sent on a new voyage. This remains a gap between spec and implementation.
-- ❌ Per-route/season storm risk (`city-graph.md`) is not consumed; storm damage currently only comes from the random event roll (see `turn-resolution-order.md` Implementation Status table).
+- ✅ **Durability-threshold effects are implemented** (ADR-015): `canDepart` blocks Critical/Wrecked ships from receiving new sail orders (`setDestination` in `fleet-system.ts` returns the ship unchanged; the port UI shows an explicit "cannot depart" warning instead of the destination buttons); `durabilityTravelTimePenalty` adds +1 turn for a Damaged ship; `durabilityStormChancePenalty` (0/0.05/0.10 for Seaworthy/Worn/Damaged) feeds both the storm event's pool-selection weight and its per-ship damage formula — see `event-table.md` "Per-Route & Session Risk". The UI shows a durability status label (Seaworthy/Worn/Damaged/Critical) on every ship card.
+- ✅ Per-route/season storm risk (`city-graph.md`) and the new `pirateRisk` table are both consumed by the event system — see ADR-015 and `event-table.md`. Storm damage per ship now ranges 6–22 based on route risk and durability, rather than a flat 10 to every ship in transit.
 - ❌ Wrecked-ship "full repair for 200 Mark" language does not apply in practice — a wrecked ship (0 durability) is removed from the fleet entirely (`fleet-system.ts` `applyStormDamage`), so there is nothing left to repair. Buying a replacement ship is the only recovery path.
 
 ## Related
 
 - ADR-010 (Combat — cannon capacity interacts with cargo; crew field needed before v2)
-- docs/design/city-graph.md (storm risk per route; damage applied per transit turn — not yet wired in)
+- ADR-015 (Per-route & session event risk — durability thresholds and storm-risk consumption)
+- docs/design/city-graph.md (storm/pirate risk per route)
 - docs/design/mvp-scope.md (Kogge-only for MVP; max 3 ships; repair/buy now implemented)
 - docs/design/turn-resolution-order.md (step 4: storm damage resolved on arrival)
+- docs/design/event-table.md (storm damage formula, durability-driven event weighting)
 - `src/game/data/ships.ts`, `src/game/systems/turn-system.ts` (`executeBuyShip`, `executeRepairShip`)
