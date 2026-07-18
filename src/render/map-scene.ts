@@ -21,6 +21,18 @@ const MAX_ZOOM = 3.5;
 const DRAG_THRESHOLD_PX = 4;
 const WHEEL_ZOOM_SPEED = 0.0012;
 
+// How long a ship marker takes to glide to its new logical position (port
+// fan-out slot, a point along its route, or back into port) whenever
+// update() reports a change — turns resolve instantly in game logic, but
+// snapping the marker straight there read as teleporting. Purely a render
+// concern: game state has no notion of "mid-tween".
+const SHIP_MOVE_DURATION_MS = 600;
+
+function easeOutCubic(t: number): number {
+  const clamped = Math.min(1, Math.max(0, t));
+  return 1 - Math.pow(1 - clamped, 3);
+}
+
 // Route-danger colouring (see ADR-015 for the risk model). This duplicates
 // the tiny "normalise route risk against the network average" calculation
 // from risk-system.ts rather than importing it, deliberately keeping
@@ -94,7 +106,11 @@ const SHIP_PIXEL_PATTERN = [
 ];
 
 function drawPixelSprite(pattern: string[], pixelSize: number, color: number): Graphics {
-  const g = new Graphics();
+  return drawPixelSpriteInto(new Graphics(), pattern, pixelSize, color);
+}
+
+function drawPixelSpriteInto(g: Graphics, pattern: string[], pixelSize: number, color: number): Graphics {
+  g.clear();
   const width = Math.max(...pattern.map(row => row.length));
   const offsetX = (width * pixelSize) / 2;
   const offsetY = (pattern.length * pixelSize) / 2;
@@ -131,6 +147,17 @@ interface PointerPoint {
   y: number;
 }
 
+interface ShipMarker {
+  container: Container;
+  icon: Graphics;
+  label: Text;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  animStart: number;
+}
+
 export class MapScene {
   private app: Application;
   private worldLayer: Container;
@@ -146,6 +173,9 @@ export class MapScene {
   private baseScale = 1;
   private zoom = MIN_ZOOM;
   private pan = { x: 0, y: 0 };
+
+  private shipMarkers = new Map<string, ShipMarker>();
+  private lastState: GameState | undefined;
 
   private activePointers = new Map<number, PointerPoint>();
   private dragStart: PointerPoint = { x: 0, y: 0 };
@@ -213,6 +243,7 @@ export class MapScene {
     this.hudLayer.position.set(12, (container.clientHeight || 300) - 54);
 
     this.attachInputHandlers();
+    this.app.ticker.add(this.tickShipAnimations);
 
     this.resizeObserver = new ResizeObserver(() => {
       if (this.container) this.handleResize(this.container);
@@ -482,65 +513,87 @@ export class MapScene {
     }
   }
 
-  private drawShips(state: GameState, selection: MapSelection): void {
-    this.shipLayer.removeChildren();
+  private shipTargetPosition(ship: Ship): { x: number; y: number } | undefined {
+    if (typeof ship.position === 'string') {
+      const ships = this.shipsAtCity(ship.position);
+      const index = ships.indexOf(ship.id);
+      const base = CITIES[ship.position].position;
+      const offsetX = (index - (ships.length - 1) / 2) * 14;
+      return { x: base.x + offsetX, y: base.y - 22 };
+    }
 
-    const shipsByCity = new Map<CityId, Ship[]>();
-    for (const ship of state.fleet.ships) {
-      if (typeof ship.position === 'string') {
-        const list = shipsByCity.get(ship.position) ?? [];
-        list.push(ship);
-        shipsByCity.set(ship.position, list);
+    const pos = ship.position;
+    const route = ROUTES.find(
+      r => (r.from === pos.from && r.to === pos.to) || (r.to === pos.from && r.from === pos.to),
+    );
+    if (!route) return undefined;
+
+    const from = CITIES[pos.from].position;
+    const to = CITIES[pos.to].position;
+    const progress = 1 - pos.turnsRemaining / route.turns;
+    return { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress };
+  }
+
+  // Stable ordering of ships currently in port at a city, used to fan
+  // multiple ships out around the same city marker without them jittering
+  // relative to each other between updates.
+  private shipsAtCity(cityId: CityId): string[] {
+    return this.lastState?.fleet.ships
+      .filter(s => s.position === cityId)
+      .map(s => s.id) ?? [];
+  }
+
+  private drawShips(state: GameState, selection: MapSelection): void {
+    this.lastState = state;
+    const currentIds = new Set(state.fleet.ships.map(s => s.id));
+
+    for (const [id, marker] of this.shipMarkers) {
+      if (!currentIds.has(id)) {
+        this.shipLayer.removeChild(marker.container);
+        this.shipMarkers.delete(id);
       }
     }
 
-    for (const [cityId, ships] of shipsByCity) {
-      const base = CITIES[cityId].position;
-      ships.forEach((ship, index) => {
-        const offsetX = (index - (ships.length - 1) / 2) * 14;
-        this.drawShipMarker(ship, base.x + offsetX, base.y - 22, selection);
-      });
-    }
-
     for (const ship of state.fleet.ships) {
-      if (!isInTransitPosition(ship.position)) continue;
-      const pos = ship.position;
-      const route = ROUTES.find(
-        r => (r.from === pos.from && r.to === pos.to) || (r.to === pos.from && r.from === pos.to),
-      );
-      if (!route) continue;
-
-      const from = CITIES[pos.from].position;
-      const to = CITIES[pos.to].position;
-      const progress = 1 - pos.turnsRemaining / route.turns;
-      const x = from.x + (to.x - from.x) * progress;
-      const y = from.y + (to.y - from.y) * progress;
-
-      this.drawShipMarker(ship, x, y, selection);
+      const target = this.shipTargetPosition(ship);
+      if (!target) continue;
+      this.updateShipMarker(ship, target.x, target.y, selection);
     }
   }
 
-  private drawShipMarker(ship: Ship, x: number, y: number, selection: MapSelection): void {
+  private updateShipMarker(ship: Ship, x: number, y: number, selection: MapSelection): void {
     const selected = ship.id === selection.selectedShipId;
-    const marker = drawPixelSprite(SHIP_PIXEL_PATTERN, 1.5, selected ? SHIP_SELECTED_COLOR : SHIP_COLOR);
-    marker.position.set(x, y);
-    marker.eventMode = 'static';
-    marker.cursor = 'pointer';
-    marker.on('pointertap', (event) => {
-      event.stopPropagation();
-      this.callbacks.onShipClick?.(ship.id);
-    });
-    this.shipLayer.addChild(marker);
+    let marker = this.shipMarkers.get(ship.id);
 
-    if (selected) {
-      const label = new Text({
-        text: ship.name,
-        style: { fill: SHIP_SELECTED_COLOR, fontSize: 11, fontFamily: 'Georgia' },
-      });
+    if (!marker) {
+      const container = new Container();
+      const icon = drawPixelSprite(SHIP_PIXEL_PATTERN, 1.5, SHIP_COLOR);
+      const label = new Text({ text: ship.name, style: { fill: SHIP_SELECTED_COLOR, fontSize: 11, fontFamily: 'Georgia' } });
       label.anchor.set(0.5, 1);
-      label.position.set(x, y - 10);
-      this.shipLayer.addChild(label);
+      label.position.set(0, -10);
+      container.addChild(icon, label);
+      container.eventMode = 'static';
+      container.cursor = 'pointer';
+      container.on('pointertap', (event) => {
+        event.stopPropagation();
+        this.callbacks.onShipClick?.(ship.id);
+      });
+      container.position.set(x, y);
+      this.shipLayer.addChild(container);
+
+      marker = { container, icon, label, startX: x, startY: y, targetX: x, targetY: y, animStart: performance.now() - SHIP_MOVE_DURATION_MS };
+      this.shipMarkers.set(ship.id, marker);
+    } else if (marker.targetX !== x || marker.targetY !== y) {
+      marker.startX = marker.container.position.x;
+      marker.startY = marker.container.position.y;
+      marker.targetX = x;
+      marker.targetY = y;
+      marker.animStart = performance.now();
     }
+
+    drawPixelSpriteInto(marker.icon, SHIP_PIXEL_PATTERN, 1.5, selected ? SHIP_SELECTED_COLOR : SHIP_COLOR);
+    marker.label.text = ship.name;
+    marker.label.visible = selected;
   }
 
   update(state: GameState, selection: MapSelection): void {
@@ -551,7 +604,19 @@ export class MapScene {
 
   destroy(): void {
     this.detachInputHandlers();
+    this.app.ticker.remove(this.tickShipAnimations);
     this.resizeObserver?.disconnect();
     this.app.destroy(true, { children: true });
   }
+
+  private tickShipAnimations = (): void => {
+    const now = performance.now();
+    for (const marker of this.shipMarkers.values()) {
+      const t = easeOutCubic((now - marker.animStart) / SHIP_MOVE_DURATION_MS);
+      marker.container.position.set(
+        marker.startX + (marker.targetX - marker.startX) * t,
+        marker.startY + (marker.targetY - marker.startY) * t,
+      );
+    }
+  };
 }
