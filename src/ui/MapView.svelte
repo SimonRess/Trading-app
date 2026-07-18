@@ -39,6 +39,13 @@
   $: if (ready && scene && visible) {
     scene.refreshLayout();
   }
+
+  // See map-scene.ts's setVisible() — lets ship-move animations that ran
+  // while the map was hidden resume their glide on show, instead of having
+  // already snapped to their end position off-screen.
+  $: if (ready && scene) {
+    scene.setVisible(visible);
+  }
 </script>
 
 <div class="map-container" bind:this={container}></div>

@@ -318,7 +318,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Ship stats & costs | Draft | design/ship-stats.md |
 | Deployment | Draft | design/deployment.md |
 | Map view | Draft | design/map-view.md |
-| Political milestones | **Missing** | — |
+| Political milestones | Proposed (not implemented) | design/political-rank.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
 ---

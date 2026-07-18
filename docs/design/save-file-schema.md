@@ -71,6 +71,7 @@ interface PlayerState {
   name: string;
   cash: number;
   age: number;
+  maritalStatus: 'single' | 'married' | 'widowed';  // added post-v1; additive, no schema bump — save-system.ts defaults to 'single' if absent
   politicalRank: number;         // 0=Citizen, 1=Guild, 2=Council, 3=Mayor
   reputation: Record<CityId, number>;  // 0–100 per city
 }
