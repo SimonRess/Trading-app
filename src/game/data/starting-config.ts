@@ -46,5 +46,6 @@ export function buildStartingState(playerName: string): GameState {
       maxTurns: 40,
     },
     risk: buildInitialRiskState(),
+    hasWon: false,
   };
 }

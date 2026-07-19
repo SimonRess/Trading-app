@@ -200,7 +200,11 @@
     selectedShipId = state.fleet.ships[0]?.id ?? selectedShipId;
     const city = shipCity(shipById(selectedShipId));
     if (city) selectedCityId = city;
-    screen = turnResult.summary.outcome ? 'game-over' : 'turn-summary';
+    // Winning no longer ends the session (the player can keep playing), so
+    // it's surfaced through the same persistent turn-summary overlay as a
+    // normal turn — only losing (bankruptcy, out of turns) is an actual
+    // session-ending 'game-over' screen.
+    screen = turnResult.summary.outcome === 'lose' ? 'game-over' : 'turn-summary';
   }
 
   function continuePlaying() {
@@ -562,18 +566,30 @@
     {#if screen === 'turn-summary'}
       <div class="turn-summary-overlay">
         <div class="turn-summary-card">
-          <h2>Turn {state.calendar.turn - 1} Summary</h2>
+          {#if lastSummary?.outcome === 'win'}
+            <h2 class="win">Victory!</h2>
+            <p>You accumulated {netWorth} Mark and secured your family's legacy. The game continues — keep trading, or retire here.</p>
+          {:else}
+            <h2>Turn {state.calendar.turn - 1} Summary</h2>
+          {/if}
           {#if lastSummary && lastSummary.events.length > 0}
             <ul class="events">
               {#each lastSummary.events as evt}
                 <li>{evt}</li>
               {/each}
             </ul>
-          {:else}
+          {:else if lastSummary?.outcome !== 'win'}
             <p>A quiet turn — nothing unusual happened.</p>
           {/if}
           <p class="net-worth">Net worth: {netWorth} Mark</p>
-          <button on:click={continuePlaying}>Continue →</button>
+          {#if lastSummary?.outcome === 'win'}
+            <div class="turn-summary-actions">
+              <button on:click={continuePlaying}>Continue Playing →</button>
+              <button class="link-btn" on:click={newGame}>Retire & Play Again</button>
+            </div>
+          {:else}
+            <button on:click={continuePlaying}>Continue →</button>
+          {/if}
         </div>
       </div>
     {/if}
@@ -581,13 +597,8 @@
 
 {:else if screen === 'game-over'}
   <main class="screen center">
-    {#if lastSummary?.outcome === 'win'}
-      <h1 class="win">Victory!</h1>
-      <p>You accumulated {netWorth} Mark and secured your family's legacy.</p>
-    {:else}
-      <h1 class="lose">Bankrupt</h1>
-      <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
-    {/if}
+    <h1 class="lose">Bankrupt</h1>
+    <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
     <button on:click={newGame}>Play Again</button>
   </main>
 {/if}
@@ -928,6 +939,8 @@
     border-radius: 6px;
     max-width: 520px;
   }
+
+  .turn-summary-actions { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }

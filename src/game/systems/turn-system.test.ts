@@ -202,12 +202,32 @@ describe('resolveTurn', () => {
     expect(state.calendar.turn).toBe(turnBefore);
   });
 
-  it('returns win outcome when net worth reaches threshold', () => {
+  it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {
     const state = buildStartingState('TestPlayer');
     const richState = { ...state, player: { ...state.player, cash: 9_999 } };
     // net worth = 9999 cash + 400 ship + cargo — will exceed 10000
-    const { summary } = resolveTurn(richState, { destinations: {} });
+    const { state: next, summary } = resolveTurn(richState, { destinations: {} });
     expect(summary.outcome).toBe('win');
+    expect(next.hasWon).toBe(true);
+  });
+
+  it('does not re-trigger the win outcome on a later turn once hasWon is set', () => {
+    const state = buildStartingState('TestPlayer');
+    const alreadyWon = { ...state, player: { ...state.player, cash: 9_999 }, hasWon: true };
+    const { summary } = resolveTurn(alreadyWon, { destinations: {} });
+    expect(summary.outcome).toBeNull();
+  });
+
+  it('winning does not prevent a later lose outcome (e.g. running out of turns)', () => {
+    const state = buildStartingState('TestPlayer');
+    const wonButOutOfTime = {
+      ...state,
+      player: { ...state.player, cash: 9_999 },
+      hasWon: true,
+      calendar: { ...state.calendar, turn: 40, maxTurns: 40 },
+    };
+    const { summary } = resolveTurn(wonButOutOfTime, { destinations: {} });
+    expect(summary.outcome).toBe('lose');
   });
 
   it('returns lose outcome when max turns elapsed', () => {
@@ -228,16 +248,18 @@ describe('resolveTurn', () => {
     expect(summary.events.some(e => e.includes('Guild'))).toBe(true);
   });
 
-  it('reaching Mayor rank does not itself trigger a win outcome', () => {
+  it('reaching Mayor rank triggers a win outcome', () => {
     const state = buildStartingState('TestPlayer');
+    // The Mayor threshold's own net-worth bar (10,000) already coincides
+    // with the flat net-worth win condition, so this also exercises that
+    // both conditions land on the same turn without double-counting.
     const eligible = {
       ...state,
-      player: { ...state.player, cash: 100, reputation: { ...state.player.reputation, lubeck: 75 } },
+      player: { ...state.player, cash: 9_600, reputation: { ...state.player.reputation, lubeck: 75 } },
     };
-    // Below the 10,000 net-worth win threshold, but rank thresholds use a
-    // lower bar — should not accidentally end the game.
-    const { summary } = resolveTurn(eligible, { destinations: {} });
-    expect(summary.outcome).toBeNull();
+    const { state: next, summary } = resolveTurn(eligible, { destinations: {} });
+    expect(next.player.politicalRank).toBe(3);
+    expect(summary.outcome).toBe('win');
   });
 
   it('does not promote rank when only one condition is met', () => {
