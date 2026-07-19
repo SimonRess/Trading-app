@@ -319,6 +319,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Deployment | Draft | design/deployment.md |
 | Map view | Draft | design/map-view.md |
 | Political milestones | Implemented (first pass; thresholds not yet tuned) | design/political-rank.md |
+| Family & generational succession | Proposed (not implemented) | design/family-succession.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
 ---

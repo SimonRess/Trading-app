@@ -69,8 +69,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   let newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
 
   // Step 6: Net worth, then political rank (needs net worth + Lübeck
-  // reputation — see docs/design/political-rank.md). Reaching Mayor is a
-  // milestone only in this pass, not a win condition of its own.
+  // reputation — see docs/design/political-rank.md).
   const netWorth = computeNetWorth(newState);
   const nextRank = evaluateRankUp(newState.player, netWorth);
   if (nextRank !== newState.player.politicalRank) {
@@ -78,10 +77,17 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(rankUpMessage(nextRank));
   }
 
-  // Step 7: Check win/lose
+  // Step 7: Check win/lose. Winning (10,000+ net worth, or reaching Mayor)
+  // no longer ends the session — the player can continue playing — so it
+  // only ever fires the 'win' outcome once per game (newState.hasWon
+  // latches permanently) rather than re-triggering the win screen every
+  // subsequent turn while the qualifying condition remains true. Losing
+  // conditions are unaffected and still apply even after a win.
   let outcome: 'win' | 'lose' | null = null;
-  if (netWorth >= 10_000) {
+  const qualifiesForWin = netWorth >= 10_000 || newState.player.politicalRank === 3;
+  if (qualifiesForWin && !newState.hasWon) {
     outcome = 'win';
+    newState = { ...newState, hasWon: true };
   } else if (netWorth <= 0 || calendar.turn >= calendar.maxTurns) {
     outcome = 'lose';
   }

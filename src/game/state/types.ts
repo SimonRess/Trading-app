@@ -78,6 +78,11 @@ export interface GameState {
   market: MarketState;
   calendar: CalendarState;
   risk: RiskState;
+  // True once a win condition has fired at least once. Winning no longer
+  // ends the session — the player can continue — so this exists purely to
+  // stop the win screen from reappearing every subsequent turn while the
+  // qualifying condition (net worth, Mayor rank) remains true.
+  hasWon: boolean;
 }
 
 export type GameOutcome = 'win' | 'lose' | null;

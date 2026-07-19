@@ -54,6 +54,7 @@ interface PersistedGameState {
   market: MarketState;
   calendar: CalendarState;
   risk: RiskState;         // added in ADR-015; additive, no schema bump needed
+  hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
   // ui state is deliberately excluded
 }
 ```
