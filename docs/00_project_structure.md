@@ -320,6 +320,8 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Map view | Draft | design/map-view.md |
 | Political milestones | Implemented (first pass; thresholds not yet tuned) | design/political-rank.md |
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
+| Church building & donations | Proposed (not implemented) | design/church-donations.md |
+| Warehouses | Proposed (not implemented) | design/warehouses.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
 ---

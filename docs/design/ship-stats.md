@@ -151,6 +151,10 @@ Both actions are only available while a ship is **in port at a shipyard city** (
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 
+## Renaming Ships (Proposed, v1.1)
+
+Ships get a name from a small fixed list at creation (`nextShipName` in `ships.ts`) and nothing lets the player change it afterward. Proposed: a simple text input in the fleet panel (or ship-selection area) for the currently-selected ship, free (no cash cost — this is flavor, not an economic decision) and unrestricted (any non-empty string, no uniqueness requirement across the fleet — two ships can share a name, matching how nothing else in the data model assumes uniqueness). A `RENAME_SHIP { shipId, name }` `GameAction` sets `Ship.name` directly; no other state changes. No open design questions — this is a small, low-risk feature, more an implementation task than something needing a dedicated design doc.
+
 ## Implementation Status (as of 2026-07-18)
 
 - ✅ Buy ship (all three types), repair ship, shipyard-city restriction, `MAX_SHIPS` cap — implemented (`src/game/data/ships.ts`, `executeBuyShip`/`executeRepairShip` in `turn-system.ts`; `BUY_SHIP` `GameAction` now carries a `shipType` field)
