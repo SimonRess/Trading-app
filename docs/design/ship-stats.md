@@ -84,6 +84,21 @@ posture: 'aggressive' | 'defensive' | 'flee';
 
 The `cargo` capacity available for goods = `50 - (cannons × 2)`. This is why `cannons` must be tracked on the ship even before combat is implemented — it affects the cargo capacity calculation.
 
+### Buying & Selling Cannons (Proposed, v2 — pulled forward ahead of full combat)
+
+**Status:** Proposed — not implemented.
+
+Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate implementation effort, but the **cannon-purchasing half** of ADR-010's pre-battle preparation phase can land independently and earlier — the same "implement the buildable/tradeable part ahead of the mechanic that consumes it" pattern already used for Hulk/Schnigge (bought forward from v1.1 into the MVP pass) and ship buying/repair generally. A ship can carry cannons, at the cost of cargo space, before combat itself exists to use them — they'd simply do nothing yet, same as `politicalRank`/`reputation` sat unused in the state shape for a long stretch before `political-rank.md` gave them a purpose.
+
+- Available at shipyard cities only (`SHIPYARD_CITIES`), a "Weapons" control alongside Buy/Repair/Crew in the Shipyard section: buy/sell cannons one at a time for the selected ship, each purchase costing a flat price (proposed: 150 Mark) and immediately reducing that ship's usable cargo capacity by 2 last (`cargoSpace` — already the single function everything else reads for capacity checks, per `fleet-system.ts` — needs to subtract `cannons × 2`, the same formula ADR-010 already specifies).
+- Selling refunds a fraction of the purchase price (proposed: 60%, same one-way-friction spirit as warehouse resale and crew severance) and immediately frees the cargo space back up.
+- **Guardrail:** selling cannons (or buying more) must respect currently-held cargo — a ship loaded near its current capacity cannot buy a cannon that would push held cargo over the new, smaller limit. Buying should be rejected (same pattern as `executeBuy` already rejecting a purchase that exceeds `cargoSpace`) rather than silently overflowing.
+- No posture, no combat power calculation, no enemy encounters in this pass — cannons are purely a cargo-for-a-number-that-does-nothing-yet trade until full combat (ADR-010's actual resolution flow) is implemented on top.
+
+**Open Questions:**
+- Cannon price (150 Mark) and resale fraction (60%) are placeholder numbers, unvalidated — same caveat as every other numeric proposal in this doc set.
+- Is there a per-ship cannon cap tied to ship type (a Schnigge, with only 20 last capacity total, can't sensibly carry many cannons before having no room for cargo at all) — proposed caps: Kogge 6, Hulk 8, Schnigge 3, roughly matching each type's proportion of total capacity, but unvalidated.
+
 ---
 
 ## Data Model

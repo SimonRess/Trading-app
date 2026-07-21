@@ -300,6 +300,8 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
 | 014 | Net-worth valuation | Accepted | decisions/adr-014-net-worth-valuation.md |
 | 015 | Per-route & session event risk | Accepted | decisions/adr-015-per-route-session-risk.md |
+| 016 | Political rank mechanic & continuable win condition | Accepted | decisions/adr-016-political-rank-and-continuable-win.md |
+| 017 | Ship-animation lifecycle (persistent overlays & pause/resume) | Accepted | decisions/adr-017-ship-animation-lifecycle.md |
 
 ---
 
@@ -322,6 +324,9 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
 | Church building & donations | Proposed (not implemented) | design/church-donations.md |
 | Warehouses | Proposed (not implemented) | design/warehouses.md |
+| Crew management | Proposed (not implemented) | design/crew-management.md |
+| Banking & loans | Proposed (not implemented) | design/banking-loans.md |
+| Insurance | Proposed (not implemented) | design/insurance.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
 ---

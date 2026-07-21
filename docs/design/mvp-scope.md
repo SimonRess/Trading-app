@@ -126,6 +126,7 @@ Valuing cargo at base price keeps net worth stable while goods are merely held â
 | Warehouses in towns (buy/sell, passive rental income) | v2 |
 | Expeditions & city discovery | v2 |
 | Combat (pirates, rival fleets) | v2 |
+| Ship weapons (cannons) buy/sell â€” ahead of full combat, see ship-stats.md | v2 |
 | Full random event table (8 events) | v1.1 |
 | NPC portrait dialogs | v1.1 |
 | Audio / music | v1.1 |
