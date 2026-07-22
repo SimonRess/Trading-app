@@ -1,4 +1,4 @@
-import { Application, Container, Text } from 'pixi.js';
+import { Application, Container, Rectangle, Text } from 'pixi.js';
 import type { CityId } from '../game/state/types.ts';
 import { isShipyardCity } from '../game/data/ships.ts';
 import { drawPixelSprite } from './pixel-art.ts';
@@ -117,22 +117,37 @@ export class CityScene {
     const buildings = BUILDINGS.filter(b => !b.shipyardOnly || isShipyardCity(cityId));
 
     for (const building of buildings) {
-      const icon = drawPixelSprite(BUILDING_PIXEL_PATTERN, 4, building.color);
-      icon.position.set(building.position.x, building.position.y);
-      icon.eventMode = 'static';
-      icon.cursor = 'pointer';
-      icon.on('pointertap', () => {
+      // The click target is a wrapper Container with an explicit, generous
+      // hitArea — not the pixel-art Graphics icon itself. PixiJS hit-tests a
+      // Graphics object against its actual drawn pixels, and
+      // BUILDING_PIXEL_PATTERN has gaps (the door/window notches); clicking
+      // those gaps, or the label below the icon (which had no hit target at
+      // all), silently missed. A single rectangular hitArea covering icon +
+      // label, with padding, makes the whole building clickable everywhere a
+      // player would reasonably click, matching the map's city icons which
+      // don't have this problem only because CITY_PIXEL_PATTERN happens to
+      // have no internal gaps.
+      const wrapper = new Container();
+      wrapper.position.set(building.position.x, building.position.y);
+      wrapper.eventMode = 'static';
+      wrapper.cursor = 'pointer';
+      wrapper.hitArea = new Rectangle(-24, -18, 48, 56);
+      wrapper.on('pointertap', () => {
         this.callbacks.onBuildingClick?.(building.id);
       });
-      container.addChild(icon);
+
+      const icon = drawPixelSprite(BUILDING_PIXEL_PATTERN, 4, building.color);
+      wrapper.addChild(icon);
 
       const label = new Text({
         text: building.label,
         style: { fill: LABEL_COLOR, fontSize: 12, fontFamily: 'Georgia' },
       });
       label.anchor.set(0.5, 0);
-      label.position.set(building.position.x, building.position.y + 20);
-      container.addChild(label);
+      label.position.set(0, 20);
+      wrapper.addChild(label);
+
+      container.addChild(wrapper);
     }
 
     return {
