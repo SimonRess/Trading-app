@@ -515,6 +515,54 @@
               <p class="error">{errorMsg}</p>
             {/if}
 
+          {:else if selectedBuilding === 'shipyard'}
+            <h2>Shipyard</h2>
+            {#if atShipyard && activeShip}
+              <div class="shipyard-row">
+                <span class="shipyard-info">
+                  {#if activeShip.durability >= 100}
+                    {activeShip.name} is fully seaworthy.
+                  {:else}
+                    Repair {activeShip.name} to full ({activeShip.durability}/100) for {shipRepairCost} Mark.
+                  {/if}
+                </span>
+                <button
+                  class="shipyard-btn"
+                  on:click={repairShip}
+                  disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
+                >Repair</button>
+              </div>
+              <div class="ship-buy-grid">
+                {#each SHIP_TYPE_IDS as typeId}
+                  {@const def = SHIP_TYPES[typeId]}
+                  <div class="ship-buy-card">
+                    <strong>{def.name}</strong>
+                    <span class="ship-buy-stats">{def.cargoCapacity} last · {def.purchasePrice} Mark · {speedLabel(typeId)}</span>
+                    <span class="ship-buy-desc">{def.description}</span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyShip(typeId)}
+                      disabled={state.fleet.ships.length >= MAX_SHIPS || state.player.cash < def.purchasePrice}
+                    >Buy {def.name}</button>
+                  </div>
+                {/each}
+              </div>
+              {#if state.fleet.ships.length >= MAX_SHIPS}
+                <p class="order-note muted">Fleet is at the maximum of {MAX_SHIPS} ships.</p>
+              {/if}
+            {:else if portCity}
+              <p class="order-note muted">
+                {CITIES[portCity].name} has no shipyard. Repairs and new ships are available in
+                {SHIPYARD_CITIES.map(c => CITIES[c].name).join(', ')}.
+              </p>
+            {:else}
+              <p class="order-note muted">Select a ship that's currently in port to use the Shipyard.</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
           {:else}
             <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
             <p>Coming soon — this building isn't wired to any actions yet.</p>
