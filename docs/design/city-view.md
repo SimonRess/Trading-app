@@ -1,7 +1,7 @@
 # Design: Graphical City View
 
-**Status:** Proposed — not implemented  
-**Target version:** post-v1.1 UI overhaul (not yet numbered — depends on how many of the v1.1/v2 mechanics below have landed by the time this starts, since the whole point is giving each of them a physical building to live in)
+**Status:** Proposed (rollout sequencing **Accepted**, see ADR-018) — not implemented  
+**Target version:** not yet numbered. Per ADR-018, the skeleton (Harbor + Trading Post) is now a *prerequisite* step that ships before the v1.1/v2 mechanics below, not after — see "Rollout"
 
 ## Purpose
 
@@ -55,7 +55,9 @@ Not every city has every building: only `SHIPYARD_CITIES` (Lübeck, Danzig, Hamb
 
 ## Rollout (Non-Goals notwithstanding — sequencing matters here)
 
-Proposed incremental order, each step shippable and testable independently, matching how every other feature in this project has landed:
+**This ordering is now the decided sequencing for the whole backlog, not just this doc — see ADR-018.** Steps 1–2 are a prerequisite that must land before crew management, church donations, banking & loans, insurance, warehouses, or cannons are implemented, since ADR-018 requires every mechanic from this point forward to ship together with its building UI rather than as a text-panel section.
+
+Incremental order, each step shippable and testable independently, matching how every other feature in this project has landed:
 
 1. **`CityScene`/`CityView.svelte` skeleton** — render the building icons for a city, clickable, but each click just logs/opens an empty placeholder panel. Proves the rendering approach (reusing `drawPixelSprite`, PixiJS scene lifecycle) without touching any existing functionality.
 2. **Wire the Harbor and Trading Post buildings** to the existing "Set Destination" and goods-table logic — the two functions every city already has today, so this covers 100% of cities immediately and is the highest-value first migration.
@@ -75,5 +77,6 @@ Proposed incremental order, each step shippable and testable independently, matc
 - `docs/design/map-view.md` (the `MapScene`/`drawPixelSprite` architecture this proposes reusing directly)
 - ADR-003 (Rendering approach — PixiJS), ADR-005 (Art style — procedural pixel art)
 - ADR-017 (Ship-animation lifecycle — the persistent-overlay pattern proposed here for building panels)
+- ADR-018 (Feature delivery sequencing — the decided rollout order for this doc and every mechanic behind it)
 - `docs/design/church-donations.md`, `docs/design/banking-loans.md`, `docs/design/insurance.md`, `docs/design/crew-management.md`, `docs/design/warehouses.md`, `docs/design/ship-stats.md` (Renaming Ships, Buying & Selling Cannons), `docs/design/political-rank.md` (every function this doc gives a building to)
 - `docs/design/family-succession.md` (Merchant's House — the one building not tied to a city-provided service)

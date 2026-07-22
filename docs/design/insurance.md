@@ -3,6 +3,8 @@
 **Status:** Proposed — not implemented  
 **Target version:** v1.1
 
+**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
+
 ## Purpose
 
 Storms and pirate raids (ADR-015) already impose real, sometimes severe losses (a wrecked ship, 15% cargo loss) with no way for the player to hedge against them beyond keeping ships repaired. Insurance gives the player a cash-for-risk-reduction trade that's orthogonal to repair (repair reduces the *chance*/severity of damage per the durability thresholds; insurance instead pays out *after* a loss occurs), giving two different flavors of risk management rather than one.
@@ -33,6 +35,7 @@ Storms and pirate raids (ADR-015) already impose real, sometimes severe losses (
 
 ## Related
 
+- ADR-018 (Feature delivery sequencing — this mechanic ships with the Counting House building, gated on the city-view skeleton)
 - ADR-015 (Per-route & session event risk — the storm/pirate mechanics this pays out against)
 - `docs/design/ship-stats.md` (durability thresholds, repair-cost formula this reuses for payout conversion)
 - `docs/design/banking-loans.md` (sibling financial-mechanic proposal; consider a shared "Bank" UI section)

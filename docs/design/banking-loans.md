@@ -3,6 +3,8 @@
 **Status:** Proposed — not implemented  
 **Target version:** v1.1
 
+**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
+
 ## Purpose
 
 Currently the only way to get cash is trading (and soon, per other proposals, church donations only ever cost cash, never provide it). A loan gives the player a deliberate risk lever — borrow to buy a second ship earlier than organic trade profit would allow, at the cost of ongoing interest — which is a classic trading-game tension the MVP doesn't have at all yet.
@@ -35,6 +37,7 @@ Currently the only way to get cash is trading (and soon, per other proposals, ch
 
 ## Related
 
+- ADR-018 (Feature delivery sequencing — this mechanic ships with the Counting House building, gated on the city-view skeleton)
 - ADR-014 (Net worth valuation — this doc proposes an amendment: net worth should subtract outstanding loan principal)
 - `docs/design/mvp-scope.md` (banking & loans listed as v1.1 target)
 - `docs/design/insurance.md` (sibling financial-mechanic proposal; consider whether the two share a UI section, e.g. a "Bank" panel with both loan and insurance controls, rather than two separate port-view sections)

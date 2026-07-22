@@ -3,6 +3,8 @@
 **Status:** Proposed — not implemented  
 **Target version:** v1.1
 
+**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
+
 ## Purpose
 
 Ships currently sail with cargo capacity and durability only — no crew of any kind (`mvp-scope.md`: "crew and speed modifiers are post-MVP"). Crew gives ships an ongoing cash cost beyond one-off repairs, and is the field ADR-010 (Combat) already anticipates needing (`crew_bonus` in the combat-power formula) before ship-to-ship combat can be implemented — so this is also unblocking work for that ADR, not just its own standalone feature.
@@ -34,6 +36,7 @@ Ships currently sail with cargo capacity and durability only — no crew of any 
 
 ## Related
 
+- ADR-018 (Feature delivery sequencing — this mechanic ships with a Shipyard building, gated on the city-view skeleton)
 - ADR-010 (Combat — `crew` field and `crew_bonus` combat-power term this doc's field addition unblocks)
 - `docs/design/ship-stats.md` (durability-threshold penalty pattern this reuses; `Ship` data model)
 - `docs/design/warehouses.md` (sibling "flat per-turn cash effect" mechanic, opposite sign)

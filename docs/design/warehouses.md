@@ -3,6 +3,8 @@
 **Status:** Proposed — not implemented  
 **Target version:** v2
 
+**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
+
 ## Purpose
 
 A passive-income real-estate layer: the player can buy a warehouse in a city and sell it back later; every owned warehouse generates a small amount of cash each turn, framed as "rented out" (no separate occupancy/vacancy mechanic in this pass — see Non-Goals). This gives the player a second income stream that isn't tied to actively sailing and trading, useful once a session has enough capital that trade-loop income alone stops being the interesting decision, and it's a natural fit for "generational" play (`family-succession.md`) — a warehouse, unlike a ship, has no durability to maintain and nothing to lose to a storm, so it's the kind of asset that plausibly survives a succession event cleanly.
@@ -46,6 +48,7 @@ A passive-income real-estate layer: the player can buy a warehouse in a city and
 
 ## Related
 
+- ADR-018 (Feature delivery sequencing — this mechanic ships with the Warehouse District building, gated on the city-view skeleton)
 - `docs/design/mvp-scope.md` (out-of-scope table — target v2)
 - `docs/design/family-succession.md` (warehouses as an asset class that plausibly carries cleanly across a succession event, unlike ships)
 - `docs/design/church-donations.md` (sibling v1.1/v2 economic-sink/source feature, same "small new Port-view section" UI pattern)

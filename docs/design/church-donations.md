@@ -3,6 +3,8 @@
 **Status:** Proposed — not implemented  
 **Target version:** v1.1
 
+**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
+
 ## Purpose
 
 Each of the 5 cities starts with a church under construction, at a different completion percentage. The player can donate cash toward a city's church; donations advance its completion proportionally and raise the player's standing (reputation) in that city. This gives cash a second sink beyond ship purchases/repairs, and gives `PlayerState.reputation` — already implemented and feeding political rank (`political-rank.md`) — a second, direct way to be earned besides trading, tying two systems together rather than adding an isolated one.
@@ -46,6 +48,7 @@ Each of the 5 cities starts with a church under construction, at a different com
 
 ## Related
 
+- ADR-018 (Feature delivery sequencing — this mechanic ships with the Church building, gated on the city-view skeleton)
 - `docs/design/political-rank.md` (the `reputation` mechanism this reuses)
 - `src/game/state/types.ts` (`CityState`, `PlayerState.reputation`)
 - `src/game/systems/political-system.ts` (`gainReputation`)

@@ -86,7 +86,7 @@ The `cargo` capacity available for goods = `50 - (cannons × 2)`. This is why `c
 
 ### Buying & Selling Cannons (Proposed, v2 — pulled forward ahead of full combat)
 
-**Status:** Proposed — not implemented.
+**Status:** Proposed — not implemented. **Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — ships together with the Shipyard building's UI, not as a text-panel section.
 
 Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate implementation effort, but the **cannon-purchasing half** of ADR-010's pre-battle preparation phase can land independently and earlier — the same "implement the buildable/tradeable part ahead of the mechanic that consumes it" pattern already used for Hulk/Schnigge (bought forward from v1.1 into the MVP pass) and ship buying/repair generally. A ship can carry cannons, at the cost of cargo space, before combat itself exists to use them — they'd simply do nothing yet, same as `politicalRank`/`reputation` sat unused in the state shape for a long stretch before `political-rank.md` gave them a purpose.
 
@@ -182,6 +182,7 @@ Ships get a name from a small fixed list at creation (`nextShipName` in `ships.t
 
 - ADR-010 (Combat — cannon capacity interacts with cargo; crew field needed before v2)
 - ADR-015 (Per-route & session event risk — durability thresholds and storm-risk consumption)
+- ADR-018 (Feature delivery sequencing — cannons ship with the Shipyard building, gated on the city-view skeleton)
 - docs/design/city-graph.md (storm/pirate risk per route; Kogge-calibrated `route.turns`)
 - docs/design/mvp-scope.md (ship types now implemented ahead of schedule; max 3 ships fleet-wide)
 - docs/design/turn-resolution-order.md (step 4: storm damage resolved on arrival)
