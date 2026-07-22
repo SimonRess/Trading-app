@@ -21,10 +21,12 @@
   } from '../game/data/ships.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
+  import CityView from './CityView.svelte';
+  import type { BuildingId } from '../render/city-scene.ts';
 
   export let gameClient: GameClient;
 
-  type Screen = 'new-game' | 'map' | 'port' | 'turn-summary' | 'game-over';
+  type Screen = 'new-game' | 'map' | 'port' | 'city' | 'turn-summary' | 'game-over';
 
   let screen: Screen = 'new-game';
   let playerName = '';
@@ -41,6 +43,25 @@
   let showSaveMenu = false;
   let saveMsg = '';
   let showSeasonInfo = false;
+  let selectedBuilding: BuildingId | undefined;
+
+  // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
+  // building clicks just show a placeholder label for now — no building is
+  // wired to real logic yet.
+  const BUILDING_LABELS: Record<BuildingId, string> = {
+    harbor: 'Harbor',
+    'trading-post': 'Trading Post',
+    shipyard: 'Shipyard',
+    church: 'Church',
+    'counting-house': 'Counting House',
+    'merchants-house': "Merchant's House",
+    'town-hall': 'Town Hall',
+    'warehouse-district': 'Warehouse District',
+  };
+
+  function selectBuilding(event: CustomEvent<BuildingId>): void {
+    selectedBuilding = event.detail;
+  }
 
   const MARITAL_LABEL: Record<string, string> = {
     single: 'Single', married: 'Married', widowed: 'Widowed',
@@ -287,7 +308,7 @@
     {#if saveMsg}<p class="save-msg">{saveMsg}</p>{/if}
   </main>
 
-{:else if screen === 'port' || screen === 'map' || screen === 'turn-summary'}
+{:else if screen === 'port' || screen === 'map' || screen === 'city' || screen === 'turn-summary'}
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
@@ -303,6 +324,7 @@
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
+        <button class="nav-btn" class:active={screen === 'city'} on:click={() => { screen = 'city'; }}>🏙️ City</button>
         <button class="nav-btn" on:click={() => { showSaveMenu = !showSaveMenu; saveMsg = ''; }}>💾 Save</button>
       </div>
       <span class="hdr-cash">{state.player.cash} Mark · Net {netWorth} Mark</span>
@@ -343,6 +365,26 @@
         on:selectShip={selectShipFromMap}
       />
     </div>
+
+    <!-- Same persistent-mount reasoning as MapView above (ADR-017) — the
+         city view will grow its own nested scenes (docs/design/city-view.md
+         "Scene Navigation Model"), so recreating its Application on every
+         Port/City toggle would be even more costly to undo later than the
+         Map's was. -->
+    <div class="map-wrap" class:hidden={screen !== 'city'}>
+      <CityView cityId={selectedCityId} on:selectBuilding={selectBuilding} />
+    </div>
+
+    {#if screen === 'city' && selectedBuilding}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card">
+          <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
+          <p>Coming soon — this building isn't wired to any actions yet.</p>
+          <button on:click={() => { selectedBuilding = undefined; }}>Close</button>
+        </div>
+      </div>
+    {/if}
+
     {#if screen === 'port'}
     <div class="layout">
       <section class="panel fleet-panel" class:collapsed={fleetCollapsed}>

@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { GameState, CityId, Ship, RoutePosition, RiskState, Season } from '../game/state/types.ts';
 import { CITIES } from '../game/data/cities.ts';
 import { ROUTES, routeKey, type Route } from '../game/data/routes.ts';
+import { drawPixelSprite, drawPixelSpriteInto } from './pixel-art.ts';
 
 const WORLD_WIDTH = 800;
 const WORLD_HEIGHT = 420;
@@ -107,29 +108,6 @@ const SHIP_PIXEL_PATTERN = [
   '.#######.',
   '..#####..',
 ];
-
-function drawPixelSprite(pattern: string[], pixelSize: number, color: number): Graphics {
-  return drawPixelSpriteInto(new Graphics(), pattern, pixelSize, color);
-}
-
-function drawPixelSpriteInto(g: Graphics, pattern: string[], pixelSize: number, color: number): Graphics {
-  g.clear();
-  const width = Math.max(...pattern.map(row => row.length));
-  const offsetX = (width * pixelSize) / 2;
-  const offsetY = (pattern.length * pixelSize) / 2;
-
-  for (let y = 0; y < pattern.length; y++) {
-    const row = pattern[y] ?? '';
-    for (let x = 0; x < row.length; x++) {
-      if (row[x] === '#') {
-        g.rect(x * pixelSize - offsetX, y * pixelSize - offsetY, pixelSize, pixelSize);
-      }
-    }
-  }
-
-  g.fill({ color });
-  return g;
-}
 
 export interface MapSelection {
   selectedShipId?: string;
