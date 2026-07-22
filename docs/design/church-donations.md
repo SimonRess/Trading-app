@@ -1,9 +1,7 @@
 # Design: Church Building & Donations
 
-**Status:** Proposed — not implemented  
+**Status:** Implemented (first pass — thresholds not yet tuned)  
 **Target version:** v1.1
-
-**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
 
 ## Purpose
 
@@ -30,20 +28,29 @@ Each of the 5 cities starts with a church under construction, at a different com
 
 ### Donating
 
-- New action, e.g. `DONATE_CHURCH { cityId, amount }`, available from the port view of any city (not shipyard-restricted — a church donation isn't a ship transaction).
-- `amount` Mark deducted from `player.cash`.
-- Completion increases by `amount / DONATION_COST_PER_PERCENT` (proposed constant, needs tuning — e.g. 50 Mark per 1%, so fully funding a church from 0% costs 5,000 Mark, a significant but not run-dominating sink relative to the 10,000 Mark win threshold), clamped at 100.
-- Reputation in that city increases via the *same* `gainReputation()` used for sales (`political-system.ts`), proportional to the amount donated rather than the flat +1 per sale — e.g. `+round(amount / REPUTATION_COST_PER_POINT)`, a separate, larger-amount-appropriate rate from the flat per-sale gain.
+- `DONATE_CHURCH { cityId, amount }` action (`game-client.ts`), handled by `donateChurch()` in a new `church-system.ts`, not shipyard-restricted — a church donation isn't a ship transaction and needs no ship present at all.
+- `amount` Mark deducted from `player.cash`. Rejected (state returned unchanged) if `amount` isn't a positive finite number or exceeds current cash — same validation shape as `executeBuy`/`executeSell`.
+- Completion increases by `amount / DONATION_COST_PER_PERCENT` (**implemented as 50** Mark per 1%, so fully funding a church from 0% costs 5,000 Mark), clamped at 100.
+- Reputation in that city increases via the *same* `gainReputation()` used for sales (`political-system.ts`), now generalised to take an optional `amount` parameter (defaulting to the flat per-sale gain) rather than a second function — `+round(amount / REPUTATION_COST_PER_POINT)`, **implemented as 100** Mark per reputation point.
 
 ### UI
 
-- Port view gains a small "Church of {city}" section (alongside the existing Shipyard section, following the same card/pattern) showing current completion % and a donate input + button.
-- Crossing 100% triggers a one-line turn-summary event ("⛪ The Church of {city} was completed, thanks in part to your generosity.") — reuses the existing `TurnSummary.events` mechanism, no new UI surface needed.
+- Donations happen through the City view's Church building (`docs/design/city-view.md`), not a Port-screen text section — this was written before the City view existed; the mechanic now ships with its own building per ADR-018, superseding the original "Port view gains a small section" plan.
+- The panel includes a city selector (donations aren't restricted to wherever a ship happens to be — the player can fund any city's church from the same panel) and a progress bar, not just a numeric readout, matching the map's existing philosophy of surfacing state visually.
+- **Deviation from the original plan:** donations are an immediate action (like buy/sell), not something resolved during `resolveTurn` — there is no `TurnSummary` to append a "crossing 100%" event to at the moment it happens. Implemented instead as an inline banner in the Church panel itself ("🎉 The Church of {city} was just completed!"), tracked by a small `churchJustCompleted` UI-only variable in `App.svelte` (never persisted, cleared on closing the panel or switching cities) rather than the `TurnSummary.events` mechanism.
+
+## Implementation Status (as of 2026-07-22)
+
+- ✅ `CityState.churchCompletion`, seeded per city in `starting-config.ts` (Lübeck 60, Hamburg 25, Danzig 30, Riga 15, Malmö 20). Additive save-file field — no schema bump; `save-system.ts` defaults missing values to the same starting seed for older saves.
+- ✅ `donateChurch()` (`church-system.ts`) and the `DONATE_CHURCH` action, wired through `LocalGameClient`.
+- ✅ Church building in the City view: progress bar, city selector, donate input, completion messaging.
+- ✅ Unit tests (`church-system.test.ts`): cash deduction, proportional completion, per-city isolation, 100% clamping, reputation gain, invalid-amount/insufficient-cash rejection, no-mutation.
+- ✅ Verified live: donating 100 Mark to Lübeck's church (starting 60%) advanced it to 62% and deducted cash; fully funding a church shows the completion banner and hides the donate form; switching cities in the panel shows each city's independent progress.
 
 ## Open Questions
 
-- Donation-to-completion and donation-to-reputation rates are placeholder numbers, not tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
-- Should church completion be visible on the Map view (e.g. a small progress ring on each city icon), or only in the Port view? Leaning Port-view-only for v1.1 to avoid another map-rendering feature; revisit if it turns out invisible/easy to forget.
+- Donation-to-completion and donation-to-reputation rates (50 Mark/1%, 100 Mark/reputation point) are still first-pass numbers, not simulation-tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
+- Should church completion be visible on the Map view (e.g. a small progress ring on each city icon), or only in the City view's Church building? Leaning City-view-only for now, consistent with the "at-a-glance building state" Open Question already flagged in `city-view.md`.
 - Multiple players donating to the same church only matters once multiplayer exists (v3, ADR-007) — no design needed now, but worth a one-line note in ADR-007's future revision when that work starts.
 
 ## Related

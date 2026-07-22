@@ -44,6 +44,8 @@
   let saveMsg = '';
   let showSeasonInfo = false;
   let selectedBuilding: BuildingId | undefined;
+  let donationAmount = 100;
+  let churchJustCompleted: CityId | undefined;
 
   // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
   // building clicks just show a placeholder label for now — no building is
@@ -177,6 +179,22 @@
     const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId: activeShip.id });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
+  }
+
+  async function donateToChurch(cityId: CityId) {
+    errorMsg = '';
+    const amount = Number(donationAmount);
+    if (!amount || amount < 1) return;
+    const before = state.cities[cityId].churchCompletion;
+    const result = await gameClient.sendAction({ type: 'DONATE_CHURCH', cityId, amount });
+    if ('player' in result) {
+      state = result as GameState;
+      if (before < 100 && state.cities[cityId].churchCompletion >= 100) {
+        churchJustCompleted = cityId;
+      }
+    } else {
+      errorMsg = 'Cannot donate.';
+    }
   }
 
   function orderDest(shipId: string, destination: CityId) {
@@ -563,11 +581,49 @@
               <p class="error">{errorMsg}</p>
             {/if}
 
+          {:else if selectedBuilding === 'church'}
+            {@const church = state.cities[selectedCityId]}
+            <h2>Church of {CITIES[selectedCityId].name}</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; churchJustCompleted = undefined; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            <div class="church-progress">
+              <div class="church-progress-bar">
+                <div class="church-progress-fill" style="width: {church.churchCompletion}%"></div>
+              </div>
+              <span class="church-progress-label">{Math.round(church.churchCompletion)}% complete</span>
+            </div>
+
+            {#if church.churchCompletion >= 100}
+              <p class="order-note">⛪ This church is fully built, thanks in part to your generosity.</p>
+            {:else}
+              <div class="qty-row">
+                <label>Donate <input type="number" bind:value={donationAmount} min="1" max={state.player.cash} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={() => donateToChurch(selectedCityId)}
+                  disabled={!donationAmount || donationAmount < 1 || state.player.cash < donationAmount}
+                >Donate</button>
+              </div>
+              <p class="order-note muted">50 Mark ≈ 1% completion · 100 Mark ≈ 1 reputation in {CITIES[selectedCityId].name}.</p>
+            {/if}
+
+            {#if churchJustCompleted === selectedCityId}
+              <p class="order-note">🎉 The Church of {CITIES[selectedCityId].name} was just completed!</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
           {:else}
             <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
             <p>Coming soon — this building isn't wired to any actions yet.</p>
           {/if}
-          <button class="close-building-btn" on:click={() => { selectedBuilding = undefined; }}>Close</button>
+          <button class="close-building-btn" on:click={() => { selectedBuilding = undefined; churchJustCompleted = undefined; }}>Close</button>
         </div>
       </div>
     {/if}
@@ -1181,6 +1237,18 @@
   }
   .building-panel h2 { text-align: center; }
   .building-panel .fleet-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .church-progress { display: flex; align-items: center; gap: 0.8rem; margin: 0.6rem 0; }
+  .church-progress-bar {
+    flex: 1;
+    height: 12px;
+    background: #241c10;
+    border: 1px solid #4a3a20;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .church-progress-fill { height: 100%; background: #c8a860; }
+  .church-progress-label { font-size: 0.85rem; color: #c8a840; white-space: nowrap; }
   .close-building-btn { align-self: center; }
 
   .net-worth { font-size: 1.1rem; color: #c8a840; }

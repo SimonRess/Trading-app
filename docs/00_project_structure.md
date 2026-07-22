@@ -323,7 +323,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Map view | Draft | design/map-view.md |
 | Political milestones | Implemented (first pass; thresholds not yet tuned) | design/political-rank.md |
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
-| Church building & donations | Proposed (not implemented) | design/church-donations.md |
+| Church building & donations | Implemented (first pass; thresholds not yet tuned) | design/church-donations.md |
 | Warehouses | Proposed (not implemented) | design/warehouses.md |
 | Crew management | Proposed (not implemented) | design/crew-management.md |
 | Banking & loans | Proposed (not implemented) | design/banking-loans.md |
@@ -340,10 +340,10 @@ Per ADR-018: the graphical city view's skeleton is a prerequisite that ships bef
 1. ✅ **`SceneManager`/`CityScene`/`CityView.svelte` skeleton** — clickable building icons for a city (Harbor, Trading Post, Shipyard — only in `SHIPYARD_CITIES` — Church, Counting House, Merchant's House, Town Hall, Warehouse District), a new "🏙️ City" nav toggle alongside Map/Port, and a generic reusable `SceneManager` scene-stack primitive (`src/render/scene-manager.ts`) proven at stack depth 1. Clicking a building opens a placeholder overlay panel ("Coming soon"), no logic wired yet. `drawPixelSprite`/`drawPixelSpriteInto` extracted from `map-scene.ts` into a shared `src/render/pixel-art.ts` module, reused by both scenes (`design/city-view.md`)
 2. ✅ **Harbor + Trading Post buildings** — wired to the existing fleet/destination and buy/sell logic (no new game logic; pure UI migration — the same reactive state and `gameClient.sendAction` calls the List View already used). Verified live: buying a good and setting sail orders through the City view produce the identical state changes as the List View.
 3. ✅ **Shipyard building** — wired to the existing buy/repair logic (same `buyShip`/`repairShip` functions and `atShipyard`/`activeShip`/`portCity` gating as the List View). Verified live: buying a Schnigge through the City view correctly deducted 250 Mark. Ready to extend as crew/cannons/renaming land (step 4).
-4. *(from here on, each item below ships with its building, per ADR-018 — order within this list is otherwise not yet prioritized)*
+4. ✅ **Church donations + Church building** (`design/church-donations.md`) — new `church-system.ts` (`donateChurch`), `CityState.churchCompletion` (additive save field, seeded per city), `DONATE_CHURCH` action, and a fully wired Church building panel (progress bar, city selector, donate control, completion messaging). `political-system.ts`'s `gainReputation` generalised to take an optional amount instead of adding a second function. Verified live: donating advances completion and deducts cash correctly, 100% clamps and shows a completion banner, per-city progress is independent.
+   *(remaining items ship with their building, per ADR-018 — order within this list is otherwise not yet prioritized)*
    - Crew management + Shipyard building extension (`design/crew-management.md`)
    - Ship weapons (cannons) + Shipyard building extension (`design/ship-stats.md` "Buying & Selling Cannons")
-   - Church donations + Church building (`design/church-donations.md`)
    - Banking & loans + Counting House building (`design/banking-loans.md`)
    - Insurance + Counting House building (`design/insurance.md`)
    - Warehouses + Warehouse District building (`design/warehouses.md`)

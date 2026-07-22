@@ -4,6 +4,7 @@ import { buildStartingState } from '../data/starting-config.ts';
 import { resolveTurn, executeBuy, executeSell, executeBuyShip, executeRepairShip } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
+import { donateChurch } from '../systems/church-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -54,6 +55,10 @@ export class LocalGameClient implements GameClient {
 
       case 'REPAIR_SHIP':
         this.state = executeRepairShip(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'DONATE_CHURCH':
+        this.state = donateChurch(this.state, action.cityId, action.amount);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {

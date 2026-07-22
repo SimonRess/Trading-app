@@ -40,6 +40,10 @@ export interface FleetState {
 
 export interface CityState {
   id: CityId;
+  // 0-100. Starts partially built (see starting-config.ts) and only ever
+  // increases via donations (political-system.ts's donateChurch) — see
+  // docs/design/church-donations.md.
+  churchCompletion: number;
 }
 
 export type CitiesState = Record<CityId, CityState>;

@@ -31,12 +31,15 @@ export function buildStartingState(playerName: string): GameState {
         },
       ],
     },
+    // churchCompletion seeded per city (docs/design/church-donations.md) —
+    // Lübeck, the political home base, starts furthest along; the rest are
+    // varied so the player sees different funding opportunities from turn 1.
     cities: {
-      lubeck:  { id: 'lubeck'  },
-      hamburg: { id: 'hamburg' },
-      danzig:  { id: 'danzig'  },
-      riga:    { id: 'riga'    },
-      malmo:   { id: 'malmo'   },
+      lubeck:  { id: 'lubeck',  churchCompletion: 60 },
+      hamburg: { id: 'hamburg', churchCompletion: 25 },
+      danzig:  { id: 'danzig',  churchCompletion: 30 },
+      riga:    { id: 'riga',    churchCompletion: 15 },
+      malmo:   { id: 'malmo',   churchCompletion: 20 },
     },
     market: buildInitialMarket(),
     calendar: {

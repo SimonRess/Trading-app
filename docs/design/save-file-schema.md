@@ -108,7 +108,7 @@ type CitiesState = Record<CityId, CityState>;
 
 interface CityState {
   id: CityId;
-  // MVP: no stores, no agents — placeholder for v1.1
+  churchCompletion: number;  // 0-100, added post-v1 — additive, no schema bump; save-system.ts defaults missing values to the starting seed
 }
 ```
 

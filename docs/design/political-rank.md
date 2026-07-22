@@ -58,7 +58,7 @@ Both conditions must hold — net worth alone would let a player "buy" the mayor
 
 ## Implementation Status (as of 2026-07-18)
 
-- ✅ Reputation gain — `gainReputation()` in `political-system.ts`, wired into `executeSell` (+1 per sale in that city, capped at 100).
+- ✅ Reputation gain — `gainReputation()` in `political-system.ts`, wired into `executeSell` (+1 per sale in that city, capped at 100). Generalised (`church-donations.md`) to take an optional `amount` parameter, defaulting to the flat per-sale gain, so `church-system.ts`'s `donateChurch` can reuse the same function with a donation-scaled amount instead of a second, parallel reputation-gain function.
 - ✅ Rank-up thresholds and evaluation — `evaluateRankUp()`, called once per turn in `resolveTurn` (`turn-system.ts`) alongside the existing net-worth calculation. Never demotes; both net worth and Lübeck reputation must clear a threshold.
 - ✅ Turn-summary announcement — `rankUpMessage()` appended to `TurnResult.summary.events`, surfaced through the existing turn-summary overlay.
 - ✅ Header badge — `{name} · Age {age} · {maritalStatus} · {rankLabel}` in `App.svelte`, using `RANK_LABELS`.

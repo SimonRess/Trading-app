@@ -1,6 +1,15 @@
-import type { GameState } from '../state/types.ts';
+import type { CityId, GameState } from '../state/types.ts';
 
 const SCHEMA_VERSION = 1;
+
+// Mirrors starting-config.ts's church seed spread — churchCompletion was
+// added to CityState after schema v1 shipped; additive field, no schema
+// bump, so an older save's cities may genuinely lack it. Defaulting to
+// "as if the feature had always existed" (the same starting values a new
+// game gets) rather than 0, which would understate every city's progress.
+const CHURCH_COMPLETION_DEFAULTS: Record<CityId, number> = {
+  lubeck: 60, hamburg: 25, danzig: 30, riga: 15, malmo: 20,
+};
 const STORAGE_KEY = 'hanse_save_v1';
 
 interface SaveMeta {
@@ -96,7 +105,14 @@ function parseSaveFile(raw: string): GameState | null {
     const rawPlayer = file.state.player as Partial<GameState['player']>;
     const player = { ...file.state.player, maritalStatus: rawPlayer.maritalStatus ?? 'single' };
     const rawState = file.state as Partial<GameState>;
-    return { ...file.state, player, hasWon: rawState.hasWon ?? false };
+
+    const cities = { ...file.state.cities };
+    for (const cityId of Object.keys(cities) as CityId[]) {
+      const rawCity = cities[cityId] as Partial<GameState['cities'][CityId]>;
+      cities[cityId] = { ...cities[cityId], churchCompletion: rawCity.churchCompletion ?? CHURCH_COMPLETION_DEFAULTS[cityId] };
+    }
+
+    return { ...file.state, player, cities, hasWon: rawState.hasWon ?? false };
   } catch {
     return null;
   }
