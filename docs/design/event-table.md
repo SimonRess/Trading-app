@@ -1,7 +1,7 @@
 # Design: Event Probability Table
 
 **Status:** Draft  
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-20
 
 ## Purpose
 
@@ -76,6 +76,78 @@ Notes:
 - Target ship is chosen by **weighted random** among ships in transit, weighted by each ship's route pirate-risk (`route.pirateRisk[season] × routeRiskModifier`) — a ship on a dangerous route is more likely to be the one targeted, not picked uniformly
 - Cargo loss is proportional across all goods in the hold (e.g. 20 last salt + 10 last grain → lose 3 salt + 1 grain)
 - In MVP the player cannot fight back (combat is v2); pirate raid is always a partial loss
+
+---
+
+## Full Event Table — Events 4–8 (Proposed, v1.1)
+
+**Status:** Proposed — not implemented. The MVP event pool above (storm, bumper harvest, pirate raid) is the only part actually built and consumed by `event-system.ts`; `mvp-scope.md` always scoped a "full random event table (8 events)" for v1.1, and these five fill that out. Each follows the same shape as events 1–3 (ID, seasons, eligibility, weight, effect, message) so they slot into the existing `selectEvent`/`applyEvent` pool mechanism without needing a new resolution algorithm — only new entries in the pool and their effect functions.
+
+### Event 4 — Market Boom
+
+| Field | Value |
+|-------|-------|
+| **ID** | `market_boom` |
+| **Description** | Sudden demand for a good spikes its price in one city |
+| **Seasons** | All |
+| **Eligibility** | Always (no target required) |
+| **Base weight** | 2 (flat — the demand-side mirror of Bumper Harvest's supply-side shock, so it doesn't need harvest's seasonal restriction) |
+| **Effect** | A random good in a random city: supply `-round(25 × cityRiskModifier(city))` (clamped to 0), driving price up via the existing `price_factor(supply)` curve — no new formula needed, this is a supply shock like harvest, just downward instead of upward |
+| **Player message** | "📈 Demand for {good} in {city} has spiked — prices are climbing." |
+
+### Event 5 — Guild Festival
+
+| Field | Value |
+|-------|-------|
+| **ID** | `guild_festival` |
+| **Description** | A city holds a merchants' festival, raising the standing of any trader present |
+| **Seasons** | Summer only (festival season) |
+| **Eligibility** | At least one player ship currently in port at some city |
+| **Base weight** | 2 |
+| **Effect** | +5 reputation (via the existing `gainReputation`, `political-system.ts`) in the city where a player ship happens to be docked — reuses the mechanism the proposed church-donations feature also reuses, rather than adding a third way to move the same stat |
+| **Player message** | "🎉 A Guild Festival in {city} raised your standing among the merchants there." |
+
+### Event 6 — Shipwreck Salvage
+
+| Field | Value |
+|-------|-------|
+| **ID** | `shipwreck_salvage` |
+| **Description** | A ship in transit spots the wreckage of another vessel and recovers some cargo |
+| **Seasons** | All |
+| **Eligibility** | At least one player ship is currently in transit |
+| **Base weight** | 1 (rare — this is meant as a small, pleasant surprise, not a reliable income source) |
+| **Effect** | The targeted ship (chosen by the same weighted-random-among-ships-in-transit approach as pirate targeting, but weighted by *low* route risk — salvage is found on calmer, more-traveled routes, not dangerous ones) gains a random good, quantity capped by remaining `cargoSpace` |
+| **Player message** | "⚓ The [ship name] came across drifting wreckage and recovered some cargo." |
+
+### Event 7 — City Plague
+
+| Field | Value |
+|-------|-------|
+| **ID** | `city_plague` |
+| **Description** | Illness disrupts trade in a city |
+| **Seasons** | Winter, Spring (disease historically spread in colder, denser conditions) |
+| **Eligibility** | Always |
+| **Base weight** | Winter: 2 · Spring: 1 |
+| **Effect** | A random city: all goods' supply `-round(15 × cityRiskModifier(city))` (production disrupted, not consumption — the city can't produce as much while stricken) for that turn only (not persistent beyond the normal supply-recovery via existing production rates); additionally, reputation in that city does not accrue from sales for a few turns (proposed: 3) — trading through a plague doesn't win favor the way trading normally does |
+| **Player message** | "☠️ Plague has struck {city}. Trade there is disrupted." |
+
+### Event 8 — Diplomatic Embargo
+
+| Field | Value |
+|-------|-------|
+| **ID** | `diplomatic_embargo` |
+| **Description** | Political tension between Hanseatic cities temporarily blocks trade of one good |
+| **Seasons** | All |
+| **Eligibility** | Always |
+| **Base weight** | 1 (rare — a real event, not routine background noise) |
+| **Effect** | One random (city, good) pair becomes untradeable (`executeBuy`/`executeSell` reject that specific pair) for a fixed number of turns (proposed: 3) — the only event in the table that changes *what actions are legal*, not just numeric state, so this needs a small new piece of state (e.g. `GameState.embargoes: Array<{ cityId, goodId, turnsRemaining }>`) rather than fitting purely into existing `market`/`fleet` shapes |
+| **Player message** | "⚖️ A trade embargo on {good} has been declared in {city}." |
+
+### Open Questions (events 4–8)
+
+- All weights and magnitudes above are placeholder numbers, not simulation-validated — same caveat as the original three events' own tuning (ADR-015's "Alternatives Considered" describes exactly the kind of skew a plausible-looking-but-untested weight can produce).
+- `diplomatic_embargo` is the one event needing genuinely new state (an embargo list) rather than reusing `market`/`fleet`/`risk` — worth confirming this is worth the added complexity before implementation, versus a simpler version (e.g. a temporary price penalty instead of an outright trade block) that would fit the existing shapes.
+- Should `shipwreck_salvage`'s "low risk = more likely to salvage" targeting share code with `pickPirateTarget`'s "high risk = more likely to be targeted" (same weighted-random mechanism, inverted weight), or is a separate, smaller function clearer? Leaning toward a shared `weightedRandomShip(ships, weightFn)` helper both could call.
 
 ---
 

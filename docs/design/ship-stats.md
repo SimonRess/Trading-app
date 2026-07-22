@@ -84,6 +84,21 @@ posture: 'aggressive' | 'defensive' | 'flee';
 
 The `cargo` capacity available for goods = `50 - (cannons × 2)`. This is why `cannons` must be tracked on the ship even before combat is implemented — it affects the cargo capacity calculation.
 
+### Buying & Selling Cannons (Proposed, v2 — pulled forward ahead of full combat)
+
+**Status:** Proposed — not implemented. **Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — ships together with the Shipyard building's UI, not as a text-panel section.
+
+Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate implementation effort, but the **cannon-purchasing half** of ADR-010's pre-battle preparation phase can land independently and earlier — the same "implement the buildable/tradeable part ahead of the mechanic that consumes it" pattern already used for Hulk/Schnigge (bought forward from v1.1 into the MVP pass) and ship buying/repair generally. A ship can carry cannons, at the cost of cargo space, before combat itself exists to use them — they'd simply do nothing yet, same as `politicalRank`/`reputation` sat unused in the state shape for a long stretch before `political-rank.md` gave them a purpose.
+
+- Available at shipyard cities only (`SHIPYARD_CITIES`), a "Weapons" control alongside Buy/Repair/Crew in the Shipyard section: buy/sell cannons one at a time for the selected ship, each purchase costing a flat price (proposed: 150 Mark) and immediately reducing that ship's usable cargo capacity by 2 last (`cargoSpace` — already the single function everything else reads for capacity checks, per `fleet-system.ts` — needs to subtract `cannons × 2`, the same formula ADR-010 already specifies).
+- Selling refunds a fraction of the purchase price (proposed: 60%, same one-way-friction spirit as warehouse resale and crew severance) and immediately frees the cargo space back up.
+- **Guardrail:** selling cannons (or buying more) must respect currently-held cargo — a ship loaded near its current capacity cannot buy a cannon that would push held cargo over the new, smaller limit. Buying should be rejected (same pattern as `executeBuy` already rejecting a purchase that exceeds `cargoSpace`) rather than silently overflowing.
+- No posture, no combat power calculation, no enemy encounters in this pass — cannons are purely a cargo-for-a-number-that-does-nothing-yet trade until full combat (ADR-010's actual resolution flow) is implemented on top.
+
+**Open Questions:**
+- Cannon price (150 Mark) and resale fraction (60%) are placeholder numbers, unvalidated — same caveat as every other numeric proposal in this doc set.
+- Is there a per-ship cannon cap tied to ship type (a Schnigge, with only 20 last capacity total, can't sensibly carry many cannons before having no room for cargo at all) — proposed caps: Kogge 6, Hulk 8, Schnigge 3, roughly matching each type's proportion of total capacity, but unvalidated.
+
 ---
 
 ## Data Model
@@ -151,6 +166,10 @@ Both actions are only available while a ship is **in port at a shipyard city** (
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 
+## Renaming Ships (Proposed, v1.1)
+
+Ships get a name from a small fixed list at creation (`nextShipName` in `ships.ts`) and nothing lets the player change it afterward. Proposed: a simple text input in the fleet panel (or ship-selection area) for the currently-selected ship, free (no cash cost — this is flavor, not an economic decision) and unrestricted (any non-empty string, no uniqueness requirement across the fleet — two ships can share a name, matching how nothing else in the data model assumes uniqueness). A `RENAME_SHIP { shipId, name }` `GameAction` sets `Ship.name` directly; no other state changes. No open design questions — this is a small, low-risk feature, more an implementation task than something needing a dedicated design doc.
+
 ## Implementation Status (as of 2026-07-18)
 
 - ✅ Buy ship (all three types), repair ship, shipyard-city restriction, `MAX_SHIPS` cap — implemented (`src/game/data/ships.ts`, `executeBuyShip`/`executeRepairShip` in `turn-system.ts`; `BUY_SHIP` `GameAction` now carries a `shipType` field)
@@ -163,6 +182,7 @@ This resolves the two open questions below: repair (and purchase) are restricted
 
 - ADR-010 (Combat — cannon capacity interacts with cargo; crew field needed before v2)
 - ADR-015 (Per-route & session event risk — durability thresholds and storm-risk consumption)
+- ADR-018 (Feature delivery sequencing — cannons ship with the Shipyard building, gated on the city-view skeleton)
 - docs/design/city-graph.md (storm/pirate risk per route; Kogge-calibrated `route.turns`)
 - docs/design/mvp-scope.md (ship types now implemented ahead of schedule; max 3 ships fleet-wide)
 - docs/design/turn-resolution-order.md (step 4: storm damage resolved on arrival)

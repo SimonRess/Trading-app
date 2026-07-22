@@ -1,7 +1,7 @@
 # Design: Family & Generational Succession
 
 **Status:** Proposed — not implemented  
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ## Purpose
 
@@ -16,7 +16,7 @@ The project pitch (`CLAUDE.md`) frames the game as "raises a family across gener
 ## Non-Goals (this pass)
 
 - No player-controlled marriage mechanic (proposing, choosing a spouse) — `maritalStatus` stays flavor-only in this pass, exactly as it is today. A later pass could make marriage a real, player-triggered action; not required for succession to function.
-- No heir *traits* or stat variance between generations (a faster trader, a braver sailor, etc.) — that's a meaningfully bigger feature (needs its own random-generation and balancing pass) and isn't needed for the core "generations" framing to land.
+- No heir *traits* or stat variance in the succession event itself — that's now scoped as its own follow-on mechanic, see "Child Development & Traits" below, layered on top of (not required by) the base succession event.
 - No player choice over *whether* to have an heir, or multiple heirs to choose between — succession is automatic and singular in v1, same spirit as political rank's "no branching politics" scope.
 - No death mid-session from other causes (illness, storms) — aging is the only trigger.
 
@@ -53,11 +53,36 @@ Political rank carrying over (not resetting) is the one asymmetric call worth fl
 - Reuses the turn-summary overlay pattern once more (third variant alongside the normal quiet-turn summary and the win/Victory variant) — a "Generational Succession" card with the announcement and a single "Continue →" acknowledgement, no choice needed (succession isn't optional, matching the Non-Goals above).
 - No new persistent UI surface needed — the header already shows name/age, which will simply reflect the new heir immediately after.
 
+## Child Development & Traits (Proposed, v2 — layered on top of base succession)
+
+A second-pass extension once the base succession event above exists: instead of the heir simply appearing fully-formed at age 22 the moment succession fires, the heir exists earlier as a *growing child*, and gains character traits during that growth period that carry into their playable generation.
+
+### Goals
+
+- Give the player a reason to engage with the family system *before* succession, not just experience it as a one-time event.
+- Traits should meaningfully differentiate a generation's playstyle (e.g. a trade-focused trait vs. a sailing-focused trait) without being so strong they invalidate the base game's balance — an heir is a variation, not a difficulty toggle.
+- The "hired teacher" hook makes trait quality a spendable-cash decision, consistent with every other economic sink in the game (ship repair, church donations, warehouses) rather than a pure random roll the player has no say in.
+
+### Mechanic
+
+- Once `maritalStatus === 'married'` (itself still gated on the marriage mechanic being real — currently flavor-only per this doc's own Non-Goals above, so this whole section is blocked on that landing first, whether here or as a separate small feature), a child entity begins "growing up" over a fixed number of turns (proposed: 8 turns, i.e. roughly the same order of magnitude as a ship's travel times, not a multi-generation wait).
+- Each turn the child is growing, the player may optionally pay to hire a teacher for that turn (proposed: a flat per-turn cost, no long-term contract) — hiring improves the odds of gaining a *positive* trait roll that turn; not hiring still allows a trait roll, just at lower quality/probability, so skipping teachers is a valid (cheaper, riskier) strategy rather than a trap.
+- Each growth turn has a chance to roll a trait from a small fixed pool (proposed starting set, mirroring the game's own economic axes: **Shrewd Trader** — better prices; **Bold Navigator** — reduced travel time or storm risk; **Popular** — faster reputation gain; **Frugal** — reduced ship repair/upkeep cost). A child can end up with 0–2 traits by the time growth completes; more than 2 kept out of scope to avoid stacking into an overpowered heir.
+- When succession (the base mechanic above) actually fires, the *most recently grown* child becomes the heir and their traits apply to the new `PlayerState` for that generation. If growth hasn't completed by the time succession fires (a young child, old parent), the heir simply has fewer/no traits — no blocking of succession, traits are a bonus not a requirement.
+
+### Non-Goals (this sub-feature)
+
+- No multiple concurrent children / choosing between them — one child growing at a time, same "no branching" spirit as the base mechanic.
+- No negative traits — this is meant to add variety and reward engagement, not introduce a way to end up with a strictly worse heir than doing nothing.
+- No teacher *characters* (named NPCs, portraits) — "optionally hired teacher" is a cash-cost toggle in this pass, not a hiring/roster system.
+
 ## Open Questions
 
 - Is age 60 the right threshold, or should it scale with `calendar.maxTurns` so succession reliably happens at least once in a standard game without needing the player to "continue playing" past a win first? Needs the same kind of simulation check ADR-015 and `political-rank.md` both flag before trusting a number.
 - Should political rank really carry over unmodified, or partially reset (e.g. drop one rank) to give each generation a real climb? Flagged above as a deliberate but unconfirmed call.
 - Multiple ongoing successions in one session (if the game runs long via "continue playing" after a win) — does the mechanic hold up cleanly across 2-3 generations, or does something (e.g. heir naming running out of the fixed name list) need attention?
+- Child Development depends on marriage becoming a real, non-flavor mechanic first (see that section's own gating note) — sequencing question: is marriage its own small v1.1/v2 feature, or the first step of implementing this section?
+- Trait pool, hire-teacher cost, and growth-turn count are all placeholder numbers pending simulation/tuning, same as every other numeric proposal in this project's docs.
 
 ## Related
 

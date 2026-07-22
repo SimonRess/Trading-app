@@ -1,0 +1,120 @@
+# Design: Graphical City View
+
+**Status:** Proposed (rollout sequencing **Accepted**, see ADR-018) — not implemented  
+**Target version:** not yet numbered. Per ADR-018, the skeleton (Harbor + Trading Post) is now a *prerequisite* step that ships before the v1.1/v2 mechanics below, not after — see "Rollout"
+
+**Revision note:** this doc originally scoped only one level of navigation (city scene → a building's modal panel) and explicitly excluded anything deeper ("no interior views"). That was revised after the player asked whether the framework could support walking from a city overview into a building's own scene and further into a sub-page (e.g. City → Merchant's House → a specific child's page), and whether it could support both ambient animation and functional interactive elements within a scene. The answer was **no, not as originally scoped** — this revision generalizes the architecture to support both. See "Scene Navigation Model" and "Dynamic & Animated Elements" below.
+
+## Purpose
+
+The Port view is currently one scrolling text panel: a goods table, a "Set Destination" section, a "Shipyard" section, and (per recent proposals) will soon also need Church, Bank/Insurance, and Warehouse sections stacked the same way. Every new economic feature so far has been added as *another section in the same list* — functional, but it doesn't read as a place, and it will keep growing linearly as more systems land (crew, cannons, warehouses, church, bank all pending). This doc proposes replacing that list with a clickable, illustrated city scene — each function lives in a specific building, and opening a building shows only that function's controls, rather than everything at once.
+
+This is explicitly a *rendering/interaction* change, not a game-logic change — every function below already exists (or is proposed) as a `GameAction`/turn-system function; this doc is about **how the player reaches it**, matching the project's own boundary rule (`src/ui/` never reimplements `src/game/systems/` logic, only presents it, per `CLAUDE.md` Hard Rule 2).
+
+## Goals
+
+- Replace "everything visible in one scroll" with "walk up to a building, see only what it does."
+- Reuse the pixel-art and PixiJS approach already established for the map (`map-view.md`) rather than introducing a second rendering technology for one screen — a city view is structurally the same problem as the map (a scene of clickable icons at fixed positions with labels), just zoomed in to one city instead of the whole network.
+- Give every current and proposed economic feature a single, discoverable home, so a new feature's UI question becomes "which building does this belong in" rather than "where does this section go in the list."
+- Ship incrementally — the existing text-panel port view should keep working feature-by-feature as buildings replace it, not require a single big-bang cutover (see "Rollout" below).
+- **Support multi-level navigation between distinct scenes** — not just City → building panel, but City → Merchant's House (its own scene) → a specific child's page (a further scene within that), each reachable by clicking an element in the scene above it, with a way back up. This is a revision from this doc's original scope (see "Superseded" note below) — the original draft only designed one level of drill-down (city → modal panel) and explicitly excluded anything deeper; that turned out to be too narrow once child-development (`family-succession.md`) needs its own page-per-child, not just a bigger panel.
+- **Support genuinely dynamic scenes**, in two distinct senses that both matter and shouldn't be conflated: (a) *ambient* animation that makes a scene feel alive without being interactive (waving flags, smoke, a church's scaffolding visually reflecting its completion %), reusing the exact ticker/tween infrastructure already built for ship movement (ADR-017); and (b) *functional* interactive elements — clickable/draggable in-scene widgets that actually trigger `GameAction`s (e.g. a stack of crates in the Trading Post you click to buy, not just a button in a panel), distinct from ambient animation which never changes game state.
+
+## Non-Goals (this pass)
+
+- No per-city unique art (five different hand-drawn towns) — one city-view *layout template* reused for all five cities, with only the building set/positions varying if a city lacks a given function (e.g. non-shipyard cities have no Shipyard building). Bespoke per-city art is a plausible future polish pass once the base interaction model is validated, not a blocker for it.
+- No walking/movement animation of a player avatar between buildings/scenes — navigation is click-to-jump (city → building's scene → a sub-page within it), the same "click an element → see what's there" interaction the map already has, not a new avatar-controlled exploration mode. (This is narrower than, and shouldn't be confused with, the *ambient* animation goal above — buildings/elements can move or animate in place; the player's own viewpoint does not animate between them.)
+- No true 3D or parallax "walking into" a building — a click transitions directly to the target scene (a cut, not a camera move), matching how clicking a city on the Map already jumps straight to its Port view rather than flying the camera there.
+
+## Building → Function Mapping
+
+Proposed building set, each mapping to functions that already exist in the port view today, or are proposed in other design docs:
+
+| Building | Functions bound to it | Source |
+|---|---|---|
+| **⚓ Harbor / Docks** | Fleet overview, ship selection, "Set Destination" (sailing orders) | Existing (`Fleet` panel + "Set Destination" section) |
+| **🏛️ Trading Post (Kontor)** | Buy/sell goods at current market prices | Existing (goods table) |
+| **🔨 Shipyard** | Buy ships, repair ships, rename ships, crew hire/release, cannon buy/sell | Existing (Shipyard section) + `ship-stats.md` "Renaming Ships" + `crew-management.md` + `ship-stats.md` "Buying & Selling Cannons" — all four are ship-centric actions, so they share one building rather than each getting its own |
+| **⛪ Church** | Donate toward the city's church completion %, view completion progress | `church-donations.md` |
+| **🏦 Counting House (Bank)** | Take/repay a loan, buy/cancel insurance | `banking-loans.md` + `insurance.md` — grouped because both are "cash-for-risk-position" financial products, distinct from the Shipyard's physical-ship actions |
+| **🏠 Merchant's House** | Player info (name/age/marital status — currently header-only), family/succession status; the household's own interior *scene* (not just a panel) showing each child as a clickable figure, each opening its own child sub-page (growth progress, trait rolls so far, hire-a-teacher control) | `family-succession.md` — the one building tied to the player's own household rather than a city service, and the concrete example driving the multi-level "Scene Navigation Model" below |
+| **🏛️ Town Hall (Rathaus)** | Political rank progress, reputation-per-city readout | `political-rank.md`'s proposed-but-undecided progress indicator (its own Open Questions flagged not knowing where this UI should live — this answers that) |
+| **📦 Warehouse District** | Buy/sell warehouses, view passive income rate | `warehouses.md` |
+
+Eight buildings total — deliberately not more; every current/proposed v1.1/v2 economic feature above already has a home, and a ninth building shouldn't be added speculatively before a ninth function exists that needs one.
+
+Not every city has every building: only `SHIPYARD_CITIES` (Lübeck, Danzig, Hamburg) get a Shipyard, matching the existing restriction — the city-view layout for a non-shipyard city simply omits that icon, the same way `atShipyard` already gates the Shipyard section in the current text UI.
+
+## Architecture
+
+The core primitive is no longer "one `CityScene`," but a small, generic **scene-graph framework** that `CityScene` (and `MerchantsHouseScene`, `ChildPageScene`, and any future scene) is just one instance of:
+
+- **One persistent PixiJS `Application`, many swappable `Scene`s.** ADR-017 already established the key lesson the hard way: destroying and recreating a PixiJS `Application` on every screen transition is expensive and breaks continuity (that's exactly what caused the ship-animation-never-plays bug it fixed). The same lesson applies here with more force, since there are now potentially many scene levels (City → Merchant's House → child page) instead of just two (Port ↔ Map): **the `Application` is created once and never torn down for in-game navigation; each `Scene` is a `Container` added to/removed from `app.stage`, not a new `Application`.** This generalizes `MapScene`'s existing `worldLayer`/`hudLayer` `Container` split into a broader pattern: a `SceneManager` holds a stack of `Container`-based scenes and toggles which one is visible, the same `class:hidden`/`display:none` idea `MapView.svelte` already uses for Map↔Port, just applied per-scene instead of per-screen.
+- **A navigation stack, not a single "current screen" variable.** `sceneStack: SceneId[]` (e.g. `['city:lubeck', 'merchants-house', 'child:hans']`) replaces the implicit single-level "which building panel is open" model. Clicking an element pushes a new scene onto the stack (and constructs/reuses that scene's `Container`, mounted but hidden until it's the top of the stack); a back action (a consistent "← Back" control, or clicking outside where appropriate) pops it. This is a small, ordinary data structure — no new architectural pattern beyond "an array App.svelte already knows how to react to," consistent with `CLAUDE.md`'s existing UI-state-is-separate-from-game-state rule (`sceneStack` is UI state, never persisted to a save file, exactly like `selectedShipId`/`fleetCollapsed` already aren't).
+- **Each `Scene` subclass is small and specific** — `CityScene` (building icons for one city), `MerchantsHouseScene` (child figures for the household), `ChildPageScene` (one child's growth/trait/teacher controls) — all implementing the same minimal interface (`mount`, `update`, `destroy`, plus whatever click callbacks that scene needs), the same shape `MapScene` already has. A scene *is* a `Container` plus behavior; the `SceneManager` doesn't need to know what's inside one, only how to show/hide it and hand it fresh `GameState` via `update()`.
+- **Simple, contained interactions still use the existing overlay pattern**, not a new full scene, when a drill-down isn't actually needed — e.g. the Shipyard's buy/repair/crew/cannon controls are one flat set of actions with no further sub-navigation, so they stay a `.turn-summary-overlay`-style panel (ADR-017's pattern), not a promoted-to-scene building. **The decision rule going forward:** if clicking an element inside a building's controls should itself lead somewhere *else clickable* (a child, in the Merchant's House case), that's a scene; if it's just a flat list of buttons/inputs, an overlay panel is simpler and should be preferred — don't build scene machinery for something that's actually just a form.
+- `App.svelte`'s existing port-view state (`selectedShipId`, `buyQty`/`sellQty`, `pendingDest`, etc.) stays exactly where it is — this is a presentation change, not a state-shape change. Scenes and panels bind to the same reactive variables and call the same `gameClient.sendAction(...)` calls the current text sections already call.
+
+## Scene Navigation Model
+
+Concrete example, since this is the part that changed most from the original draft: **City (Lübeck) → Merchant's House → Hans's page.**
+
+1. Player is in the City scene for Lübeck (`sceneStack = ['city:lubeck']`). Clicking the Merchant's House building icon pushes `'merchants-house'` onto the stack; the City scene's `Container` is hidden (not destroyed — clicking back should return to exactly where it was, including camera/zoom state if the city scene ever gains any, the same "don't lose state on hide" principle `MapScene.setVisible()` already establishes for the Map).
+2. The Merchant's House scene renders — a small illustrated room showing one figure per living child (reusing `drawPixelSprite`'s pattern-grid technique, a simple child silhouette). Clicking a child's figure pushes `'child:hans'`.
+3. The child page scene renders — growth progress, traits rolled so far, a hire-a-teacher control (this one probably *is* a flat overlay-style panel within the scene, per the decision rule above, since a child's own page has no further sub-navigation beneath it).
+4. A persistent "← Back" affordance (proposed: a small button in the same header area the Map/Port nav toggle already lives in, showing a breadcrumb like "Lübeck ▸ Merchant's House ▸ Hans") pops the stack one level at a time.
+
+This is the general shape any future multi-level feature should follow — the framework doesn't hardcode "City → Merchant's House → Child," it's just a stack of scenes any building can push onto.
+
+## Dynamic & Animated Elements
+
+Two distinct categories, worth keeping conceptually separate since they have different implementation costs and different failure modes if confused:
+
+### Ambient animation (no game-state effect)
+
+Reuses the exact ticker/tween infrastructure already built for ship movement (`MapScene.tickShipAnimations`, ADR-017) — a PixiJS `Application.ticker` callback that repositions/redraws elements over time, purely for visual life. Examples: a flag waving on the Town Hall, smoke from a chimney, the Church's scaffolding visually receding as `churchCompletion` rises (a direct, satisfying visual payoff for the mechanic in `church-donations.md` — donate, watch the building visibly progress, not just read a percentage), a child figure in the Merchant's House idly shifting position between visits. None of this reads or writes `GameState` beyond what's already being displayed — it's the render layer's own concern, same boundary `map-view.md`'s "Architecture" section already establishes for `MapScene`.
+
+### Functional dynamic elements (trigger real `GameAction`s)
+
+Interactive, in-scene widgets that are genuinely part of the game's controls, not just decoration — e.g. a stack of goods in the Trading Post the player clicks to buy one unit (with a small tween/pop feedback on click, reusing the same `pointertap` + `eventMode = 'static'` pattern already used for city/ship icons), or a "+"/"-" pair of crates the player clicks to adjust crew count in the Shipyard scene. This is a real design choice with a real trade-off, not a free win:
+
+- **In-scene PixiJS widgets** (click a sprite directly) read as livelier and more "of the world" than a form, but are harder to make accessible (a `Graphics` rectangle isn't a semantic `<button>` a screen reader announces correctly by default — PixiJS's `accessible`/`accessibleTitle` properties exist and should be used, but this needs deliberate attention per widget, not an assumption it comes for free) and awkward for anything needing precise numeric/text input (a donation amount, a ship's new name) — a slider or repeated clicks is a poor substitute for typing "347" or "Wulf von Lübeck."
+- **DOM-overlay forms** (the existing `.turn-summary-overlay` pattern, real `<input>`/`<button>` elements) are trivially accessible and are already how every current text-panel control works, but read as less "alive."
+
+**Proposed resolution:** simple, repeatable, single-unit actions (buy 1, hire 1 crew, donate a fixed increment) get in-scene clickable widgets with ambient-style tween feedback on click; anything needing free-form quantity or text entry (buy N units, a donation amount, ship renaming) stays a DOM-overlay panel triggered by clicking the relevant building/element, exactly as the original Architecture section already proposed for the Shipyard. This isn't an all-or-nothing choice between "pretty scene" and "accessible form" — most buildings will have both, matched to what each specific action actually needs.
+
+## Interaction Model
+
+- Port view gains a new sub-mode (alongside the existing Map/Port toggle in the header nav) — proposed: the current "⚓ Port" button becomes "🏙️ City" and shows the building scene by default; a small "📋 List View" toggle preserves the current text-panel layout as a fallback/accessibility option (screen-reader-unfriendly pixel-art click targets are a real concern for a from-scratch graphical UI — see Open Questions) rather than removing it outright.
+- Selecting a ship or city elsewhere (e.g. from the Map) still routes to the same underlying state; the City view just becomes another lens onto it, the same relationship Map and (list) Port already have today.
+- The breadcrumb/back control described in "Scene Navigation Model" lives in this same header area, visible only when `sceneStack.length > 1` (a single top-level City scene has nothing to go "back" from beyond leaving the City mode entirely, same as today).
+
+## Rollout (Non-Goals notwithstanding — sequencing matters here)
+
+**This ordering is now the decided sequencing for the whole backlog, not just this doc — see ADR-018.** Steps 1–2 are a prerequisite that must land before crew management, church donations, banking & loans, insurance, warehouses, or cannons are implemented, since ADR-018 requires every mechanic from this point forward to ship together with its building UI rather than as a text-panel section.
+
+Incremental order, each step shippable and testable independently, matching how every other feature in this project has landed:
+
+1. **`SceneManager` + `CityScene`/`CityView.svelte` skeleton** — the persistent-`Application`/scene-stack framework (see "Architecture"), proven with exactly one scene (the city) and a stack depth of one. Building clicks open an empty placeholder panel; no multi-level navigation exists yet because nothing needs it yet (the Merchant's House scene, the first thing that will actually need depth, doesn't ship until step 4). This proves the rendering approach (reusing `drawPixelSprite`, PixiJS scene lifecycle, the `SceneManager`'s show/hide-not-destroy behavior) without touching any existing functionality or building the parts of the framework nothing needs yet.
+2. **Wire the Harbor and Trading Post buildings** to the existing "Set Destination" and goods-table logic — the two functions every city already has today, so this covers 100% of cities immediately and is the highest-value first migration.
+3. **Wire the Shipyard building** (only relevant in 3 of 5 cities) to the existing buy/repair logic, then extend it as crew/cannons/renaming land.
+4. **New buildings (Church, Counting House, Merchant's House, Town Hall, Warehouse District)** get built *alongside* their underlying mechanic's own implementation, not retrofitted after — i.e. when `church-donations.md` is actually implemented, it ships with its Church building from day one rather than a text section that gets migrated later.
+5. **Retire the text-panel fallback** (or keep it permanently as an accessibility option — see Open Questions) once all functions have a building home and the graphical view has been live long enough to trust.
+
+## Open Questions
+
+- Is the text-panel "List View" toggle a permanent accessibility feature, or a temporary migration aid to be removed once the city view is trusted? Leaning toward permanent — pixel-art click targets are inherently harder for screen readers and precise-pointer-difficulty players than a text list with real `<button>` elements, and the existing MVP UI is already fully keyboard/screen-reader-workable via semantic HTML; losing that entirely for a visual-only interaction model would be a real regression, not just a style change.
+- Should building icons show at-a-glance state (e.g. the Church's completion % as a partial-fill visual, the way the map already shows route danger via color) or only reveal detail on click? Leaning toward "yes for at least Church completion and Warehouse count," matching the existing map's philosophy of surfacing state visually rather than requiring a click to discover it — but this needs its own small pass per building once each is implemented, not a single blanket rule decided here.
+- One shared building layout template vs. slightly different building *sets* per city is already decided (Non-Goals — shared layout, different sets); should the five cities differ in building *position* too (Lübeck's Church always top-left, say), or should layout be fully identical and only presence/absence vary? Leaning toward identical positions for predictability (a returning player shouldn't have to relearn where the Shipyard is in each city), but worth deciding deliberately rather than by default once building count/set is finalized.
+- This is a big enough rendering/interaction-architecture change that it likely deserves its own ADR once a specific implementation plan is committed to (extending ADR-003's rendering approach and ADR-005's art style to a second scene type, and formalizing the scene-stack pattern) — not written now since nothing is decided yet, per the project's own "ADRs record decisions, not proposals" convention.
+- Does the "List View" text-panel fallback need its own equivalent of multi-level navigation (e.g. a "Family" section that expands inline to list children, each expanding further to that child's details), or is a flat, denser listing acceptable there since it's explicitly the non-graphical fallback? Leaning toward "the list view can stay flatter/denser than the scene view" — the whole point of List View is accessibility and information density, not feature parity with the graphical experience's *navigation style*, only parity with what actions are *available*.
+- Per-widget accessibility work for in-scene functional elements (PixiJS's `accessible`/`accessibleTitle` properties, keyboard-navigability of scene click targets) is real, ongoing work each functional widget needs individually — not solved once for the whole framework. Worth tracking as a checklist item per building as each one is implemented, not assumed complete just because the pattern exists.
+
+## Related
+
+- `docs/design/map-view.md` (the `MapScene`/`drawPixelSprite` architecture this proposes reusing directly)
+- ADR-003 (Rendering approach — PixiJS), ADR-005 (Art style — procedural pixel art)
+- ADR-017 (Ship-animation lifecycle — the persistent-overlay pattern proposed here for building panels)
+- ADR-018 (Feature delivery sequencing — the decided rollout order for this doc and every mechanic behind it)
+- `docs/design/church-donations.md`, `docs/design/banking-loans.md`, `docs/design/insurance.md`, `docs/design/crew-management.md`, `docs/design/warehouses.md`, `docs/design/ship-stats.md` (Renaming Ships, Buying & Selling Cannons), `docs/design/political-rank.md` (every function this doc gives a building to)
+- `docs/design/family-succession.md` (Merchant's House — the one building not tied to a city-provided service)

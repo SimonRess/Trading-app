@@ -1,7 +1,7 @@
 # Design: Market Formula
 
 **Status:** Draft  
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-20
 
 ## Purpose
 
@@ -181,6 +181,23 @@ function resolveTurn(market: GoodMarket): GoodMarket {
 Lives in `src/game/systems/market-system.ts`. Pure functions — no side effects.
 
 ---
+
+## Bulk-Purchase Price Pressure (Proposed, v1.1)
+
+**Status:** Proposed — not implemented, target v1.1 (`mvp-scope.md`'s out-of-scope table)
+
+Currently `executeBuy`/`executeSell` (`turn-system.ts`) compute one price via `currentPrice(market)` and multiply by the full quantity — a 20-unit purchase costs exactly 20× the 1-unit price, with no within-order price movement. This is the explicitly-scoped-out MVP behavior ("no bulk-purchase price bumps — direct buy/sell only"). This section proposes the v1.1 version.
+
+### Mechanic
+
+- Instead of one flat price for the whole order, walk `resolveTrade`'s existing supply-delta logic **unit by unit** within a single buy/sell call: each unit bought nudges supply down (raising the price-per-unit for the *next* unit in the same order, per the existing `price_factor(supply)` curve), and each unit sold nudges supply up (lowering it for the next unit). The total cost/revenue is the sum of each unit's price at its own point in that walk, not `unit_price × quantity`.
+- This requires no new formula — `price_factor(supply)` and `resolveTrade`'s supply-clamping already fully describe the curve; bulk pressure is purely a change in *when* the existing curve is sampled (once per unit within an order, instead of once per order).
+- Net effect: large orders get progressively worse pricing as they proceed (buying 50 units of Furs costs meaningfully more than 50× the 1-unit price), which is the entire point — it makes order *sizing* a real decision, not just a multiplier on an already-decided trade.
+
+### Open Questions (this section)
+
+- Performance: looping per-unit for very large orders (is there a practical quantity cap, or does the existing `cargoSpace`-bounded order size make this a non-issue in practice — likely yes, since cargo capacity is 20–100 last per ship, not thousands)?
+- Should the UI show a projected total cost that reflects the walked price (not just `displayed_unit_price × quantity`) before the player commits to a large order? Almost certainly yes — showing a misleadingly-cheap flat estimate for what will actually cost more once bulk pressure applies would be a discoverability trap, not a fun surprise.
 
 ## Open Questions
 

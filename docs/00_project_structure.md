@@ -300,6 +300,9 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 013 | Open source licence | Accepted | decisions/adr-013-open-source-licence.md |
 | 014 | Net-worth valuation | Accepted | decisions/adr-014-net-worth-valuation.md |
 | 015 | Per-route & session event risk | Accepted | decisions/adr-015-per-route-session-risk.md |
+| 016 | Political rank mechanic & continuable win condition | Accepted | decisions/adr-016-political-rank-and-continuable-win.md |
+| 017 | Ship-animation lifecycle (persistent overlays & pause/resume) | Accepted | decisions/adr-017-ship-animation-lifecycle.md |
+| 018 | Feature delivery sequencing (UI and logic ship together) | Accepted | decisions/adr-018-feature-delivery-sequencing.md |
 
 ---
 
@@ -320,8 +323,32 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Map view | Draft | design/map-view.md |
 | Political milestones | Implemented (first pass; thresholds not yet tuned) | design/political-rank.md |
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
+| Church building & donations | Proposed (not implemented) | design/church-donations.md |
+| Warehouses | Proposed (not implemented) | design/warehouses.md |
+| Crew management | Proposed (not implemented) | design/crew-management.md |
+| Banking & loans | Proposed (not implemented) | design/banking-loans.md |
+| Insurance | Proposed (not implemented) | design/insurance.md |
+| Graphical city view (clickable buildings) | Proposed (not implemented) | design/city-view.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
+---
+
+## 4b. Implementation Order (Current Plan)
+
+Per ADR-018: the graphical city view's skeleton is a prerequisite that ships before the rest of the current feature backlog, and every mechanic after that point ships together with its own building's UI in the same change — never as a text-panel section to be migrated later. This is the current, ordered plan; update it whenever a step lands or the order changes.
+
+1. **`CityScene`/`CityView.svelte` skeleton** — clickable building icons, no logic wired yet (`design/city-view.md`)
+2. **Harbor + Trading Post buildings** — wire to existing fleet/destination and buy/sell logic (no new game logic; pure UI migration)
+3. **Shipyard building** — wire to existing buy/repair logic
+4. *(from here on, each item below ships with its building, per ADR-018 — order within this list is otherwise not yet prioritized)*
+   - Crew management + Shipyard building extension (`design/crew-management.md`)
+   - Ship weapons (cannons) + Shipyard building extension (`design/ship-stats.md` "Buying & Selling Cannons")
+   - Church donations + Church building (`design/church-donations.md`)
+   - Banking & loans + Counting House building (`design/banking-loans.md`)
+   - Insurance + Counting House building (`design/insurance.md`)
+   - Warehouses + Warehouse District building (`design/warehouses.md`)
+5. **Not yet gated on the city view** (no building assignment decided, or intentionally UI-independent): bulk-purchase price pressure (`market-formula.md`), remaining 5 random events (`event-table.md`), family/generational succession + Merchant's House building (`design/family-succession.md`), political-rank progress readout + Town Hall building (`design/political-rank.md`'s progress-indicator Open Question)
+
 ---
 
 ## 5. Contribution Workflow
