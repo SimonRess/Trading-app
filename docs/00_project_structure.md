@@ -327,6 +327,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Crew management | Proposed (not implemented) | design/crew-management.md |
 | Banking & loans | Proposed (not implemented) | design/banking-loans.md |
 | Insurance | Proposed (not implemented) | design/insurance.md |
+| Graphical city view (clickable buildings) | Proposed (not implemented) | design/city-view.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
 ---
