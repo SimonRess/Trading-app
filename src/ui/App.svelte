@@ -375,12 +375,151 @@
       <CityView cityId={selectedCityId} on:selectBuilding={selectBuilding} />
     </div>
 
+    <!-- Harbor and Trading Post (ADR-018 rollout step 2): the same fleet/
+         destination and buy/sell markup and functions already used by the
+         List View port screen below, just reached through the City view
+         instead — pure UI migration, no new game logic. The remaining
+         buildings still show the "Coming soon" placeholder from step 1. -->
     {#if screen === 'city' && selectedBuilding}
       <div class="turn-summary-overlay">
-        <div class="turn-summary-card">
-          <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
-          <p>Coming soon — this building isn't wired to any actions yet.</p>
-          <button on:click={() => { selectedBuilding = undefined; }}>Close</button>
+        <div class="turn-summary-card building-panel">
+          {#if selectedBuilding === 'harbor'}
+            <h2>Harbor</h2>
+            <div class="fleet-list">
+              {#each state.fleet.ships as s (s.id)}
+                <div
+                  class="ship-card"
+                  class:selected={s.id === selectedShipId}
+                  on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
+                  role="button"
+                  tabindex="0"
+                  on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
+                >
+                  <strong>{s.name}</strong>
+                  <span class="tag">{SHIP_TYPES[s.type].name}</span>
+                  <span class="tag">{positionLabel(s)}</span>
+                  {#if pendingDest[s.id]}
+                    <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
+                  {/if}
+                  <span class="tag durability-{durabilityStatus(s.durability)}">
+                    Dur {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
+                  </span>
+                  <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
+                </div>
+              {/each}
+            </div>
+
+            {#if activeShip && portCity}
+              <div class="dest-section">
+                <h3>Set Destination</h3>
+                {#if !canDepart(activeShip.durability)}
+                  <p class="order-note critical">
+                    ⚠️ {activeShip.name} is critically damaged ({activeShip.durability}/100) and cannot depart.
+                    Repair it at a shipyard before setting sail.
+                  </p>
+                {:else}
+                  <div class="dest-btns">
+                    {#each reachableCities(activeShip) as dest}
+                      <button
+                        class="dest-btn"
+                        class:ordered={pendingDest[selectedShipId] === dest}
+                        on:click={() => orderDest(selectedShipId, dest)}
+                      >{CITIES[dest].name} <span class="dest-turns">({shipTravelTurns(activeShip, portCity, dest)}t)</span></button>
+                    {/each}
+                  </div>
+                  {#if pendingDest[selectedShipId]}
+                    <p class="order-note">
+                      ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong>
+                      ({shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId])} turn{shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId]) === 1 ? '' : 's'})
+                      when you end the turn.
+                      <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
+                    </p>
+                  {:else}
+                    <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
+                  {/if}
+                {/if}
+              </div>
+            {:else if activeShip && isInTransit(activeShip)}
+              <p class="order-note muted">{activeShip.name} is at sea — select a ship in port to give sailing orders.</p>
+            {/if}
+
+          {:else if selectedBuilding === 'trading-post'}
+            <h2>Trading Post</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            {#if activeShip && portCity}
+              <table class="market-table">
+                <thead>
+                  <tr>
+                    <th>Good</th>
+                    <th>Price</th>
+                    <th>Supply</th>
+                    <th>In hold</th>
+                    <th colspan="2">Trade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each GOOD_IDS as goodId}
+                    <tr>
+                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                      <td>{currentPrice(cityMarket[goodId])} M</td>
+                      <td>{cityMarket[goodId].supply}</td>
+                      <td>{activeShip.cargo[goodId] ?? 0}</td>
+                      <td>
+                        {#if selectedCityId === portCity}
+                          <button
+                            class="trade-btn buy"
+                            on:click={() => buy(goodId)}
+                            disabled={cargoSpace(activeShip) < buyQty || state.player.cash < currentPrice(cityMarket[goodId]) * buyQty}
+                          >Buy {buyQty}</button>
+                        {/if}
+                      </td>
+                      <td>
+                        {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
+                          <button
+                            class="trade-btn sell"
+                            on:click={() => sell(goodId)}
+                            disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
+                          >Sell {sellQty}</button>
+                        {/if}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+              <div class="qty-row">
+                <label>Buy qty <input type="number" bind:value={buyQty} min="1" max="50" /></label>
+                <label>Sell qty <input type="number" bind:value={sellQty} min="1" max="50" /></label>
+              </div>
+            {:else}
+              <table class="market-table">
+                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+                <tbody>
+                  {#each GOOD_IDS as goodId}
+                    <tr>
+                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                      <td>{currentPrice(cityMarket[goodId])} M</td>
+                      <td>{cityMarket[goodId].supply}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+              <p class="order-note muted">No ship currently in this port to trade with — showing prices for reference.</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else}
+            <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
+            <p>Coming soon — this building isn't wired to any actions yet.</p>
+          {/if}
+          <button class="close-building-btn" on:click={() => { selectedBuilding = undefined; }}>Close</button>
         </div>
       </div>
     {/if}
@@ -983,6 +1122,18 @@
   }
 
   .turn-summary-actions { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+
+  .building-panel {
+    align-items: stretch;
+    text-align: left;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    gap: 1rem;
+  }
+  .building-panel h2 { text-align: center; }
+  .building-panel .fleet-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .close-building-btn { align-self: center; }
 
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }
