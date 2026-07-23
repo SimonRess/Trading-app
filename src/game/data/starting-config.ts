@@ -31,6 +31,8 @@ export function buildStartingState(playerName: string): GameState {
           position: 'lubeck',
           cargo: { salt: 20 },
           crew: defaultCrew('kogge'),
+          cannons: 0,
+          insured: false,
         },
       ],
     },
@@ -53,5 +55,6 @@ export function buildStartingState(playerName: string): GameState {
     },
     risk: buildInitialRiskState(),
     hasWon: false,
+    warehouses: {},
   };
 }

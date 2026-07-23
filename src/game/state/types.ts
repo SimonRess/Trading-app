@@ -42,6 +42,16 @@ export interface Ship {
   // every turn (turn-system.ts) and slows an under-crewed ship down the same
   // way a Damaged hull does — see docs/design/crew-management.md.
   crew: number;
+  // 0 to the type's max (see ships.ts CANNON_MAX). Each cannon consumes 2
+  // cargo capacity (fleet-system.ts's cargoCapacity). No combat exists yet
+  // (ADR-010) — a cannon is purely a cargo-for-a-resellable-asset trade
+  // until combat resolution lands. See docs/design/ship-stats.md.
+  cannons: number;
+  // Opt-in per-ship insurance, toggled anytime (not shipyard-restricted).
+  // While true, costs INSURANCE_PREMIUM_PER_TURN each turn and pays out
+  // INSURANCE_PAYOUT_RATE of any storm damage/pirate cargo loss that turn
+  // — see docs/design/insurance.md, insurance-system.ts.
+  insured: boolean;
 }
 
 export interface FleetState {
@@ -101,6 +111,11 @@ export interface GameState {
   // stop the win screen from reappearing every subsequent turn while the
   // qualifying condition (net worth, Mayor rank) remains true.
   hasWon: boolean;
+  // Warehouses owned per city, 0 or absent = none. Each generates
+  // WAREHOUSE_INCOME_PER_TURN passively every turn, capped at
+  // MAX_WAREHOUSES_PER_CITY — see docs/design/warehouses.md,
+  // warehouse-system.ts.
+  warehouses: Partial<Record<CityId, number>>;
 }
 
 export type GameOutcome = 'win' | 'lose' | null;

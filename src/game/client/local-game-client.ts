@@ -9,11 +9,15 @@ import {
   executeRepairShip,
   executeHireCrew,
   executeReleaseCrew,
+  executeBuyCannon,
+  executeSellCannon,
 } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
 import { donateChurch } from '../systems/church-system.ts';
 import { executeTakeLoan, executeRepayLoan } from '../systems/banking-system.ts';
+import { executeToggleInsurance } from '../systems/insurance-system.ts';
+import { executeBuyWarehouse, executeSellWarehouse } from '../systems/warehouse-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -84,6 +88,26 @@ export class LocalGameClient implements GameClient {
 
       case 'REPAY_LOAN':
         this.state = executeRepayLoan(this.state, action.amount);
+        return Promise.resolve(this.state);
+
+      case 'BUY_CANNON':
+        this.state = executeBuyCannon(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'SELL_CANNON':
+        this.state = executeSellCannon(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'TOGGLE_INSURANCE':
+        this.state = executeToggleInsurance(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'BUY_WAREHOUSE':
+        this.state = executeBuyWarehouse(this.state, action.cityId);
+        return Promise.resolve(this.state);
+
+      case 'SELL_WAREHOUSE':
+        this.state = executeSellWarehouse(this.state, action.cityId);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {

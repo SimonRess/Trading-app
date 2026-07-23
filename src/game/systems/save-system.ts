@@ -124,14 +124,25 @@ function parseSaveFile(raw: string): GameState | null {
     // crew was added after schema v1 shipped — additive field, no schema
     // bump; older saves' ships genuinely lack it despite what SaveFile
     // claims, so default each to its type's starting crew.
+    // cannons and insured were both added after schema v1 shipped too —
+    // additive, same defaulting pattern as crew above.
     const rawShips = file.state.fleet.ships as Array<Partial<GameState['fleet']['ships'][number]>>;
     const ships = file.state.fleet.ships.map((ship, i) => ({
       ...ship,
       crew: rawShips[i]?.crew ?? defaultCrew(ship.type),
+      cannons: rawShips[i]?.cannons ?? 0,
+      insured: rawShips[i]?.insured ?? false,
     }));
     const fleet = { ...file.state.fleet, ships };
 
-    return { ...file.state, player, cities, fleet, hasWon: rawState.hasWon ?? false };
+    return {
+      ...file.state,
+      player,
+      cities,
+      fleet,
+      hasWon: rawState.hasWon ?? false,
+      warehouses: rawState.warehouses ?? {},
+    };
   } catch {
     return null;
   }

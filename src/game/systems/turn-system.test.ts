@@ -9,7 +9,12 @@ import {
   executeRepairShip,
   executeHireCrew,
   executeReleaseCrew,
+  executeBuyCannon,
+  executeSellCannon,
 } from './turn-system.ts';
+import { executeToggleInsurance } from './insurance-system.ts';
+import { executeBuyWarehouse } from './warehouse-system.ts';
+import { cannonSellValue } from '../data/ships.ts';
 
 describe('computeNetWorth', () => {
   it('includes cash + ship value + cargo value', () => {
@@ -30,6 +35,18 @@ describe('computeNetWorth', () => {
     const state = buildStartingState('TestPlayer');
     const withLoan = { ...state, player: { ...state.player, loan: 500 } };
     expect(computeNetWorth(withLoan)).toBe(computeNetWorth(state) - 500);
+  });
+
+  it('includes cannons at resale value', () => {
+    const state = buildStartingState('TestPlayer');
+    const withCannons = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cannons: 2 }] } };
+    expect(computeNetWorth(withCannons)).toBe(computeNetWorth(state) + 2 * cannonSellValue());
+  });
+
+  it('includes warehouses at resale value', () => {
+    const state = buildStartingState('TestPlayer');
+    const withWarehouse = { ...state, warehouses: { lubeck: 1 } };
+    expect(computeNetWorth(withWarehouse)).toBe(computeNetWorth(state) + 700);
   });
 
   it('drifts only by known crew wages when holding cargo across turns without trading', () => {
@@ -254,6 +271,68 @@ describe('executeReleaseCrew', () => {
   });
 });
 
+describe('executeBuyCannon', () => {
+  it('adds one cannon and deducts the price at a shipyard city', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const beforeCash = state.player.cash;
+    const next = executeBuyCannon(state, shipId);
+    expect(next.fleet.ships[0]!.cannons).toBe(1);
+    expect(next.player.cash).toBe(beforeCash - 150);
+  });
+
+  it('rejects buying beyond the type\'s cannon max', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cannons: 6 }] } };
+    const next = executeBuyCannon(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects buying outside a shipyard city', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    const next = executeBuyCannon(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects buying if insufficient cash', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, player: { ...state.player, cash: 0 } };
+    const next = executeBuyCannon(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects buying when held cargo would no longer fit the smaller hold', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    // Kogge holds 50; loaded to exactly 50 leaves no room for -2 cargo space.
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cargo: { salt: 50 } }] } };
+    const next = executeBuyCannon(state, shipId);
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeSellCannon', () => {
+  it('removes one cannon and refunds 60% of the price', () => {
+    const state = executeBuyCannon(buildStartingState('TestPlayer'), buildStartingState('TestPlayer').fleet.ships[0]!.id);
+    const shipId = state.fleet.ships[0]!.id;
+    const beforeCash = state.player.cash;
+    const next = executeSellCannon(state, shipId);
+    expect(next.fleet.ships[0]!.cannons).toBe(0);
+    expect(next.player.cash).toBe(beforeCash + 90);
+  });
+
+  it('rejects selling below 0', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeSellCannon(state, shipId);
+    expect(next).toBe(state);
+  });
+});
+
 describe('resolveTurn', () => {
   it('advances calendar', () => {
     const state = buildStartingState('TestPlayer');
@@ -300,6 +379,31 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const { summary } = resolveTurn(state, { destinations: {} });
     expect(summary.events.some(e => e.includes('loan interest'))).toBe(false);
+  });
+
+  it('deducts insurance premiums for insured ships each turn', () => {
+    const state = buildStartingState('TestPlayer');
+    const insured = executeToggleInsurance(state, state.fleet.ships[0]!.id);
+    const beforeCash = insured.player.cash;
+    const { state: next, summary } = resolveTurn(insured, { destinations: {} });
+    expect(next.player.cash).toBe(beforeCash - 20 - 8); // 20 insurance + crew wages (4 * 2)
+    expect(summary.events.some(e => e.includes('insurance premiums'))).toBe(true);
+  });
+
+  it('does not charge insurance premiums for uninsured ships', () => {
+    const state = buildStartingState('TestPlayer');
+    const { summary } = resolveTurn(state, { destinations: {} });
+    expect(summary.events.some(e => e.includes('insurance premiums'))).toBe(false);
+  });
+
+  it('adds warehouse income each turn without a turn-summary message', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 2_000 } };
+    const withWarehouse = executeBuyWarehouse(rich, 'lubeck');
+    const beforeCash = withWarehouse.player.cash;
+    const { state: next, summary } = resolveTurn(withWarehouse, { destinations: {} });
+    expect(next.player.cash).toBe(beforeCash + 15 - 8); // +15 income, -8 crew wages
+    expect(summary.events.some(e => e.toLowerCase().includes('warehouse'))).toBe(false);
   });
 
   it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {

@@ -2,7 +2,7 @@
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
   import { currentPrice } from '../game/systems/market-system.ts';
-  import { isInPort, isInTransit, cargoSpace, cargoTotal } from '../game/systems/fleet-system.ts';
+  import { isInPort, isInTransit, cargoSpace, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { RANK_LABELS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
@@ -22,8 +22,18 @@
     CREW_HIRE_COST,
     WAGE_PER_SAILOR_PER_TURN,
     isUndercrewed,
+    CANNON_MAX,
+    CANNON_PRICE,
+    cannonSellValue,
   } from '../game/data/ships.ts';
   import { LOAN_CAP, LOAN_INTEREST_RATE } from '../game/systems/banking-system.ts';
+  import { INSURANCE_PREMIUM_PER_TURN, INSURANCE_PAYOUT_RATE } from '../game/systems/insurance-system.ts';
+  import {
+    WAREHOUSE_PRICE,
+    WAREHOUSE_INCOME_PER_TURN,
+    MAX_WAREHOUSES_PER_CITY,
+    warehouseSellValue,
+  } from '../game/systems/warehouse-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
@@ -198,6 +208,41 @@
     const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot release crew.';
+  }
+
+  async function buyCannon(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'BUY_CANNON', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot buy cannon.';
+  }
+
+  async function sellCannon(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SELL_CANNON', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot sell cannon.';
+  }
+
+  async function toggleInsurance(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'TOGGLE_INSURANCE', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot change insurance.';
+  }
+
+  async function buyWarehouse(cityId: CityId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'BUY_WAREHOUSE', cityId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot buy warehouse.';
+  }
+
+  async function sellWarehouse(cityId: CityId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SELL_WAREHOUSE', cityId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot sell warehouse.';
   }
 
   async function takeLoan() {
@@ -608,6 +653,18 @@
                       disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
                     >+1</button>
                   </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Cannons: {s.cannons}/{CANNON_MAX[s.type]} (−{s.cannons * 2} last cargo)
+                      · {CANNON_PRICE} Mark to buy, {cannonSellValue()} Mark on sale.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => sellCannon(s.id)} disabled={s.cannons <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyCannon(s.id)}
+                      disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
+                    >+1</button>
+                  </div>
                 </div>
               {/each}
               <div class="ship-buy-grid">
@@ -709,6 +766,50 @@
                 >Borrow</button>
               </div>
             {/if}
+
+            <h3 class="counting-house-subhead">Ship Insurance</h3>
+            <p class="order-note muted">
+              {INSURANCE_PREMIUM_PER_TURN} Mark/turn per insured ship · pays {Math.round(INSURANCE_PAYOUT_RATE * 100)}% of storm damage or lost cargo value.
+            </p>
+            <div class="fleet-list">
+              {#each state.fleet.ships as s (s.id)}
+                <div class="ship-card static">
+                  <strong>{s.name}</strong>
+                  <span class="tag">{SHIP_TYPES[s.type].name}</span>
+                  <span class="tag">{s.insured ? 'Insured' : 'Not insured'}</span>
+                  <button class="shipyard-btn" on:click={() => toggleInsurance(s.id)}>{s.insured ? 'Cancel' : 'Insure'}</button>
+                </div>
+              {/each}
+            </div>
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'warehouse-district'}
+            {@const owned = state.warehouses[selectedCityId] ?? 0}
+            <h2>Warehouse District of {CITIES[selectedCityId].name}</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            <p class="order-note">
+              Owned here: <strong>{owned}/{MAX_WAREHOUSES_PER_CITY}</strong> · each generates {WAREHOUSE_INCOME_PER_TURN} Mark/turn, no upkeep.
+            </p>
+            <div class="qty-row">
+              <button
+                class="shipyard-btn"
+                on:click={() => sellWarehouse(selectedCityId)}
+                disabled={owned <= 0}
+              >Sell ({warehouseSellValue()} Mark)</button>
+              <button
+                class="shipyard-btn"
+                on:click={() => buyWarehouse(selectedCityId)}
+                disabled={owned >= MAX_WAREHOUSES_PER_CITY || state.player.cash < WAREHOUSE_PRICE}
+              >Buy ({WAREHOUSE_PRICE} Mark)</button>
+            </div>
 
             {#if errorMsg}
               <p class="error">{errorMsg}</p>
@@ -884,6 +985,18 @@
                       class="shipyard-btn"
                       on:click={() => hireCrew(s.id)}
                       disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
+                    >+1</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Cannons: {s.cannons}/{CANNON_MAX[s.type]} (−{s.cannons * 2} last cargo)
+                      · {CANNON_PRICE} Mark to buy, {cannonSellValue()} Mark on sale.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => sellCannon(s.id)} disabled={s.cannons <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyCannon(s.id)}
+                      disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
                     >+1</button>
                   </div>
                 </div>
@@ -1156,7 +1269,21 @@
     background: #201810;
   }
   .ship-card.selected { border-color: #c09040; background: #2a1e0c; }
+  .ship-card.static {
+    cursor: default;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .ship-card.static .shipyard-btn { margin-left: auto; }
   .ship-card strong { color: #d4a843; font-size: 0.95rem; }
+  .counting-house-subhead {
+    margin: 1.2rem 0 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid #3a2e18;
+    color: #e0d090;
+    font-size: 1rem;
+  }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
   .tag.durability-seaworthy { color: #8a7a60; }

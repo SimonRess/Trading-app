@@ -13,6 +13,11 @@ export type GameAction =
   | { type: 'DONATE_CHURCH'; cityId: CityId; amount: number }
   | { type: 'TAKE_LOAN'; amount: number }
   | { type: 'REPAY_LOAN'; amount: number }
+  | { type: 'BUY_CANNON'; shipId: string }
+  | { type: 'SELL_CANNON'; shipId: string }
+  | { type: 'TOGGLE_INSURANCE'; shipId: string }
+  | { type: 'BUY_WAREHOUSE'; cityId: CityId }
+  | { type: 'SELL_WAREHOUSE'; cityId: CityId }
   | { type: 'LOAD_SAVE'; state: GameState };
 
 export interface PlayerOrders {

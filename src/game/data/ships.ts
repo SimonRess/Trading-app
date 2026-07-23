@@ -73,6 +73,23 @@ export function crewTravelTimePenalty(type: ShipType, crew: number): number {
   return isUndercrewed(type, crew) ? 1 : 0;
 }
 
+// Per docs/design/ship-stats.md "Buying & Selling Cannons" — roughly
+// proportional to each type's cargo capacity, so a Schnigge can't devote
+// most of its small hold to cannons.
+export const CANNON_MAX: Record<ShipType, number> = {
+  kogge: 6,
+  hulk: 8,
+  schnigge: 3,
+};
+
+export const CANNON_PRICE = 150;
+export const CANNON_SELL_FRACTION = 0.6;
+export const CANNON_CARGO_COST = 2;
+
+export function cannonSellValue(): number {
+  return Math.round(CANNON_PRICE * CANNON_SELL_FRACTION);
+}
+
 export function speedRatio(type: ShipType): number {
   return SHIP_TYPES[type].turnsPerLeg / SHIP_TYPES.kogge.turnsPerLeg;
 }

@@ -55,6 +55,7 @@ interface PersistedGameState {
   calendar: CalendarState;
   risk: RiskState;         // added in ADR-015; additive, no schema bump needed
   hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
+  warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
   // ui state is deliberately excluded
 }
 ```
@@ -94,6 +95,8 @@ interface Ship {
   position: CityId | RoutePosition;
   cargo: Partial<Record<GoodId, number>>;  // good → quantity in last
   crew: number;                   // 0-CREW_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to defaultCrew(type)
+  cannons: number;                // 0-CANNON_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
+  insured: boolean;               // added post-v1 — additive, no schema bump; save-system.ts defaults missing values to false
 }
 
 interface RoutePosition {

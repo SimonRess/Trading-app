@@ -12,6 +12,8 @@ const shipInTransit = (overrides?: Partial<Ship>): Ship => ({
   position: { from: 'lubeck', to: 'danzig', turnsRemaining: 1 },
   cargo: {},
   crew: 8,
+  cannons: 0,
+  insured: false,
   ...overrides,
 });
 

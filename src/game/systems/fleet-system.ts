@@ -1,6 +1,13 @@
 import type { Ship, FleetState, CityId, GoodId } from '../state/types.ts';
 import { findRoute } from '../data/routes.ts';
-import { SHIP_TYPES, canDepart, durabilityTravelTimePenalty, crewTravelTimePenalty, speedRatio } from '../data/ships.ts';
+import {
+  SHIP_TYPES,
+  canDepart,
+  durabilityTravelTimePenalty,
+  crewTravelTimePenalty,
+  speedRatio,
+  CANNON_CARGO_COST,
+} from '../data/ships.ts';
 
 export function isInTransit(ship: Ship): ship is Ship & { position: { from: CityId; to: CityId; turnsRemaining: number } } {
   return typeof ship.position !== 'string';
@@ -112,8 +119,12 @@ export function cargoTotal(ship: Ship): number {
   return Object.values(ship.cargo).reduce<number>((sum, qty) => sum + qty, 0);
 }
 
+// Each cannon eats into usable hold space (docs/design/ship-stats.md
+// "Buying & Selling Cannons") — the single function everything else reads
+// for capacity checks, so buying/selling cannons is automatically reflected
+// everywhere cargo capacity is displayed or checked.
 export function cargoCapacity(ship: Ship): number {
-  return SHIP_TYPES[ship.type].cargoCapacity;
+  return SHIP_TYPES[ship.type].cargoCapacity - ship.cannons * CANNON_CARGO_COST;
 }
 
 export function cargoSpace(ship: Ship): number {

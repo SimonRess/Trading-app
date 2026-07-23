@@ -1,9 +1,7 @@
 # Design: Warehouses
 
-**Status:** Proposed — not implemented  
+**Status:** Implemented (first pass — thresholds not yet tuned)  
 **Target version:** v2
-
-**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
 
 ## Purpose
 
@@ -39,17 +37,27 @@ A passive-income real-estate layer: the player can buy a warehouse in a city and
 
 - Port view gains a small "Warehouses" section (same card pattern as Shipyard/proposed Church) — current count in this city, Buy/Sell buttons, and the per-turn income rate shown for context.
 
+## Implementation Status (as of 2026-07-23)
+
+- ✅ `GameState.warehouses: Partial<Record<CityId, number>>` (additive save-file field, no schema bump — defaults to `{}` for older saves).
+- ✅ `executeBuyWarehouse`/`executeSellWarehouse` (`warehouse-system.ts`) and the `BUY_WAREHOUSE`/`SELL_WAREHOUSE` actions, available from any city (not shipyard-restricted). Purchase price 1,000 Mark; resale value 70% (`warehouseSellValue()`), as proposed.
+- ✅ **Resolved open question:** capped at `MAX_WAREHOUSES_PER_CITY` = 3 — a deliberate cap added specifically to prevent unbounded passive income from becoming the dominant strategy, the risk this doc's own Open Questions flagged.
+- ✅ `accrueWarehouseIncome` adds 15 Mark/turn per owned warehouse in `resolveTurn`, with no turn-summary message (as proposed, to avoid a noisy event every turn) — visible only via the cash figure.
+- ✅ Warehouse District building: a per-city selector, owned count vs. cap, and Buy/Sell controls.
+- ✅ **Resolved open question:** warehouse resale value is now folded into `computeNetWorth` — see ADR-020 (amending ADR-014 alongside ADR-019's loan-liability amendment).
+- ✅ Unit tests (`warehouse-system.test.ts`, plus `turn-system.test.ts` integration tests): buy/sell cash and count accounting, per-city cap rejection, insufficient-cash rejection, income summed across cities, net-worth inclusion.
+- ✅ Verified live: the Warehouse District panel correctly shows 0/3 owned per city and gates the Buy button on available cash.
+
 ## Open Questions
 
-- Purchase price, resale fraction, and income rate are all placeholder numbers — same tuning caveat as every other economic addition so far (ADR-015, `political-rank.md`, `church-donations.md`).
-- Is there a cap on warehouses per city (like `MAX_SHIPS` caps the fleet), or per-player total? An uncapped passive-income source risks becoming the dominant strategy once the player has enough capital to buy many — worth deciding before implementation, not after.
+- Purchase price, resale fraction, and income rate (1,000 / 70% / 15 Mark/turn) are still placeholder numbers — same tuning caveat as every other economic addition so far (ADR-015, `political-rank.md`, `church-donations.md`).
 - Should income vary by city (e.g. Lübeck's warehouse income higher, reflecting it being the political/economic home base) — ties into whether city-level economic identity should extend beyond just "which goods it produces."
 - Does a warehouse in a city ever become unavailable (e.g. destroyed by an event, similar to a storm damaging ships)? Currently no — warehouses are the one asset class immune to the event system. Worth a deliberate call rather than an oversight once combat/events expand (ADR-010).
 
 ## Related
 
 - ADR-018 (Feature delivery sequencing — this mechanic ships with the Warehouse District building, gated on the city-view skeleton)
+- ADR-020 (Net worth includes cannon and warehouse resale value — amends ADR-014)
 - `docs/design/mvp-scope.md` (out-of-scope table — target v2)
 - `docs/design/family-succession.md` (warehouses as an asset class that plausibly carries cleanly across a succession event, unlike ships)
-- `docs/design/church-donations.md` (sibling v1.1/v2 economic-sink/source feature, same "small new Port-view section" UI pattern)
-- ADR-014 (Net worth valuation — warehouse value will need folding into `computeNetWorth` once implemented)
+- `docs/design/church-donations.md` (sibling v1.1/v2 economic-sink/source feature, same "small new building section" UI pattern)

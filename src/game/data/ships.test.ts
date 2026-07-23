@@ -12,6 +12,9 @@ import {
   defaultCrew,
   isUndercrewed,
   crewTravelTimePenalty,
+  CANNON_MAX,
+  CANNON_PRICE,
+  cannonSellValue,
 } from './ships.ts';
 
 describe('durabilityStatus', () => {
@@ -124,6 +127,19 @@ describe('CREW_MAX', () => {
   it('scales roughly with cargo capacity', () => {
     expect(CREW_MAX.hulk).toBeGreaterThan(CREW_MAX.kogge);
     expect(CREW_MAX.kogge).toBeGreaterThan(CREW_MAX.schnigge);
+  });
+});
+
+describe('cannonSellValue', () => {
+  it('is 60% of the cannon price, rounded', () => {
+    expect(cannonSellValue()).toBe(Math.round(CANNON_PRICE * 0.6));
+  });
+});
+
+describe('CANNON_MAX', () => {
+  it('scales roughly with cargo capacity', () => {
+    expect(CANNON_MAX.hulk).toBeGreaterThan(CANNON_MAX.kogge);
+    expect(CANNON_MAX.kogge).toBeGreaterThan(CANNON_MAX.schnigge);
   });
 });
 

@@ -84,9 +84,9 @@ posture: 'aggressive' | 'defensive' | 'flee';
 
 The `cargo` capacity available for goods = `50 - (cannons × 2)`. This is why `cannons` must be tracked on the ship even before combat is implemented — it affects the cargo capacity calculation.
 
-### Buying & Selling Cannons (Proposed, v2 — pulled forward ahead of full combat)
+### Buying & Selling Cannons (Implemented, v2 — pulled forward ahead of full combat)
 
-**Status:** Proposed — not implemented. **Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — ships together with the Shipyard building's UI, not as a text-panel section.
+**Status:** Implemented (first pass — thresholds not yet tuned).
 
 Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate implementation effort, but the **cannon-purchasing half** of ADR-010's pre-battle preparation phase can land independently and earlier — the same "implement the buildable/tradeable part ahead of the mechanic that consumes it" pattern already used for Hulk/Schnigge (bought forward from v1.1 into the MVP pass) and ship buying/repair generally. A ship can carry cannons, at the cost of cargo space, before combat itself exists to use them — they'd simply do nothing yet, same as `politicalRank`/`reputation` sat unused in the state shape for a long stretch before `political-rank.md` gave them a purpose.
 
@@ -95,9 +95,19 @@ Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate
 - **Guardrail:** selling cannons (or buying more) must respect currently-held cargo — a ship loaded near its current capacity cannot buy a cannon that would push held cargo over the new, smaller limit. Buying should be rejected (same pattern as `executeBuy` already rejecting a purchase that exceeds `cargoSpace`) rather than silently overflowing.
 - No posture, no combat power calculation, no enemy encounters in this pass — cannons are purely a cargo-for-a-number-that-does-nothing-yet trade until full combat (ADR-010's actual resolution flow) is implemented on top.
 
+**Implementation Status (as of 2026-07-23):**
+- ✅ `Ship.cannons` (additive save-file field, no schema bump — defaults to 0 for older saves). `CANNON_MAX` implemented as proposed: Kogge 6, Hulk 8, Schnigge 3.
+- ✅ `executeBuyCannon`/`executeSellCannon` (`turn-system.ts`) and the `BUY_CANNON`/`SELL_CANNON` actions, gated on `isShipyardCity` exactly like repair/crew. Buying is rejected if held cargo wouldn't fit the smaller hold after the purchase.
+- ✅ `fleet-system.ts`'s `cargoCapacity` subtracts `cannons × 2` — the single function everything else reads for capacity, so the reduced hold is automatically reflected in `cargoSpace`, the cargo display, and buy-quantity checks.
+- ✅ `cannonSellValue()` = 60% of `CANNON_PRICE` (150 Mark), rounded.
+- ✅ Shipyard building (both City view and List view) shows a Cannons readout with +1/-1 controls next to Repair/Crew.
+- ✅ Cannon resale value counted in `computeNetWorth` — see ADR-020.
+- ✅ Unit tests: `ships.test.ts` (`cannonSellValue`, `CANNON_MAX`), `turn-system.test.ts` (`executeBuyCannon`/`executeSellCannon` cash/cap/shipyard-gating/cargo-fit rejections), `fleet-system.test.ts` (`cargoSpace` reduced by cannons).
+- ✅ Verified live: buying a cannon on the starting Kogge deducted 150 Mark and reduced cargo capacity from 50 to 48.
+- ⏳ Still no posture, combat power calculation, or enemy encounters — cannons remain a cargo-for-a-resellable-asset trade until full combat (ADR-010's resolution flow) is implemented on top.
+
 **Open Questions:**
-- Cannon price (150 Mark) and resale fraction (60%) are placeholder numbers, unvalidated — same caveat as every other numeric proposal in this doc set.
-- Is there a per-ship cannon cap tied to ship type (a Schnigge, with only 20 last capacity total, can't sensibly carry many cannons before having no room for cargo at all) — proposed caps: Kogge 6, Hulk 8, Schnigge 3, roughly matching each type's proportion of total capacity, but unvalidated.
+- Cannon price (150 Mark) and resale fraction (60%) are still placeholder numbers, unvalidated by simulation — same caveat as every other numeric proposal in this doc set.
 
 ---
 

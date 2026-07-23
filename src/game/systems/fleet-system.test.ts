@@ -18,6 +18,8 @@ const koggeInPort = (overrides?: Partial<Ship>): Ship => ({
   position: 'lubeck',
   cargo: {},
   crew: 8,
+  cannons: 0,
+  insured: false,
   ...overrides,
 });
 
@@ -193,5 +195,10 @@ describe('cargoSpace', () => {
   it('accounts for loaded cargo', () => {
     const ship = koggeInPort({ cargo: { salt: 20, grain: 10 } });
     expect(cargoSpace(ship)).toBe(20);
+  });
+
+  it('is reduced by 2 per cannon', () => {
+    const ship = koggeInPort({ cannons: 3 });
+    expect(cargoSpace(ship)).toBe(44);
   });
 });
