@@ -176,26 +176,23 @@
     else errorMsg = 'Cannot buy ship.';
   }
 
-  async function repairShip() {
+  async function repairShip(shipId: string) {
     errorMsg = '';
-    if (!activeShip) return;
-    const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId: activeShip.id });
+    const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
   }
 
-  async function hireCrew() {
+  async function hireCrew(shipId: string) {
     errorMsg = '';
-    if (!activeShip) return;
-    const result = await gameClient.sendAction({ type: 'HIRE_CREW', shipId: activeShip.id });
+    const result = await gameClient.sendAction({ type: 'HIRE_CREW', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot hire crew.';
   }
 
-  async function releaseCrew() {
+  async function releaseCrew(shipId: string) {
     errorMsg = '';
-    if (!activeShip) return;
-    const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId: activeShip.id });
+    const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot release crew.';
   }
@@ -320,7 +317,12 @@
   $: netWorth = computeNetWorth(state);
   $: cityMarket = state.market[selectedCityId];
   $: atShipyard = portCity !== undefined && isShipyardCity(portCity);
-  $: shipRepairCost = activeShip ? repairCost(activeShip) : 0;
+  // All of the player's ships docked at this shipyard city, not just the
+  // currently selected one — repair/crew are per-ship, and a player with
+  // multiple ships in the same port should be able to manage each without
+  // switching selection first (reported by a player as "I only see one
+  // ship in the repair and crew list" after buying a second ship).
+  $: shipyardShips = portCity === undefined ? [] : state.fleet.ships.filter(s => isInPort(s) && s.position === portCity);
 </script>
 
 {#if screen === 'new-game'}
@@ -551,36 +553,42 @@
 
           {:else if selectedBuilding === 'shipyard'}
             <h2>Shipyard</h2>
-            {#if atShipyard && activeShip}
-              <div class="shipyard-row">
-                <span class="shipyard-info">
-                  {#if activeShip.durability >= 100}
-                    {activeShip.name} is fully seaworthy.
-                  {:else}
-                    Repair {activeShip.name} to full ({activeShip.durability}/100) for {shipRepairCost} Mark.
-                  {/if}
-                </span>
-                <button
-                  class="shipyard-btn"
-                  on:click={repairShip}
-                  disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
-                >Repair</button>
-              </div>
-              <div class="shipyard-row">
-                <span class="shipyard-info">
-                  Crew: {activeShip.crew}/{CREW_MAX[activeShip.type]}
-                  {#if isUndercrewed(activeShip.type, activeShip.crew)}
-                    (under-crewed, +1 turn travel time)
-                  {/if}
-                  · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
-                </span>
-                <button class="shipyard-btn" on:click={releaseCrew} disabled={activeShip.crew <= 0}>-1</button>
-                <button
-                  class="shipyard-btn"
-                  on:click={hireCrew}
-                  disabled={activeShip.crew >= CREW_MAX[activeShip.type] || state.player.cash < CREW_HIRE_COST}
-                >+1</button>
-              </div>
+            {#if atShipyard && shipyardShips.length > 0}
+              {#each shipyardShips as s (s.id)}
+                {@const cost = repairCost(s)}
+                <div class="shipyard-ship-block">
+                  <h3 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h3>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      {#if s.durability >= 100}
+                        Fully seaworthy.
+                      {:else}
+                        Repair to full ({s.durability}/100) for {cost} Mark.
+                      {/if}
+                    </span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => repairShip(s.id)}
+                      disabled={s.durability >= 100 || state.player.cash < cost}
+                    >Repair</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Crew: {s.crew}/{CREW_MAX[s.type]}
+                      {#if isUndercrewed(s.type, s.crew)}
+                        (under-crewed, +1 turn travel time)
+                      {/if}
+                      · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => releaseCrew(s.id)} disabled={s.crew <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => hireCrew(s.id)}
+                      disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
+                    >+1</button>
+                  </div>
+                </div>
+              {/each}
               <div class="ship-buy-grid">
                 {#each SHIP_TYPE_IDS as typeId}
                   {@const def = SHIP_TYPES[typeId]}
@@ -794,35 +802,41 @@
           {#if atShipyard}
             <div class="shipyard-section">
               <h3>Shipyard</h3>
-              <div class="shipyard-row">
-                <span class="shipyard-info">
-                  {#if activeShip.durability >= 100}
-                    {activeShip.name} is fully seaworthy.
-                  {:else}
-                    Repair {activeShip.name} to full ({activeShip.durability}/100) for {shipRepairCost} Mark.
-                  {/if}
-                </span>
-                <button
-                  class="shipyard-btn"
-                  on:click={repairShip}
-                  disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
-                >Repair</button>
-              </div>
-              <div class="shipyard-row">
-                <span class="shipyard-info">
-                  Crew: {activeShip.crew}/{CREW_MAX[activeShip.type]}
-                  {#if isUndercrewed(activeShip.type, activeShip.crew)}
-                    (under-crewed, +1 turn travel time)
-                  {/if}
-                  · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
-                </span>
-                <button class="shipyard-btn" on:click={releaseCrew} disabled={activeShip.crew <= 0}>-1</button>
-                <button
-                  class="shipyard-btn"
-                  on:click={hireCrew}
-                  disabled={activeShip.crew >= CREW_MAX[activeShip.type] || state.player.cash < CREW_HIRE_COST}
-                >+1</button>
-              </div>
+              {#each shipyardShips as s (s.id)}
+                {@const cost = repairCost(s)}
+                <div class="shipyard-ship-block">
+                  <h4 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h4>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      {#if s.durability >= 100}
+                        Fully seaworthy.
+                      {:else}
+                        Repair to full ({s.durability}/100) for {cost} Mark.
+                      {/if}
+                    </span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => repairShip(s.id)}
+                      disabled={s.durability >= 100 || state.player.cash < cost}
+                    >Repair</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Crew: {s.crew}/{CREW_MAX[s.type]}
+                      {#if isUndercrewed(s.type, s.crew)}
+                        (under-crewed, +1 turn travel time)
+                      {/if}
+                      · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => releaseCrew(s.id)} disabled={s.crew <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => hireCrew(s.id)}
+                      disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
+                    >+1</button>
+                  </div>
+                </div>
+              {/each}
               <div class="ship-buy-grid">
                 {#each SHIP_TYPE_IDS as typeId}
                   {@const def = SHIP_TYPES[typeId]}
@@ -1201,6 +1215,19 @@
     font-size: 0.85rem;
   }
   .shipyard-info { color: #b0a090; }
+  .shipyard-ship-block {
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px dashed #3a2e18;
+  }
+  .shipyard-ship-name {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    color: #e0d090;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .shipyard-btn {
     padding: 0.3rem 0.9rem;
     font-size: 0.82rem;
