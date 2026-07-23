@@ -104,7 +104,11 @@ function parseSaveFile(raw: string): GameState | null {
     // despite what the SaveFile type claims, so read them through Partial
     // rather than trusting the cast.
     const rawPlayer = file.state.player as Partial<GameState['player']>;
-    const player = { ...file.state.player, maritalStatus: rawPlayer.maritalStatus ?? 'single' };
+    const player = {
+      ...file.state.player,
+      maritalStatus: rawPlayer.maritalStatus ?? 'single',
+      loan: rawPlayer.loan ?? 0,
+    };
     const rawState = file.state as Partial<GameState>;
 
     const cities = { ...file.state.cities };

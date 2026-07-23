@@ -23,6 +23,7 @@
     WAGE_PER_SAILOR_PER_TURN,
     isUndercrewed,
   } from '../game/data/ships.ts';
+  import { LOAN_CAP, LOAN_INTEREST_RATE } from '../game/systems/banking-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
@@ -49,6 +50,8 @@
   let showSeasonInfo = false;
   let selectedBuilding: BuildingId | undefined;
   let donationAmount = 100;
+  let loanAmount = 500;
+  let repayAmount = 100;
 
   // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
   // building clicks just show a placeholder label for now — no building is
@@ -195,6 +198,24 @@
     const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot release crew.';
+  }
+
+  async function takeLoan() {
+    errorMsg = '';
+    const amount = Number(loanAmount);
+    if (!amount || amount < 1) return;
+    const result = await gameClient.sendAction({ type: 'TAKE_LOAN', amount });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot take loan.';
+  }
+
+  async function repayLoan() {
+    errorMsg = '';
+    const amount = Number(repayAmount);
+    if (!amount || amount < 1) return;
+    const result = await gameClient.sendAction({ type: 'REPAY_LOAN', amount });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot repay loan.';
   }
 
   async function donateToChurch(cityId: CityId) {
@@ -657,6 +678,36 @@
                 >Donate</button>
               </div>
               <p class="order-note muted">50 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 100 Mark ≈ 1 reputation in {CITIES[selectedCityId].name} (right away).</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'counting-house'}
+            <h2>Counting House</h2>
+            {#if state.player.loan > 0}
+              <p class="order-note">
+                Outstanding loan: <strong>{state.player.loan} Mark</strong>, accruing {Math.round(LOAN_INTEREST_RATE * 100)}% interest per turn.
+              </p>
+              <div class="qty-row">
+                <label>Repay <input type="number" bind:value={repayAmount} min="1" max={Math.min(state.player.cash, state.player.loan)} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={repayLoan}
+                  disabled={!repayAmount || repayAmount < 1 || state.player.cash < 1}
+                >Repay</button>
+              </div>
+            {:else}
+              <p class="order-note muted">No active loan. Borrow up to {LOAN_CAP} Mark, repayable any time, at {Math.round(LOAN_INTEREST_RATE * 100)}% compounding interest per turn.</p>
+              <div class="qty-row">
+                <label>Borrow <input type="number" bind:value={loanAmount} min="1" max={LOAN_CAP} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={takeLoan}
+                  disabled={!loanAmount || loanAmount < 1 || loanAmount > LOAN_CAP}
+                >Borrow</button>
+              </div>
             {/if}
 
             {#if errorMsg}

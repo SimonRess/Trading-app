@@ -51,6 +51,7 @@ Consequently, net worth only changes on events that represent a real change in w
 ## Links
 
 - Supersedes: —  
+- Amended by: ADR-019 (Net worth subtracts outstanding loan principal) — the cash/ship/cargo formula decided here is unchanged; ADR-019 adds a `- loan` term once banking & loans shipped  
 - Superseded by: —  
 - Related ADRs: ADR-009 (Market price formula — the supply/price mechanic that caused the drift), ADR-004 (Architecture — `computeNetWorth` is a pure function on `GameState`)  
 - Related design docs: docs/design/mvp-scope.md (win/lose conditions), docs/design/ship-stats.md (ship value component), docs/design/market-formula.md (base prices)  

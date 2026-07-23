@@ -23,6 +23,12 @@ export interface PlayerState {
   maritalStatus: MaritalStatus;
   politicalRank: PoliticalRank;
   reputation: Record<CityId, number>;
+  // Outstanding loan principal, 0 = no active loan. Compounds by
+  // LOAN_INTEREST_RATE each turn (banking-system.ts) — see
+  // docs/design/banking-loans.md. Subtracted in computeNetWorth (ADR-014
+  // amendment, see ADR-019) so an unpaid loan is a real liability, not free
+  // cash.
+  loan: number;
 }
 
 export interface Ship {

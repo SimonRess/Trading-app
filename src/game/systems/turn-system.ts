@@ -21,6 +21,7 @@ import {
 import { GOODS } from '../data/goods.ts';
 import { evaluateRankUp, gainReputation, rankUpMessage } from './political-system.ts';
 import { advanceChurchProgress } from './church-system.ts';
+import { accrueLoanInterest } from './banking-system.ts';
 import { CITIES } from '../data/cities.ts';
 
 export function computeNetWorth(state: GameState): number {
@@ -36,7 +37,10 @@ export function computeNetWorth(state: GameState): number {
     return sum;
   }, 0);
 
-  return Math.round(state.player.cash + shipValue + cargoValue);
+  // Outstanding loan principal is a liability (ADR-014 amendment, see
+  // ADR-019 and docs/design/banking-loans.md) — otherwise an unpaid loan
+  // would look like free cash in the player's own net-worth readout.
+  return Math.round(state.player.cash + shipValue + cargoValue - state.player.loan);
 }
 
 export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult {
@@ -96,7 +100,16 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   const crewWages = newState.fleet.ships.reduce((sum, ship) => sum + ship.crew * WAGE_PER_SAILOR_PER_TURN, 0);
   if (crewWages > 0) {
     newState = { ...newState, player: { ...newState.player, cash: newState.player.cash - crewWages } };
-    events.push(`⚓ Paid ${String(crewWages)} Mark in crew wages.`);
+    events.push(`👥 Paid ${String(crewWages)} Mark in crew wages.`);
+  }
+
+  // Step 5d: Accrue loan interest (docs/design/banking-loans.md) —
+  // compounding, same "flat per-turn financial effect" shape as crew wages
+  // above, just tied to an outstanding balance instead of a fleet size.
+  const loanResult = accrueLoanInterest(newState.player);
+  if (loanResult.interestCharged > 0) {
+    newState = { ...newState, player: loanResult.player };
+    events.push(`🏦 ${String(loanResult.interestCharged)} Mark in loan interest accrued.`);
   }
 
   // Step 6: Net worth, then political rank (needs net worth + Lübeck

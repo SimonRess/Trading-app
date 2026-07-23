@@ -1,9 +1,7 @@
 # Design: Banking & Loans
 
-**Status:** Proposed — not implemented  
+**Status:** Implemented (first pass — thresholds not yet tuned)  
 **Target version:** v1.1
-
-**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
 
 ## Purpose
 
@@ -29,15 +27,24 @@ Currently the only way to get cash is trading (and soon, per other proposals, ch
 - Repayment: any amount up to the outstanding balance, from any port, reducing principal directly; paying to exactly zero clears `player.loan` back to `null`.
 - **Interaction with bankruptcy:** the existing lose condition (`netWorth <= 0`) already accounts for cash — if `computeNetWorth` includes the loan as a negative liability (see Open Questions), an unpaid, compounding loan is what actually drives a player into the existing lose condition, rather than needing a new "loan foreclosure" failure state of its own.
 
+## Implementation Status (as of 2026-07-23)
+
+- ✅ `PlayerState.loan: number` (0 = no active loan; additive save-file field, no schema bump — `save-system.ts` defaults missing values to 0). Simpler than the originally proposed `{ principal, interestRate } | null` shape since only one flat rate exists — no need to store the rate per loan.
+- ✅ `executeTakeLoan`/`executeRepayLoan` (`banking-system.ts`) and the `TAKE_LOAN`/`REPAY_LOAN` actions, available from any port (not shipyard-restricted) via the Counting House building. Borrowing caps at 2,000 Mark, one active loan at a time (a second `TAKE_LOAN` while one is outstanding is rejected). Repayment caps at both the outstanding balance and current cash.
+- ✅ `accrueLoanInterest` (`banking-system.ts`), called once per turn from `resolveTurn`: 5% compounding interest on the outstanding principal, reported in the turn summary ("N Mark in loan interest accrued").
+- ✅ `computeNetWorth` subtracts outstanding loan principal — see ADR-019, which amends ADR-014's formula.
+- ✅ Counting House building panel: outstanding balance + interest rate readout and a Repay control when a loan is active, or a Borrow control and the loan cap/rate when not.
+- ✅ Unit tests (`banking-system.test.ts`, plus `turn-system.test.ts`/`ships.test.ts` additions): take/repay cash and principal accounting, one-loan-at-a-time and cap rejections, repayment capped at balance/cash, compounding interest across repeated turns, `computeNetWorth`'s loan subtraction.
+- ✅ Verified live: borrowing 500 Mark added it to cash immediately; ending a turn compounded it to 525 Mark with the turn summary reporting "25 Mark in loan interest accrued"; repaying 300 Mark reduced the balance to 225 and deducted cash correctly.
+
 ## Open Questions
 
-- Does `computeNetWorth` (ADR-014) need to subtract outstanding loan principal? Almost certainly yes — otherwise a loan looks like free cash forever in the player's own net-worth readout, which defeats the point of it being a liability. This is a genuine change to an already-`Accepted` ADR's formula and should be captured as an ADR-014 amendment (or a new small ADR) when this feature is actually built, not silently folded in.
-- Loan cap (2,000 Mark) and interest rate (5%/turn) are placeholder numbers needing simulation against the existing 500 Mark starting cash / 10,000 Mark win threshold — same caveat as every other numeric proposal.
-- Should there be a maximum number of turns before a loan auto-defaults (some harsher consequence beyond "your net worth keeps dropping"), or is compounding interest alone sufficient pressure? Leaning toward "compounding alone is enough" for a first pass, to avoid a second failure-state mechanic on top of the existing bankruptcy check.
+- Loan cap (2,000 Mark) and interest rate (5%/turn) are still placeholder numbers, not simulation-tuned against the 500 Mark starting cash / 10,000 Mark win threshold — same caveat as every other numeric proposal in this doc set.
+- Should there be a maximum number of turns before a loan auto-defaults (some harsher consequence beyond "your net worth keeps dropping"), or is compounding interest alone sufficient pressure? Still leaning toward "compounding alone is enough" — no second failure-state mechanic has been added on top of the existing bankruptcy check.
 
 ## Related
 
 - ADR-018 (Feature delivery sequencing — this mechanic ships with the Counting House building, gated on the city-view skeleton)
-- ADR-014 (Net worth valuation — this doc proposes an amendment: net worth should subtract outstanding loan principal)
+- ADR-019 (Net worth subtracts outstanding loan principal — amends ADR-014)
 - `docs/design/mvp-scope.md` (banking & loans listed as v1.1 target)
-- `docs/design/insurance.md` (sibling financial-mechanic proposal; consider whether the two share a UI section, e.g. a "Bank" panel with both loan and insurance controls, rather than two separate port-view sections)
+- `docs/design/insurance.md` (sibling financial-mechanic proposal; still worth considering whether the two eventually share a UI section within the Counting House)

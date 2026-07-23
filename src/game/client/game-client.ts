@@ -11,6 +11,8 @@ export type GameAction =
   | { type: 'HIRE_CREW'; shipId: string }
   | { type: 'RELEASE_CREW'; shipId: string }
   | { type: 'DONATE_CHURCH'; cityId: CityId; amount: number }
+  | { type: 'TAKE_LOAN'; amount: number }
+  | { type: 'REPAY_LOAN'; amount: number }
   | { type: 'LOAD_SAVE'; state: GameState };
 
 export interface PlayerOrders {

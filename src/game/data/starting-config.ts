@@ -12,6 +12,7 @@ export function buildStartingState(playerName: string): GameState {
       age: 22,
       maritalStatus: 'single',
       politicalRank: 0,
+      loan: 0,
       reputation: {
         lubeck: 20,
         hamburg: 10,

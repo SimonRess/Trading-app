@@ -13,6 +13,7 @@ import {
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
 import { donateChurch } from '../systems/church-system.ts';
+import { executeTakeLoan, executeRepayLoan } from '../systems/banking-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -75,6 +76,14 @@ export class LocalGameClient implements GameClient {
 
       case 'DONATE_CHURCH':
         this.state = donateChurch(this.state, action.cityId, action.amount);
+        return Promise.resolve(this.state);
+
+      case 'TAKE_LOAN':
+        this.state = executeTakeLoan(this.state, action.amount);
+        return Promise.resolve(this.state);
+
+      case 'REPAY_LOAN':
+        this.state = executeRepayLoan(this.state, action.amount);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {

@@ -26,6 +26,12 @@ describe('computeNetWorth', () => {
     expect(worth).toBeGreaterThan(900); // 500 cash + 400 ship + cargo
   });
 
+  it('subtracts outstanding loan principal', () => {
+    const state = buildStartingState('TestPlayer');
+    const withLoan = { ...state, player: { ...state.player, loan: 500 } };
+    expect(computeNetWorth(withLoan)).toBe(computeNetWorth(state) - 500);
+  });
+
   it('drifts only by known crew wages when holding cargo across turns without trading', () => {
     let state = buildStartingState('TestPlayer');
     state = executeBuy(state, state.fleet.ships[0]!.id, 'lubeck', 'furs', 10);
@@ -280,6 +286,20 @@ describe('resolveTurn', () => {
     const { state: next, summary } = resolveTurn(state, { destinations: {} });
     expect(next.player.cash).toBe(before - crew * 2);
     expect(summary.events.some(e => e.includes('crew wages'))).toBe(true);
+  });
+
+  it('accrues 5% compounding loan interest each turn and announces it', () => {
+    const state = buildStartingState('TestPlayer');
+    const withLoan = { ...state, player: { ...state.player, loan: 1_000 } };
+    const { state: next, summary } = resolveTurn(withLoan, { destinations: {} });
+    expect(next.player.loan).toBe(1_050);
+    expect(summary.events.some(e => e.includes('loan interest'))).toBe(true);
+  });
+
+  it('does not announce loan interest when there is no active loan', () => {
+    const state = buildStartingState('TestPlayer');
+    const { summary } = resolveTurn(state, { destinations: {} });
+    expect(summary.events.some(e => e.includes('loan interest'))).toBe(false);
   });
 
   it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {
