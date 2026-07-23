@@ -109,6 +109,7 @@ type CitiesState = Record<CityId, CityState>;
 interface CityState {
   id: CityId;
   churchCompletion: number;  // 0-100, added post-v1 — additive, no schema bump; save-system.ts defaults missing values to the starting seed
+  churchPledged: number;  // Mark pledged but not yet converted to completion, added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
 }
 ```
 

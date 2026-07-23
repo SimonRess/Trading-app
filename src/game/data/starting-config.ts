@@ -35,11 +35,11 @@ export function buildStartingState(playerName: string): GameState {
     // Lübeck, the political home base, starts furthest along; the rest are
     // varied so the player sees different funding opportunities from turn 1.
     cities: {
-      lubeck:  { id: 'lubeck',  churchCompletion: 60 },
-      hamburg: { id: 'hamburg', churchCompletion: 25 },
-      danzig:  { id: 'danzig',  churchCompletion: 30 },
-      riga:    { id: 'riga',    churchCompletion: 15 },
-      malmo:   { id: 'malmo',   churchCompletion: 20 },
+      lubeck:  { id: 'lubeck',  churchCompletion: 60, churchPledged: 0 },
+      hamburg: { id: 'hamburg', churchCompletion: 25, churchPledged: 0 },
+      danzig:  { id: 'danzig',  churchCompletion: 30, churchPledged: 0 },
+      riga:    { id: 'riga',    churchCompletion: 15, churchPledged: 0 },
+      malmo:   { id: 'malmo',   churchCompletion: 20, churchPledged: 0 },
     },
     market: buildInitialMarket(),
     calendar: {

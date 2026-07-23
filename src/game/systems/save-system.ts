@@ -109,7 +109,11 @@ function parseSaveFile(raw: string): GameState | null {
     const cities = { ...file.state.cities };
     for (const cityId of Object.keys(cities) as CityId[]) {
       const rawCity = cities[cityId] as Partial<GameState['cities'][CityId]>;
-      cities[cityId] = { ...cities[cityId], churchCompletion: rawCity.churchCompletion ?? CHURCH_COMPLETION_DEFAULTS[cityId] };
+      cities[cityId] = {
+        ...cities[cityId],
+        churchCompletion: rawCity.churchCompletion ?? CHURCH_COMPLETION_DEFAULTS[cityId],
+        churchPledged: rawCity.churchPledged ?? 0,
+      };
     }
 
     return { ...file.state, player, cities, hasWon: rawState.hasWon ?? false };

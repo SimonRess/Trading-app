@@ -9,6 +9,8 @@ import { driftRiskState } from './risk-system.ts';
 import { shipNetWorth, SHIP_TYPES, MAX_SHIPS, isShipyardCity, repairCost, nextShipName } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
 import { evaluateRankUp, gainReputation, rankUpMessage } from './political-system.ts';
+import { advanceChurchProgress } from './church-system.ts';
+import { CITIES } from '../data/cities.ts';
 
 export function computeNetWorth(state: GameState): number {
   const shipValue = state.fleet.ships.reduce((sum, ship) => {
@@ -67,6 +69,15 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   }
 
   let newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
+
+  // Step 5b: Advance any pledged church funds (docs/design/church-donations.md)
+  // — capped at 1 percentage point per city per turn, so a big donation is
+  // felt gradually rather than instantly.
+  const churchProgress = advanceChurchProgress(newState.cities);
+  newState = { ...newState, cities: churchProgress.cities };
+  for (const cityId of churchProgress.completedCities) {
+    events.push(`⛪ The Church of ${CITIES[cityId].name} was completed, thanks in part to your generosity.`);
+  }
 
   // Step 6: Net worth, then political rank (needs net worth + Lübeck
   // reputation — see docs/design/political-rank.md).

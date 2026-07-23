@@ -28,24 +28,31 @@ Each of the 5 cities starts with a church under construction, at a different com
 
 ### Donating
 
-- `DONATE_CHURCH { cityId, amount }` action (`game-client.ts`), handled by `donateChurch()` in a new `church-system.ts`, not shipyard-restricted — a church donation isn't a ship transaction and needs no ship present at all.
-- `amount` Mark deducted from `player.cash`. Rejected (state returned unchanged) if `amount` isn't a positive finite number or exceeds current cash — same validation shape as `executeBuy`/`executeSell`.
-- Completion increases by `amount / DONATION_COST_PER_PERCENT` (**implemented as 50** Mark per 1%, so fully funding a church from 0% costs 5,000 Mark), clamped at 100.
-- Reputation in that city increases via the *same* `gainReputation()` used for sales (`political-system.ts`), now generalised to take an optional `amount` parameter (defaulting to the flat per-sale gain) rather than a second function — `+round(amount / REPUTATION_COST_PER_POINT)`, **implemented as 100** Mark per reputation point.
+- `DONATE_CHURCH { cityId, amount }` action (`game-client.ts`), handled by `donateChurch()` in `church-system.ts`, not shipyard-restricted — a church donation isn't a ship transaction and needs no ship present at all.
+- `amount` Mark deducted from `player.cash` **immediately**, and reputation in that city is granted **immediately** via the *same* `gainReputation()` used for sales (`political-system.ts`), generalised to take an optional `amount` parameter — `+round(amount / REPUTATION_COST_PER_POINT)`, **implemented as 100** Mark per reputation point. Rejected (state returned unchanged) if `amount` isn't a positive finite number, exceeds current cash, or the city has no remaining capacity (already at 100%) — same validation shape as `executeBuy`/`executeSell`.
+- **Completion itself does not move at donation time.** The donated amount (capped at the city's remaining capacity — `(100 - churchCompletion) * 50` Mark) is added to a new `CityState.churchPledged` pool instead. Pledged funds are converted into `churchCompletion` gradually during turn resolution — see "Throttled progress" below.
+
+### Throttled progress (revised 2026-07-23)
+
+- **Original first pass had donations apply instantly** (donate 100 Mark → completion moves the same turn, no delay). Player feedback after actually donating: *"I have donated 300 money to church in Lübeck but the church's progress didn't change. How long does it take to see the progress?"* — followed by an explicit request for a delay mechanic: completion should advance by at most 1% per turn, spreading a large donation over several turns instead of applying it all at once.
+- Implemented as a two-step flow: `donateChurch()` moves cash/reputation immediately and adds to `churchPledged`; a new `advanceChurchProgress(cities)` in `church-system.ts` runs once per turn inside `resolveTurn` (Step 5b, before the political-rank check) and converts at most `PROGRESS_CAP_PER_TURN` (**1** percentage point = 50 Mark) of each city's pledged pool into `churchCompletion`, carrying any remainder in `churchPledged` for the next turn.
+- This directly answers the "how long" question: **progress becomes visible starting from the next turn the player ends, not at the moment of donation, by design.** A 300 Mark donation (6 percentage points) takes 6 turns to fully land.
+- When a city's pledged conversion pushes `churchCompletion` to 100 for the first time, `advanceChurchProgress` reports it in `completedCities`, and `resolveTurn` appends a `TurnSummary` event ("⛪ The Church of {city} was completed, thanks in part to your generosity.") — completion is now a genuine turn-summary event rather than the earlier UI-only banner (below).
 
 ### UI
 
-- Donations happen through the City view's Church building (`docs/design/city-view.md`), not a Port-screen text section — this was written before the City view existed; the mechanic now ships with its own building per ADR-018, superseding the original "Port view gains a small section" plan.
-- The panel includes a city selector (donations aren't restricted to wherever a ship happens to be — the player can fund any city's church from the same panel) and a progress bar, not just a numeric readout, matching the map's existing philosophy of surfacing state visually.
-- **Deviation from the original plan:** donations are an immediate action (like buy/sell), not something resolved during `resolveTurn` — there is no `TurnSummary` to append a "crossing 100%" event to at the moment it happens. Implemented instead as an inline banner in the Church panel itself ("🎉 The Church of {city} was just completed!"), tracked by a small `churchJustCompleted` UI-only variable in `App.svelte` (never persisted, cleared on closing the panel or switching cities) rather than the `TurnSummary.events` mechanism.
+- Donations happen through the City view's Church building (`docs/design/city-view.md`), not a Port-screen text section.
+- The panel includes a city selector (donations aren't restricted to wherever a ship happens to be — the player can fund any city's church from the same panel) and a two-segment progress bar: a solid fill for `churchCompletion` and a hatched overlay for pledged-but-not-yet-converted funds, so the player can see both "done" and "in flight" at a glance.
+- While a city has `churchPledged > 0`, the panel shows a note: "{N} Mark pledged, arriving at up to 1% per turn (~{turns} more turns)".
+- **Superseded:** the original plan's inline "just completed" banner and its UI-only `churchJustCompleted` variable in `App.svelte` are removed — completion is now driven by the genuine `TurnSummary.events` mechanism (see above), so the panel just reflects `churchCompletion >= 100` directly instead of tracking a transient flag.
 
-## Implementation Status (as of 2026-07-22)
+## Implementation Status (as of 2026-07-23)
 
-- ✅ `CityState.churchCompletion`, seeded per city in `starting-config.ts` (Lübeck 60, Hamburg 25, Danzig 30, Riga 15, Malmö 20). Additive save-file field — no schema bump; `save-system.ts` defaults missing values to the same starting seed for older saves.
-- ✅ `donateChurch()` (`church-system.ts`) and the `DONATE_CHURCH` action, wired through `LocalGameClient`.
-- ✅ Church building in the City view: progress bar, city selector, donate input, completion messaging.
-- ✅ Unit tests (`church-system.test.ts`): cash deduction, proportional completion, per-city isolation, 100% clamping, reputation gain, invalid-amount/insufficient-cash rejection, no-mutation.
-- ✅ Verified live: donating 100 Mark to Lübeck's church (starting 60%) advanced it to 62% and deducted cash; fully funding a church shows the completion banner and hides the donate form; switching cities in the panel shows each city's independent progress.
+- ✅ `CityState.churchCompletion` and `CityState.churchPledged`, seeded per city in `starting-config.ts` (Lübeck 60, Hamburg 25, Danzig 30, Riga 15, Malmö 20; `churchPledged` starts at 0 everywhere). Both additive save-file fields — no schema bump; `save-system.ts` defaults missing values (starting seed for `churchCompletion`, 0 for `churchPledged`) for older saves.
+- ✅ `donateChurch()` and `advanceChurchProgress()` (`church-system.ts`), the `DONATE_CHURCH` action wired through `LocalGameClient`, and `advanceChurchProgress` called once per turn from `resolveTurn` (`turn-system.ts`).
+- ✅ Church building in the City view: two-segment progress bar (complete + pledged), city selector, donate input, pledged-funds note, completion messaging via `TurnSummary`.
+- ✅ Unit tests: `church-system.test.ts` covers `donateChurch` (cash deduction, pledging without immediate completion, per-city isolation, capacity capping, rejection at 100%, reputation gain, cash-limited donations, invalid-amount rejection, no-mutation) and `advanceChurchProgress` (no-op with nothing pledged, 1%/turn cap, multi-turn spreading, `completedCities` reported only on the turn 100% is first reached, no-mutation); `turn-system.test.ts` has an integration test confirming a turn resolves a pledge into completion and announces it.
+- ✅ Verified live: donating 300 Mark to Lübeck's church (starting 60%) left completion at 60% immediately (cash correctly deducted) with a "300 Mark pledged... (~6 more turns)" note; after one End Turn, completion advanced to 61% and the note updated to "250 Mark pledged... (~5 more turns)", confirming the 50-Mark-per-turn throttle across a real turn-resolution cycle.
 
 ## Open Questions
 

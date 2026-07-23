@@ -41,9 +41,13 @@ export interface FleetState {
 export interface CityState {
   id: CityId;
   // 0-100. Starts partially built (see starting-config.ts) and only ever
-  // increases via donations (political-system.ts's donateChurch) — see
-  // docs/design/church-donations.md.
+  // increases — see docs/design/church-donations.md.
   churchCompletion: number;
+  // Mark donated but not yet converted to completion — donateChurch() adds
+  // here immediately; resolveTurn's advanceChurchProgress() converts at
+  // most 1 percentage point's worth per city per turn, so a large donation
+  // is felt gradually rather than instantly.
+  churchPledged: number;
 }
 
 export type CitiesState = Record<CityId, CityState>;

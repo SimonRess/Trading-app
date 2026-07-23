@@ -202,6 +202,17 @@ describe('resolveTurn', () => {
     expect(state.calendar.turn).toBe(turnBefore);
   });
 
+  it('advances pledged church funds by at most 1% and announces completion', () => {
+    const state = buildStartingState('TestPlayer');
+    const almostDone = {
+      ...state,
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 99, churchPledged: 100 } },
+    };
+    const { state: next, summary } = resolveTurn(almostDone, { destinations: {} });
+    expect(next.cities.hamburg.churchCompletion).toBe(100);
+    expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('completed'))).toBe(true);
+  });
+
   it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {
     const state = buildStartingState('TestPlayer');
     const richState = { ...state, player: { ...state.player, cash: 9_999 } };
