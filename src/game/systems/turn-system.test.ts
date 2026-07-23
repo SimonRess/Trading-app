@@ -7,6 +7,8 @@ import {
   executeSell,
   executeBuyShip,
   executeRepairShip,
+  executeHireCrew,
+  executeReleaseCrew,
 } from './turn-system.ts';
 
 describe('computeNetWorth', () => {
@@ -24,16 +26,18 @@ describe('computeNetWorth', () => {
     expect(worth).toBeGreaterThan(900); // 500 cash + 400 ship + cargo
   });
 
-  it('does not drift when holding cargo across turns without trading', () => {
+  it('drifts only by known crew wages when holding cargo across turns without trading', () => {
     let state = buildStartingState('TestPlayer');
     state = executeBuy(state, state.fleet.ships[0]!.id, 'lubeck', 'furs', 10);
     const baseline = computeNetWorth(state);
+    const crewWagesPerTurn = state.fleet.ships[0]!.crew * 2;
     for (let t = 0; t < 6; t++) {
       state = resolveTurn(state, { destinations: {} }).state;
     }
-    // Cargo is valued at a stable base price, so with no trades and no storm
-    // damage, net worth must not change.
-    expect(computeNetWorth(state)).toBe(baseline);
+    // Cargo is valued at a stable base price and there's no storm damage, so
+    // with no trades the only change is crew wages (crew-management.md), a
+    // known, flat per-turn cost.
+    expect(computeNetWorth(state)).toBe(baseline - crewWagesPerTurn * 6);
   });
 });
 
@@ -188,6 +192,62 @@ describe('executeRepairShip', () => {
   });
 });
 
+describe('executeHireCrew', () => {
+  it('adds one crew and deducts the hire cost at a shipyard city', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const before = state.fleet.ships[0]!.crew;
+    const beforeCash = state.player.cash;
+    const next = executeHireCrew(state, shipId);
+    expect(next.fleet.ships[0]!.crew).toBe(before + 1);
+    expect(next.player.cash).toBe(beforeCash - 20);
+  });
+
+  it('rejects hiring beyond the type\'s crew max', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, crew: 8 }] } };
+    const next = executeHireCrew(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects hiring outside a shipyard city', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    const next = executeHireCrew(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects hiring if insufficient cash', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, player: { ...state.player, cash: 0 } };
+    const next = executeHireCrew(state, shipId);
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeReleaseCrew', () => {
+  it('removes one crew without refunding cash', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const before = state.fleet.ships[0]!.crew;
+    const beforeCash = state.player.cash;
+    const next = executeReleaseCrew(state, shipId);
+    expect(next.fleet.ships[0]!.crew).toBe(before - 1);
+    expect(next.player.cash).toBe(beforeCash);
+  });
+
+  it('rejects releasing below 0', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, crew: 0 }] } };
+    const next = executeReleaseCrew(state, shipId);
+    expect(next).toBe(state);
+  });
+});
+
 describe('resolveTurn', () => {
   it('advances calendar', () => {
     const state = buildStartingState('TestPlayer');
@@ -211,6 +271,15 @@ describe('resolveTurn', () => {
     const { state: next, summary } = resolveTurn(almostDone, { destinations: {} });
     expect(next.cities.hamburg.churchCompletion).toBe(100);
     expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('completed'))).toBe(true);
+  });
+
+  it('deducts crew wages each turn (2 Mark per sailor)', () => {
+    const state = buildStartingState('TestPlayer');
+    const crew = state.fleet.ships[0]!.crew;
+    const before = state.player.cash;
+    const { state: next, summary } = resolveTurn(state, { destinations: {} });
+    expect(next.player.cash).toBe(before - crew * 2);
+    expect(summary.events.some(e => e.includes('crew wages'))).toBe(true);
   });
 
   it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {

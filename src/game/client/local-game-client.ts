@@ -1,7 +1,15 @@
 import type { GameClient, GameAction } from './game-client.ts';
 import type { GameState, TurnResult } from '../state/types.ts';
 import { buildStartingState } from '../data/starting-config.ts';
-import { resolveTurn, executeBuy, executeSell, executeBuyShip, executeRepairShip } from '../systems/turn-system.ts';
+import {
+  resolveTurn,
+  executeBuy,
+  executeSell,
+  executeBuyShip,
+  executeRepairShip,
+  executeHireCrew,
+  executeReleaseCrew,
+} from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
 import { donateChurch } from '../systems/church-system.ts';
@@ -55,6 +63,14 @@ export class LocalGameClient implements GameClient {
 
       case 'REPAIR_SHIP':
         this.state = executeRepairShip(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'HIRE_CREW':
+        this.state = executeHireCrew(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'RELEASE_CREW':
+        this.state = executeReleaseCrew(this.state, action.shipId);
         return Promise.resolve(this.state);
 
       case 'DONATE_CHURCH':

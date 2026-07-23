@@ -92,6 +92,7 @@ interface Ship {
   durability: number;            // 0–100
   position: CityId | RoutePosition;
   cargo: Partial<Record<GoodId, number>>;  // good → quantity in last
+  crew: number;                   // 0-CREW_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to defaultCrew(type)
 }
 
 interface RoutePosition {

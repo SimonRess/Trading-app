@@ -32,6 +32,10 @@ export interface Ship {
   durability: number;
   position: CityId | RoutePosition;
   cargo: Partial<Record<GoodId, number>>;
+  // Headcount, 0 to the type's max (see ships.ts CREW_MAX). Costs wages
+  // every turn (turn-system.ts) and slows an under-crewed ship down the same
+  // way a Damaged hull does — see docs/design/crew-management.md.
+  crew: number;
 }
 
 export interface FleetState {

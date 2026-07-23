@@ -17,6 +17,7 @@ const koggeInPort = (overrides?: Partial<Ship>): Ship => ({
   durability: 100,
   position: 'lubeck',
   cargo: {},
+  crew: 8,
   ...overrides,
 });
 

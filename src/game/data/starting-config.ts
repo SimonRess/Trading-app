@@ -2,6 +2,7 @@ import type { Season } from '../state/types.ts';
 import { buildInitialMarket } from './goods.ts';
 import type { GameState } from '../state/types.ts';
 import { buildInitialRiskState } from '../systems/risk-system.ts';
+import { defaultCrew } from './ships.ts';
 
 export function buildStartingState(playerName: string): GameState {
   return {
@@ -28,6 +29,7 @@ export function buildStartingState(playerName: string): GameState {
           durability: 100,
           position: 'lubeck',
           cargo: { salt: 20 },
+          crew: defaultCrew('kogge'),
         },
       ],
     },

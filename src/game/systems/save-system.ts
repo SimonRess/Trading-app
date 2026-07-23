@@ -1,4 +1,5 @@
 import type { CityId, GameState } from '../state/types.ts';
+import { defaultCrew } from '../data/ships.ts';
 
 const SCHEMA_VERSION = 1;
 
@@ -116,7 +117,17 @@ function parseSaveFile(raw: string): GameState | null {
       };
     }
 
-    return { ...file.state, player, cities, hasWon: rawState.hasWon ?? false };
+    // crew was added after schema v1 shipped — additive field, no schema
+    // bump; older saves' ships genuinely lack it despite what SaveFile
+    // claims, so default each to its type's starting crew.
+    const rawShips = file.state.fleet.ships as Array<Partial<GameState['fleet']['ships'][number]>>;
+    const ships = file.state.fleet.ships.map((ship, i) => ({
+      ...ship,
+      crew: rawShips[i]?.crew ?? defaultCrew(ship.type),
+    }));
+    const fleet = { ...file.state.fleet, ships };
+
+    return { ...file.state, player, cities, fleet, hasWon: rawState.hasWon ?? false };
   } catch {
     return null;
   }

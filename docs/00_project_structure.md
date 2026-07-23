@@ -325,7 +325,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
 | Church building & donations | Implemented (first pass; thresholds not yet tuned) | design/church-donations.md |
 | Warehouses | Proposed (not implemented) | design/warehouses.md |
-| Crew management | Proposed (not implemented) | design/crew-management.md |
+| Crew management | Implemented (first pass; thresholds not yet tuned) | design/crew-management.md |
 | Banking & loans | Proposed (not implemented) | design/banking-loans.md |
 | Insurance | Proposed (not implemented) | design/insurance.md |
 | Graphical city view (clickable buildings) | Proposed (not implemented) | design/city-view.md |
@@ -341,13 +341,13 @@ Per ADR-018: the graphical city view's skeleton is a prerequisite that ships bef
 2. ✅ **Harbor + Trading Post buildings** — wired to the existing fleet/destination and buy/sell logic (no new game logic; pure UI migration — the same reactive state and `gameClient.sendAction` calls the List View already used). Verified live: buying a good and setting sail orders through the City view produce the identical state changes as the List View.
 3. ✅ **Shipyard building** — wired to the existing buy/repair logic (same `buyShip`/`repairShip` functions and `atShipyard`/`activeShip`/`portCity` gating as the List View). Verified live: buying a Schnigge through the City view correctly deducted 250 Mark. Ready to extend as crew/cannons/renaming land (step 4).
 4. ✅ **Church donations + Church building** (`design/church-donations.md`) — new `church-system.ts` (`donateChurch`), `CityState.churchCompletion` (additive save field, seeded per city), `DONATE_CHURCH` action, and a fully wired Church building panel (progress bar, city selector, donate control, completion messaging). `political-system.ts`'s `gainReputation` generalised to take an optional amount instead of adding a second function. Verified live: donating advances completion and deducts cash correctly, 100% clamps and shows a completion banner, per-city progress is independent.
+5. ✅ **Crew management + Shipyard building extension** (`design/crew-management.md`) — `Ship.crew` (additive save field), `CREW_MAX`/`defaultCrew`/`isUndercrewed`/`crewTravelTimePenalty` (`ships.ts`), `executeHireCrew`/`executeReleaseCrew` + `HIRE_CREW`/`RELEASE_CREW` actions gated on shipyard cities, a per-turn wage deduction step in `resolveTurn`, and an under-crewed +1 turn travel penalty stacking with the existing durability penalty. Shipyard building (both City view and List view) shows a Crew readout with +1/-1 controls. Verified live: hiring crew deducts cash immediately, ending a turn deducts wages and reports them in the turn summary.
    *(remaining items ship with their building, per ADR-018 — order within this list is otherwise not yet prioritized)*
-   - Crew management + Shipyard building extension (`design/crew-management.md`)
    - Ship weapons (cannons) + Shipyard building extension (`design/ship-stats.md` "Buying & Selling Cannons")
    - Banking & loans + Counting House building (`design/banking-loans.md`)
    - Insurance + Counting House building (`design/insurance.md`)
    - Warehouses + Warehouse District building (`design/warehouses.md`)
-5. **Not yet gated on the city view** (no building assignment decided, or intentionally UI-independent): bulk-purchase price pressure (`market-formula.md`), remaining 5 random events (`event-table.md`), family/generational succession + Merchant's House building (`design/family-succession.md`), political-rank progress readout + Town Hall building (`design/political-rank.md`'s progress-indicator Open Question)
+6. **Not yet gated on the city view** (no building assignment decided, or intentionally UI-independent): bulk-purchase price pressure (`market-formula.md`), remaining 5 random events (`event-table.md`), family/generational succession + Merchant's House building (`design/family-succession.md`), political-rank progress readout + Town Hall building (`design/political-rank.md`'s progress-indicator Open Question)
 
 ---
 

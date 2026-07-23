@@ -18,6 +18,10 @@
     durabilityTravelTimePenalty,
     canDepart,
     speedRatio,
+    CREW_MAX,
+    CREW_HIRE_COST,
+    WAGE_PER_SAILOR_PER_TURN,
+    isUndercrewed,
   } from '../game/data/ships.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
@@ -178,6 +182,22 @@
     const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId: activeShip.id });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
+  }
+
+  async function hireCrew() {
+    errorMsg = '';
+    if (!activeShip) return;
+    const result = await gameClient.sendAction({ type: 'HIRE_CREW', shipId: activeShip.id });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot hire crew.';
+  }
+
+  async function releaseCrew() {
+    errorMsg = '';
+    if (!activeShip) return;
+    const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId: activeShip.id });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot release crew.';
   }
 
   async function donateToChurch(cityId: CityId) {
@@ -546,6 +566,21 @@
                   disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
                 >Repair</button>
               </div>
+              <div class="shipyard-row">
+                <span class="shipyard-info">
+                  Crew: {activeShip.crew}/{CREW_MAX[activeShip.type]}
+                  {#if isUndercrewed(activeShip.type, activeShip.crew)}
+                    (under-crewed, +1 turn travel time)
+                  {/if}
+                  · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                </span>
+                <button class="shipyard-btn" on:click={releaseCrew} disabled={activeShip.crew <= 0}>-1</button>
+                <button
+                  class="shipyard-btn"
+                  on:click={hireCrew}
+                  disabled={activeShip.crew >= CREW_MAX[activeShip.type] || state.player.cash < CREW_HIRE_COST}
+                >+1</button>
+              </div>
               <div class="ship-buy-grid">
                 {#each SHIP_TYPE_IDS as typeId}
                   {@const def = SHIP_TYPES[typeId]}
@@ -772,6 +807,21 @@
                   on:click={repairShip}
                   disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
                 >Repair</button>
+              </div>
+              <div class="shipyard-row">
+                <span class="shipyard-info">
+                  Crew: {activeShip.crew}/{CREW_MAX[activeShip.type]}
+                  {#if isUndercrewed(activeShip.type, activeShip.crew)}
+                    (under-crewed, +1 turn travel time)
+                  {/if}
+                  · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                </span>
+                <button class="shipyard-btn" on:click={releaseCrew} disabled={activeShip.crew <= 0}>-1</button>
+                <button
+                  class="shipyard-btn"
+                  on:click={hireCrew}
+                  disabled={activeShip.crew >= CREW_MAX[activeShip.type] || state.player.cash < CREW_HIRE_COST}
+                >+1</button>
               </div>
               <div class="ship-buy-grid">
                 {#each SHIP_TYPE_IDS as typeId}

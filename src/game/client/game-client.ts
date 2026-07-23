@@ -8,6 +8,8 @@ export type GameAction =
   | { type: 'SET_DESTINATION'; shipId: string; destination: CityId }
   | { type: 'BUY_SHIP'; cityId: CityId; shipType: ShipType }
   | { type: 'REPAIR_SHIP'; shipId: string }
+  | { type: 'HIRE_CREW'; shipId: string }
+  | { type: 'RELEASE_CREW'; shipId: string }
   | { type: 'DONATE_CHURCH'; cityId: CityId; amount: number }
   | { type: 'LOAD_SAVE'; state: GameState };
 
