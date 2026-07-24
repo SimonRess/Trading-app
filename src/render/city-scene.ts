@@ -152,9 +152,17 @@ export class CityScene {
 
     return {
       container,
-      destroy: () => {
-        container.destroy({ children: true });
-      },
+      // No PixiJS-level teardown here — this scene's container is a child
+      // of the app's stage, and CityScene.destroy() already calls
+      // app.destroy(true, { children: true }), which recursively destroys
+      // every display object including this one. Destroying it a second
+      // time here (via sceneManager.destroy() -> this callback, called
+      // just before app.destroy()) double-freed the same Text objects'
+      // canvas-text resources, corrupting PixiJS's shared texture pool —
+      // observed as "Cannot read properties of undefined (reading
+      // 'push')" thrown from deep inside PixiJS during the *next* scene
+      // teardown anywhere in the app, well after this one.
+      destroy: () => {},
     };
   }
 
@@ -179,6 +187,13 @@ export class CityScene {
   destroy(): void {
     this.resizeObserver?.disconnect();
     this.sceneManager?.destroy();
-    this.app.destroy(true, { children: true });
+    // See the matching comment in map-scene.ts's destroy() — PixiJS's
+    // canvas-text texture pool can throw during teardown; swallow it so it
+    // doesn't abort Svelte's in-flight screen transition.
+    try {
+      this.app.destroy(true, { children: true });
+    } catch (err) {
+      console.error('CityScene.destroy: PixiJS teardown error (ignored)', err);
+    }
   }
 }

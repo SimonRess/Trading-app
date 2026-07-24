@@ -12,6 +12,7 @@ import {
   executeReleaseCrew,
   executeBuyCannon,
   executeSellCannon,
+  executeChooseHeir,
 } from './turn-system.ts';
 import { executeToggleInsurance } from './insurance-system.ts';
 import { executeBuyWarehouse } from './warehouse-system.ts';
@@ -258,6 +259,51 @@ describe('executeRenameShip', () => {
     const state = buildStartingState('TestPlayer');
     const next = executeRenameShip(state, 'no-such-ship', 'Seemöwe');
     expect(next).toBe(state);
+  });
+});
+
+describe('executeChooseHeir', () => {
+  function pendingState() {
+    // Pin Math.random so child health decay this turn is deterministic
+    // (age/10 exactly, no random component).
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: ['charismatic'], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 70, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB], reputation: { ...state.player.reputation, lubeck: 40 } } };
+    const result = resolveTurn(dying, { destinations: {} }).state;
+    vi.restoreAllMocks();
+    return result;
+  }
+
+  it('applies the chosen child as the new player and clears pendingSuccession', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'b');
+    expect(next.pendingSuccession).toBeNull();
+    expect(next.player.name).toBe('Hans');
+    expect(next.player.age).toBe(12);
+    expect(next.player.health).toBeCloseTo(70 - 12 / 10);
+    expect(next.player.traits).toEqual([]);
+    expect(next.player.reputation.lubeck).toBe(20); // halved from 40, snapshotted at death
+  });
+
+  it('can choose the other candidate too', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'a');
+    expect(next.player.name).toBe('Grete');
+    expect(next.player.traits).toEqual(['charismatic']);
+  });
+
+  it('is a no-op with no pending succession', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeChooseHeir(state, 'a');
+    expect(next).toBe(state);
+  });
+
+  it('is a no-op for an unknown candidate id', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'no-such-child');
+    expect(next).toBe(paused);
   });
 });
 
@@ -593,6 +639,31 @@ describe('resolveTurn', () => {
     const dying = { ...state, player: { ...state.player, health: 1, children: [tooYoung] } };
     const { summary } = resolveTurn(dying, { destinations: {} });
     expect(summary.outcome).toBe('lose');
+  });
+
+  it('pauses for a heir choice when more than one child is eligible, instead of auto-picking', () => {
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB] } };
+    const { state: next, summary } = resolveTurn(dying, { destinations: {} });
+    expect(next.pendingSuccession).not.toBeNull();
+    expect(next.pendingSuccession?.candidates.map(c => c.id).sort()).toEqual(['a', 'b']);
+    expect(next.player.name).toBe('TestPlayer'); // unchanged — not yet succeeded
+    expect(summary.outcome).toBeNull(); // paused, not a loss
+    expect(summary.events.some(e => e.includes('Choose'))).toBe(true);
+  });
+
+  it('does not resolve further turns while a heir choice is pending', () => {
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB] } };
+    const { state: paused } = resolveTurn(dying, { destinations: {} });
+    const { state: still, summary } = resolveTurn(paused, { destinations: {} });
+    expect(still).toBe(paused);
+    expect(summary.events).toEqual([]);
+    expect(summary.outcome).toBeNull();
   });
 
   it('expires city effects after their duration and applies event-created ones', () => {

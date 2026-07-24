@@ -21,6 +21,7 @@ export type GameAction =
   | { type: 'SELL_WAREHOUSE'; cityId: CityId }
   | { type: 'SEEK_MARRIAGE' }
   | { type: 'HIRE_TUTOR'; childId: string }
+  | { type: 'CHOOSE_HEIR'; childId: string }
   | { type: 'LOAD_SAVE'; state: GameState };
 
 export interface PlayerOrders {

@@ -148,6 +148,7 @@ function parseSaveFile(raw: string): GameState | null {
       hasWon: rawState.hasWon ?? false,
       warehouses: rawState.warehouses ?? {},
       cityEffects: rawState.cityEffects ?? [],
+      pendingSuccession: rawState.pendingSuccession ?? null,
     };
   } catch {
     return null;

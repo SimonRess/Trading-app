@@ -11,13 +11,15 @@ Define the five MVP cities, their geographic positions on the map, and the trave
 
 ## Cities
 
-| ID | Name | Region | Role in trade |
-|----|------|--------|---------------|
-| `lubeck` | Lübeck | Western Baltic | Starting city; salt; political home base |
-| `hamburg` | Hamburg | North Sea coast | Wine, salt; western gateway |
-| `danzig` | Danzig | Eastern Baltic | Grain, timber; eastern gateway |
-| `riga` | Riga | Gulf of Riga | Furs; far north-east; high-value destination |
-| `malmo` | Malmö | Øresund strait | Herring; controls the strait |
+| ID | Name | Region | Role in trade | Population (flavor) |
+|----|------|--------|---------------|----------------------|
+| `lubeck` | Lübeck | Western Baltic | Starting city; salt; political home base | 18,000 |
+| `hamburg` | Hamburg | North Sea coast | Wine, salt; western gateway | 6,000 |
+| `danzig` | Danzig | Eastern Baltic | Grain, timber; eastern gateway | 10,000 |
+| `riga` | Riga | Gulf of Riga | Furs; far north-east; high-value destination | 8,000 |
+| `malmo` | Malmö | Øresund strait | Herring; controls the strait | 4,000 |
+
+Population is a static `CityDefinition.population` field (`data/cities.ts`), shown in the Town Hall building — a rough c. 1320 approximation, not simulated or affected by anything in-game (no migration, growth, or plague impact on the number).
 
 ---
 

@@ -278,6 +278,13 @@
     else errorMsg = 'Cannot marry right now.';
   }
 
+  async function chooseHeir(childId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'CHOOSE_HEIR', childId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot choose that heir.';
+  }
+
   async function hireTutor(childId: string) {
     errorMsg = '';
     const result = await gameClient.sendAction({ type: 'HIRE_TUTOR', childId });
@@ -361,8 +368,15 @@
     // Winning no longer ends the session (the player can keep playing), so
     // it's surfaced through the same persistent turn-summary overlay as a
     // normal turn — only losing (bankruptcy, out of turns) is an actual
-    // session-ending 'game-over' screen.
-    screen = turnResult.summary.outcome === 'lose' ? 'game-over' : 'turn-summary';
+    // session-ending 'game-over' screen. A pending multi-heir choice has
+    // its own dedicated overlay (rendered whenever state.pendingSuccession
+    // is set, regardless of screen), so skip the normal turn-summary here
+    // to avoid stacking two overlays.
+    if (state.pendingSuccession) {
+      screen = 'port';
+    } else {
+      screen = turnResult.summary.outcome === 'lose' ? 'game-over' : 'turn-summary';
+    }
   }
 
   function continuePlaying() {
@@ -462,7 +476,7 @@
           on:click={() => { showSeasonInfo = !showSeasonInfo; }}
         >ⓘ</button>
       </span>
-      <span class="hdr-player">{state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]} · {RANK_LABELS[state.player.politicalRank]}</span>
+      <span class="hdr-player">{state.player.name} · Age {state.player.age} · Health {Math.round(state.player.health)} · {MARITAL_LABEL[state.player.maritalStatus]} · {RANK_LABELS[state.player.politicalRank]}</span>
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
@@ -599,7 +613,9 @@
                   <tr>
                     <th>Good</th>
                     <th>Price</th>
+                    <th>Stock</th>
                     <th>Supply</th>
+                    <th>Demand</th>
                     <th>In hold</th>
                     <th colspan="2">Trade</th>
                   </tr>
@@ -610,6 +626,8 @@
                       <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                       <td>{currentPrice(cityMarket[goodId])} M</td>
                       <td>{cityMarket[goodId].supply}</td>
+                      <td>{cityMarket[goodId].production}</td>
+                      <td>{cityMarket[goodId].consumption}</td>
                       <td>{activeShip.cargo[goodId] ?? 0}</td>
                       <td>
                         {#if selectedCityId === portCity}
@@ -639,13 +657,15 @@
               </div>
             {:else}
               <table class="market-table">
-                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Stock</th><th>Supply</th><th>Demand</th></tr></thead>
                 <tbody>
                   {#each GOOD_IDS as goodId}
                     <tr>
                       <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                       <td>{currentPrice(cityMarket[goodId])} M</td>
                       <td>{cityMarket[goodId].supply}</td>
+                      <td>{cityMarket[goodId].production}</td>
+                      <td>{cityMarket[goodId].consumption}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -901,6 +921,7 @@
                 <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
               {/each}
             </div>
+            <p class="order-note muted">Inhabitants: {CITIES[selectedCityId].population.toLocaleString()}</p>
             {@const activeEffects = state.cityEffects.filter(e => e.cityId === selectedCityId)}
             {#if activeEffects.length === 0}
               <p class="order-note muted">No active effects.</p>
@@ -923,7 +944,7 @@
           {:else if selectedBuilding === 'merchants-house'}
             <h2>Merchant's House</h2>
             <p class="order-note">
-              {state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]}
+              {state.player.name} · Age {state.player.age} · Health {Math.round(state.player.health)} · {MARITAL_LABEL[state.player.maritalStatus]}
               {#if state.player.traits.length > 0}
                 · Traits: {state.player.traits.map(t => TRAITS[t].label).join(', ')}
               {/if}
@@ -1041,7 +1062,9 @@
               <tr>
                 <th>Good</th>
                 <th>Price</th>
+                <th>Stock</th>
                 <th>Supply</th>
+                <th>Demand</th>
                 <th>In hold</th>
                 <th colspan="2">Trade</th>
               </tr>
@@ -1052,6 +1075,8 @@
                   <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
+                  <td>{cityMarket[goodId].production}</td>
+                  <td>{cityMarket[goodId].consumption}</td>
                   <td>{activeShip.cargo[goodId] ?? 0}</td>
                   <td>
                     {#if selectedCityId === portCity}
@@ -1217,13 +1242,15 @@
           </div>
 
           <table class="market-table">
-            <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+            <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Stock</th><th>Supply</th><th>Demand</th></tr></thead>
             <tbody>
               {#each GOOD_IDS as goodId}
                 <tr>
                   <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
+                  <td>{cityMarket[goodId].production}</td>
+                  <td>{cityMarket[goodId].consumption}</td>
                 </tr>
               {/each}
             </tbody>
@@ -1240,10 +1267,32 @@
     {/if}
 
     <footer>
-      <button class="end-turn-btn" on:click={endTurn} disabled={busyTurn}>
-        {busyTurn ? 'Resolving...' : 'End Turn →'}
+      <button class="end-turn-btn" on:click={endTurn} disabled={busyTurn || !!state.pendingSuccession}>
+        {state.pendingSuccession ? 'Choose an heir first' : busyTurn ? 'Resolving...' : 'End Turn →'}
       </button>
     </footer>
+
+    {#if state.pendingSuccession}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card">
+          <h2>⚱️ {state.pendingSuccession.deceasedName} has passed away</h2>
+          <p class="order-note">At age {state.pendingSuccession.deceasedAge}, with more than one child old enough to inherit. Choose who takes up the family trade:</p>
+          <div class="fleet-list">
+            {#each state.pendingSuccession.candidates as child (child.id)}
+              <div class="ship-card static">
+                <strong>{child.name}</strong>
+                <span class="tag">Age {child.age}</span>
+                <span class="tag">Health {Math.round(child.health)}/100</span>
+                {#if child.traits.length > 0}
+                  <span class="tag">{child.traits.map(t => TRAITS[t].label).join(', ')}</span>
+                {/if}
+                <button class="shipyard-btn" on:click={() => chooseHeir(child.id)}>Choose {child.name}</button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- Rendered as an overlay on top of the persistent port/map view rather
          than a separate {#if screen === 'turn-summary'} branch (as it used

@@ -146,6 +146,8 @@ Show the player a trend indicator alongside the price:
 
 This gives the player enough information to anticipate price movements without exposing the raw supply number.
 
+**Revised (2026-07-24):** the trading table now shows **Stock**, **Supply**, and **Demand** as three separate columns, not just a single "Supply" figure — a player asked whether stock already accounted for supply and demand (it does: `Stock(T2) = Stock(T1) + Supply(T1) - Demand(T1)`, `resolveTurnMarket()` below), and the UI wasn't actually showing that breakdown. "Stock" is the existing `GoodMarket.supply` field (0–100, what the price formula reads); "Supply" and "Demand" are the existing `production`/`consumption` flow-rate fields, exposed under clearer names matching `event-table.md`'s Market Boom description. No data-model change — this is a UI-only fix, reading fields that already existed.
+
 ---
 
 ## Data Model

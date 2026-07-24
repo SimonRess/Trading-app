@@ -61,6 +61,13 @@ export function computeNetWorth(state: GameState): number {
 }
 
 export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult {
+  // The game is paused awaiting a CHOOSE_HEIR action (multiple eligible
+  // heirs at the moment of death) — no further turns resolve until it's
+  // answered. Defensive: the UI hides End Turn while this is set.
+  if (state.pendingSuccession) {
+    return { state, summary: { events: [], outcome: null } };
+  }
+
   const events: string[] = [];
 
   // Step 1: Apply destination orders
@@ -224,40 +231,62 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   newState = { ...newState, player: { ...newState.player, health: playerHealth, children: nextChildren } };
 
   // Step 5k: Succession — the player dies at 0 health. Among children age
-  // >= HEIR_MIN_AGE (with health > 0, so a just-died child can't inherit),
-  // the oldest becomes heir: fleet, cash, loan, and political rank carry
+  // >= HEIR_MIN_AGE (with health > 0, so a just-died child can't inherit):
+  // with exactly one eligible child, they become heir automatically;
+  // with more than one, the game pauses (GameState.pendingSuccession) so
+  // the player can choose which child inherits (CHOOSE_HEIR action) rather
+  // than an arbitrary pick. Fleet, cash, loan, and political rank carry
   // over; reputation halves; the heir's own tracked health/age/gender/
   // traits become the new player's. With no eligible heir, the family line
   // ends and the game is lost. See docs/design/family-succession.md.
   let succession = false;
+  let awaitingHeirChoice = false;
   if (newState.player.health <= 0) {
     const eligible = newState.player.children.filter(c => c.age >= HEIR_MIN_AGE && c.health > 0);
-    const heir = eligible.reduce<Child | null>((oldest, c) => (!oldest || c.age > oldest.age ? c : oldest), null);
 
-    if (heir) {
-      succession = true;
-      const deceasedName = newState.player.name;
-      const deceasedAge = newState.player.age;
+    if (eligible.length > 1) {
+      awaitingHeirChoice = true;
       const halvedReputation = { ...newState.player.reputation };
       for (const cityId of Object.keys(halvedReputation) as CityId[]) {
         halvedReputation[cityId] = Math.floor(halvedReputation[cityId] / 2);
       }
       newState = {
         ...newState,
-        player: {
-          ...newState.player,
-          name: heir.name,
-          age: heir.age,
-          gender: heir.gender,
-          health: heir.health,
-          traits: heir.traits,
-          maritalStatus: 'single',
-          partner: null,
-          children: [],
-          reputation: halvedReputation,
+        pendingSuccession: {
+          candidates: eligible,
+          halvedReputation,
+          deceasedName: newState.player.name,
+          deceasedAge: newState.player.age,
         },
       };
-      events.push(`⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`);
+      events.push(`⚱️ ${newState.player.name} has passed away at age ${String(newState.player.age)}. Choose which child takes up the family trade.`);
+    } else {
+      const heir = eligible[0] ?? null;
+      if (heir) {
+        succession = true;
+        const deceasedName = newState.player.name;
+        const deceasedAge = newState.player.age;
+        const halvedReputation = { ...newState.player.reputation };
+        for (const cityId of Object.keys(halvedReputation) as CityId[]) {
+          halvedReputation[cityId] = Math.floor(halvedReputation[cityId] / 2);
+        }
+        newState = {
+          ...newState,
+          player: {
+            ...newState.player,
+            name: heir.name,
+            age: heir.age,
+            gender: heir.gender,
+            health: heir.health,
+            traits: heir.traits,
+            maritalStatus: 'single',
+            partner: null,
+            children: [],
+            reputation: halvedReputation,
+          },
+        };
+        events.push(`⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`);
+      }
     }
   }
 
@@ -283,7 +312,10 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // see docs/design/family-succession.md — since maxTurns is set so high
   // it's never reached in practice).
   let outcome: 'win' | 'lose' | null = null;
-  if (newState.player.health <= 0 && !succession) {
+  if (awaitingHeirChoice) {
+    // Paused — not a loss, not a normal turn either; the game stays here
+    // until CHOOSE_HEIR resolves it.
+  } else if (newState.player.health <= 0 && !succession) {
     outcome = 'lose';
     events.push('Without an heir to carry the family name, the trading house closes its doors.');
   } else if (newState.player.politicalRank === 3 && !newState.hasWon) {
@@ -466,4 +498,31 @@ export function executeSellCannon(state: GameState, shipId: string): GameState {
   const newPlayer = { ...state.player, cash: state.player.cash + cannonSellValue() };
 
   return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+// Resolves a paused GameState.pendingSuccession (multiple heir-eligible
+// children at the moment of death) once the player picks one — see
+// docs/design/family-succession.md "Succession trigger".
+export function executeChooseHeir(state: GameState, childId: string): GameState {
+  const pending = state.pendingSuccession;
+  if (!pending) return state;
+  const heir = pending.candidates.find(c => c.id === childId);
+  if (!heir) return state;
+
+  return {
+    ...state,
+    pendingSuccession: null,
+    player: {
+      ...state.player,
+      name: heir.name,
+      age: heir.age,
+      gender: heir.gender,
+      health: heir.health,
+      traits: heir.traits,
+      maritalStatus: 'single',
+      partner: null,
+      children: [],
+      reputation: pending.halvedReputation,
+    },
+  };
 }

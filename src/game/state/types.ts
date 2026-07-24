@@ -160,6 +160,20 @@ export interface GameState {
   // plague, embargo) — see docs/design/event-table.md and
   // src/game/systems/event-system.ts's applyCityEffects.
   cityEffects: CityEffect[];
+  // Set when the player dies (health 0) with more than one heir-eligible
+  // child — resolveTurn pauses succession rather than auto-picking, and
+  // the game stays paused (no further turns) until CHOOSE_HEIR resolves
+  // it. null the rest of the time, including when there's exactly one (or
+  // zero) eligible heir, which still resolve automatically. See
+  // docs/design/family-succession.md.
+  pendingSuccession: PendingSuccession | null;
+}
+
+export interface PendingSuccession {
+  candidates: Child[];
+  halvedReputation: Record<CityId, number>;
+  deceasedName: string;
+  deceasedAge: number;
 }
 
 export type CityEffectType = 'embargo' | 'plague' | 'market_boost';

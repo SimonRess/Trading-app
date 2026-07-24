@@ -57,6 +57,7 @@ interface PersistedGameState {
   hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
   warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
   cityEffects: CityEffect[];  // active plague/embargo/market-boost effects, added post-v1; additive, no schema bump — save-system.ts defaults to [] if absent
+  pendingSuccession: PendingSuccession | null;  // set when the player died with 2+ heir-eligible children, awaiting a CHOOSE_HEIR action; added post-v1; additive, no schema bump — save-system.ts defaults to null if absent
   // ui state is deliberately excluded
 }
 
@@ -110,6 +111,13 @@ interface Child {
   health: number;         // tracked from birth using the same decay formula as the player
   traits: TraitId[];
   tutoredThisYear: boolean;  // resets each Spring rollover
+}
+
+interface PendingSuccession {
+  candidates: Child[];
+  halvedReputation: Record<CityId, number>;
+  deceasedName: string;
+  deceasedAge: number;
 }
 ```
 

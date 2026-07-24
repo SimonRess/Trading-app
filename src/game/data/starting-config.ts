@@ -65,5 +65,6 @@ export function buildStartingState(playerName: string): GameState {
     hasWon: false,
     warehouses: {},
     cityEffects: [],
+    pendingSuccession: null,
   };
 }
