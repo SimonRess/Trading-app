@@ -1,6 +1,16 @@
-import type { GameState } from '../state/types.ts';
+import type { CityId, GameState } from '../state/types.ts';
+import { defaultCrew } from '../data/ships.ts';
 
 const SCHEMA_VERSION = 1;
+
+// Mirrors starting-config.ts's church seed spread — churchCompletion was
+// added to CityState after schema v1 shipped; additive field, no schema
+// bump, so an older save's cities may genuinely lack it. Defaulting to
+// "as if the feature had always existed" (the same starting values a new
+// game gets) rather than 0, which would understate every city's progress.
+const CHURCH_COMPLETION_DEFAULTS: Record<CityId, number> = {
+  lubeck: 60, hamburg: 25, danzig: 30, riga: 15, malmo: 20,
+};
 const STORAGE_KEY = 'hanse_save_v1';
 
 interface SaveMeta {
@@ -94,9 +104,45 @@ function parseSaveFile(raw: string): GameState | null {
     // despite what the SaveFile type claims, so read them through Partial
     // rather than trusting the cast.
     const rawPlayer = file.state.player as Partial<GameState['player']>;
-    const player = { ...file.state.player, maritalStatus: rawPlayer.maritalStatus ?? 'single' };
+    const player = {
+      ...file.state.player,
+      maritalStatus: rawPlayer.maritalStatus ?? 'single',
+      loan: rawPlayer.loan ?? 0,
+    };
     const rawState = file.state as Partial<GameState>;
-    return { ...file.state, player, hasWon: rawState.hasWon ?? false };
+
+    const cities = { ...file.state.cities };
+    for (const cityId of Object.keys(cities) as CityId[]) {
+      const rawCity = cities[cityId] as Partial<GameState['cities'][CityId]>;
+      cities[cityId] = {
+        ...cities[cityId],
+        churchCompletion: rawCity.churchCompletion ?? CHURCH_COMPLETION_DEFAULTS[cityId],
+        churchPledged: rawCity.churchPledged ?? 0,
+      };
+    }
+
+    // crew was added after schema v1 shipped — additive field, no schema
+    // bump; older saves' ships genuinely lack it despite what SaveFile
+    // claims, so default each to its type's starting crew.
+    // cannons and insured were both added after schema v1 shipped too —
+    // additive, same defaulting pattern as crew above.
+    const rawShips = file.state.fleet.ships as Array<Partial<GameState['fleet']['ships'][number]>>;
+    const ships = file.state.fleet.ships.map((ship, i) => ({
+      ...ship,
+      crew: rawShips[i]?.crew ?? defaultCrew(ship.type),
+      cannons: rawShips[i]?.cannons ?? 0,
+      insured: rawShips[i]?.insured ?? false,
+    }));
+    const fleet = { ...file.state.fleet, ships };
+
+    return {
+      ...file.state,
+      player,
+      cities,
+      fleet,
+      hasWon: rawState.hasWon ?? false,
+      warehouses: rawState.warehouses ?? {},
+    };
   } catch {
     return null;
   }

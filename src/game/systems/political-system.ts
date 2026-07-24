@@ -5,8 +5,15 @@ import type { CityId, PlayerState, PoliticalRank } from '../state/types.ts';
 const REPUTATION_PER_SALE = 1;
 const REPUTATION_CAP = 100;
 
-export function gainReputation(reputation: PlayerState['reputation'], cityId: CityId): PlayerState['reputation'] {
-  const next = Math.min(REPUTATION_CAP, reputation[cityId] + REPUTATION_PER_SALE);
+// `amount` defaults to the flat per-sale gain, but callers earning
+// reputation a different way (e.g. church-system.ts's donateChurch, scaled
+// by Mark donated) pass their own — see docs/design/church-donations.md.
+export function gainReputation(
+  reputation: PlayerState['reputation'],
+  cityId: CityId,
+  amount: number = REPUTATION_PER_SALE,
+): PlayerState['reputation'] {
+  const next = Math.min(REPUTATION_CAP, reputation[cityId] + amount);
   return { ...reputation, [cityId]: next };
 }
 

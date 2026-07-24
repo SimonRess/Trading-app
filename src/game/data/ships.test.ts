@@ -8,6 +8,13 @@ import {
   repairCost,
   speedRatio,
   SHIP_TYPES,
+  CREW_MAX,
+  defaultCrew,
+  isUndercrewed,
+  crewTravelTimePenalty,
+  CANNON_MAX,
+  CANNON_PRICE,
+  cannonSellValue,
 } from './ships.ts';
 
 describe('durabilityStatus', () => {
@@ -84,6 +91,55 @@ describe('speedRatio', () => {
   });
   it('is 0.5 for the Schnigge (faster)', () => {
     expect(speedRatio('schnigge')).toBe(0.5);
+  });
+});
+
+describe('defaultCrew', () => {
+  it('is half of each type\'s max, rounded', () => {
+    expect(defaultCrew('kogge')).toBe(4);
+    expect(defaultCrew('hulk')).toBe(6);
+    expect(defaultCrew('schnigge')).toBe(3);
+  });
+});
+
+describe('isUndercrewed', () => {
+  it('is true below half of max', () => {
+    expect(isUndercrewed('kogge', 3)).toBe(true);
+  });
+  it('is false at or above half of max', () => {
+    expect(isUndercrewed('kogge', 4)).toBe(false);
+    expect(isUndercrewed('kogge', 8)).toBe(false);
+  });
+});
+
+describe('crewTravelTimePenalty', () => {
+  it('is 0 when adequately crewed', () => {
+    expect(crewTravelTimePenalty('kogge', 8)).toBe(0);
+    expect(crewTravelTimePenalty('kogge', 4)).toBe(0);
+  });
+  it('is 1 when under-crewed', () => {
+    expect(crewTravelTimePenalty('kogge', 3)).toBe(1);
+    expect(crewTravelTimePenalty('kogge', 0)).toBe(1);
+  });
+});
+
+describe('CREW_MAX', () => {
+  it('scales roughly with cargo capacity', () => {
+    expect(CREW_MAX.hulk).toBeGreaterThan(CREW_MAX.kogge);
+    expect(CREW_MAX.kogge).toBeGreaterThan(CREW_MAX.schnigge);
+  });
+});
+
+describe('cannonSellValue', () => {
+  it('is 60% of the cannon price, rounded', () => {
+    expect(cannonSellValue()).toBe(Math.round(CANNON_PRICE * 0.6));
+  });
+});
+
+describe('CANNON_MAX', () => {
+  it('scales roughly with cargo capacity', () => {
+    expect(CANNON_MAX.hulk).toBeGreaterThan(CANNON_MAX.kogge);
+    expect(CANNON_MAX.kogge).toBeGreaterThan(CANNON_MAX.schnigge);
   });
 });
 

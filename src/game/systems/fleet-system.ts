@@ -1,6 +1,13 @@
 import type { Ship, FleetState, CityId, GoodId } from '../state/types.ts';
 import { findRoute } from '../data/routes.ts';
-import { SHIP_TYPES, canDepart, durabilityTravelTimePenalty, speedRatio } from '../data/ships.ts';
+import {
+  SHIP_TYPES,
+  canDepart,
+  durabilityTravelTimePenalty,
+  crewTravelTimePenalty,
+  speedRatio,
+  CANNON_CARGO_COST,
+} from '../data/ships.ts';
 
 export function isInTransit(ship: Ship): ship is Ship & { position: { from: CityId; to: CityId; turnsRemaining: number } } {
   return typeof ship.position !== 'string';
@@ -26,9 +33,11 @@ export function setDestination(ship: Ship, destination: CityId): Ship {
   // as long, a Schnigge (turnsPerLeg 1) takes half as long, floored at 1
   // turn. A Damaged ship (26-50 durability) additionally takes +1 turn
   // (ship-stats.md durability thresholds); MVP routes are always a single
-  // leg, so this is a flat +1 regardless of ship type.
+  // leg, so this is a flat +1 regardless of ship type. An under-crewed ship
+  // (crew-management.md) adds another +1 turn on top, independent of and
+  // stackable with the durability penalty.
   const baseTurns = Math.max(1, Math.round(route.turns * speedRatio(ship.type)));
-  const turns = baseTurns + durabilityTravelTimePenalty(ship.durability);
+  const turns = baseTurns + durabilityTravelTimePenalty(ship.durability) + crewTravelTimePenalty(ship.type, ship.crew);
 
   return {
     ...ship,
@@ -110,8 +119,12 @@ export function cargoTotal(ship: Ship): number {
   return Object.values(ship.cargo).reduce<number>((sum, qty) => sum + qty, 0);
 }
 
+// Each cannon eats into usable hold space (docs/design/ship-stats.md
+// "Buying & Selling Cannons") — the single function everything else reads
+// for capacity checks, so buying/selling cannons is automatically reflected
+// everywhere cargo capacity is displayed or checked.
 export function cargoCapacity(ship: Ship): number {
-  return SHIP_TYPES[ship.type].cargoCapacity;
+  return SHIP_TYPES[ship.type].cargoCapacity - ship.cannons * CANNON_CARGO_COST;
 }
 
 export function cargoSpace(ship: Ship): number {

@@ -3,12 +3,31 @@ import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
 import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts';
-import { advanceShips, setDestination, isInPort, cargoSpace } from './fleet-system.ts';
+import { advanceShips, setDestination, isInPort, cargoSpace, cargoTotal, cargoCapacity } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
 import { driftRiskState } from './risk-system.ts';
-import { shipNetWorth, SHIP_TYPES, MAX_SHIPS, isShipyardCity, repairCost, nextShipName } from '../data/ships.ts';
+import {
+  shipNetWorth,
+  SHIP_TYPES,
+  MAX_SHIPS,
+  isShipyardCity,
+  repairCost,
+  nextShipName,
+  CREW_MAX,
+  CREW_HIRE_COST,
+  WAGE_PER_SAILOR_PER_TURN,
+  defaultCrew,
+  CANNON_MAX,
+  CANNON_PRICE,
+  cannonSellValue,
+} from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
 import { evaluateRankUp, gainReputation, rankUpMessage } from './political-system.ts';
+import { advanceChurchProgress } from './church-system.ts';
+import { accrueLoanInterest } from './banking-system.ts';
+import { accrueInsurancePremiums, computeInsurancePayouts } from './insurance-system.ts';
+import { accrueWarehouseIncome, warehouseSellValue } from './warehouse-system.ts';
+import { CITIES } from '../data/cities.ts';
 
 export function computeNetWorth(state: GameState): number {
   const shipValue = state.fleet.ships.reduce((sum, ship) => {
@@ -23,7 +42,19 @@ export function computeNetWorth(state: GameState): number {
     return sum;
   }, 0);
 
-  return Math.round(state.player.cash + shipValue + cargoValue);
+  // Cannons and warehouses are resellable assets, valued at what they'd
+  // actually fetch on resale (ADR-020), same "liquidation value" spirit as
+  // shipNetWorth scaling by durability rather than counting full purchase
+  // price.
+  const cannonValue = state.fleet.ships.reduce((sum, ship) => sum + ship.cannons * cannonSellValue(), 0);
+  const warehouseValue = Object.values(state.warehouses).reduce((sum, count) => sum + count * warehouseSellValue(), 0);
+
+  // Outstanding loan principal is a liability (ADR-014 amendment, see
+  // ADR-019 and docs/design/banking-loans.md) — otherwise an unpaid loan
+  // would look like free cash in the player's own net-worth readout.
+  return Math.round(
+    state.player.cash + shipValue + cargoValue + cannonValue + warehouseValue - state.player.loan,
+  );
 }
 
 export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult {
@@ -58,6 +89,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   const stateForEvent: GameState = { ...state, fleet, market, calendar, risk };
   const eventId = selectEvent(stateForEvent);
   let finalMarket = market;
+  const preEventShips = fleet.ships;
 
   if (eventId) {
     const eventResult = applyEvent(eventId, stateForEvent);
@@ -67,6 +99,59 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   }
 
   let newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
+
+  // Step 5a2: Insurance payouts (docs/design/insurance.md) — compares ship
+  // state just before vs. after the event above, paying insured ships 50%
+  // of any storm damage/lost cargo value this turn caused.
+  const insurancePayout = computeInsurancePayouts(preEventShips, newState.fleet.ships);
+  if (insurancePayout.totalPayout > 0) {
+    newState = { ...newState, player: { ...newState.player, cash: newState.player.cash + insurancePayout.totalPayout } };
+    events.push(...insurancePayout.messages);
+  }
+
+  // Step 5b: Advance any pledged church funds (docs/design/church-donations.md)
+  // — capped at 1 percentage point per city per turn, so a big donation is
+  // felt gradually rather than instantly.
+  const churchProgress = advanceChurchProgress(newState.cities);
+  newState = { ...newState, cities: churchProgress.cities };
+  for (const cityId of churchProgress.completedCities) {
+    events.push(`⛪ The Church of ${CITIES[cityId].name} was completed, thanks in part to your generosity.`);
+  }
+
+  // Step 5c: Deduct crew wages (docs/design/crew-management.md) — an
+  // ongoing upkeep cost, same "flat per-turn cash effect" shape as the
+  // (future) warehouse-income step, just the opposite sign.
+  const crewWages = newState.fleet.ships.reduce((sum, ship) => sum + ship.crew * WAGE_PER_SAILOR_PER_TURN, 0);
+  if (crewWages > 0) {
+    newState = { ...newState, player: { ...newState.player, cash: newState.player.cash - crewWages } };
+    events.push(`👥 Paid ${String(crewWages)} Mark in crew wages.`);
+  }
+
+  // Step 5d: Accrue loan interest (docs/design/banking-loans.md) —
+  // compounding, same "flat per-turn financial effect" shape as crew wages
+  // above, just tied to an outstanding balance instead of a fleet size.
+  const loanResult = accrueLoanInterest(newState.player);
+  if (loanResult.interestCharged > 0) {
+    newState = { ...newState, player: loanResult.player };
+    events.push(`🏦 ${String(loanResult.interestCharged)} Mark in loan interest accrued.`);
+  }
+
+  // Step 5e: Deduct insurance premiums (docs/design/insurance.md) — flat
+  // per-turn cost per insured ship, same shape as crew wages above.
+  const insurancePremium = accrueInsurancePremiums(newState.fleet.ships);
+  if (insurancePremium > 0) {
+    newState = { ...newState, player: { ...newState.player, cash: newState.player.cash - insurancePremium } };
+    events.push(`🛡️ Paid ${String(insurancePremium)} Mark in insurance premiums.`);
+  }
+
+  // Step 5f: Accrue warehouse income (docs/design/warehouses.md) — flat
+  // per-turn cash effect, opposite sign from crew wages/loan interest/
+  // insurance premiums above; no turn-summary message, same as market
+  // price drift, to avoid a noisy event every single turn.
+  const warehouseIncome = accrueWarehouseIncome(newState.warehouses);
+  if (warehouseIncome > 0) {
+    newState = { ...newState, player: { ...newState.player, cash: newState.player.cash + warehouseIncome } };
+  }
 
   // Step 6: Net worth, then political rank (needs net worth + Lübeck
   // reputation — see docs/design/political-rank.md).
@@ -167,6 +252,9 @@ export function executeBuyShip(state: GameState, cityId: CityId, type: ShipType)
     durability: 100,
     position: cityId,
     cargo: {},
+    crew: defaultCrew(type),
+    cannons: 0,
+    insured: false,
   };
 
   const newFleet = { ships: [...state.fleet.ships, newShip] };
@@ -186,6 +274,62 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
   const newShip = { ...ship, durability: 100 };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - cost };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+export function executeHireCrew(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship) || !isShipyardCity(ship.position)) return state;
+  if (ship.crew >= CREW_MAX[ship.type]) return state;
+  if (state.player.cash < CREW_HIRE_COST) return state;
+
+  const newShip = { ...ship, crew: ship.crew + 1 };
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newPlayer = { ...state.player, cash: state.player.cash - CREW_HIRE_COST };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+// Releasing crew refunds nothing — a one-way cost, same severance-free
+// friction as selling a warehouse (see crew-management.md).
+export function executeReleaseCrew(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship) || !isShipyardCity(ship.position)) return state;
+  if (ship.crew <= 0) return state;
+
+  const newShip = { ...ship, crew: ship.crew - 1 };
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+
+  return { ...state, fleet: newFleet };
+}
+
+export function executeBuyCannon(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship) || !isShipyardCity(ship.position)) return state;
+  if (ship.cannons >= CANNON_MAX[ship.type]) return state;
+  if (state.player.cash < CANNON_PRICE) return state;
+
+  // Buying a cannon shrinks usable hold space by CANNON_CARGO_COST — reject
+  // if currently-held cargo wouldn't fit the smaller capacity (same pattern
+  // as executeBuy already rejecting a purchase beyond cargoSpace).
+  const newShip = { ...ship, cannons: ship.cannons + 1 };
+  if (cargoTotal(newShip) > cargoCapacity(newShip)) return state;
+
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newPlayer = { ...state.player, cash: state.player.cash - CANNON_PRICE };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+export function executeSellCannon(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship) || !isShipyardCity(ship.position)) return state;
+  if (ship.cannons <= 0) return state;
+
+  const newShip = { ...ship, cannons: ship.cannons - 1 };
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newPlayer = { ...state.player, cash: state.player.cash + cannonSellValue() };
 
   return { ...state, player: newPlayer, fleet: newFleet };
 }

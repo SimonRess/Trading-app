@@ -2,7 +2,7 @@
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
   import { currentPrice } from '../game/systems/market-system.ts';
-  import { isInPort, isInTransit, cargoSpace, cargoTotal } from '../game/systems/fleet-system.ts';
+  import { isInPort, isInTransit, cargoSpace, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { RANK_LABELS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
@@ -18,13 +18,30 @@
     durabilityTravelTimePenalty,
     canDepart,
     speedRatio,
+    CREW_MAX,
+    CREW_HIRE_COST,
+    WAGE_PER_SAILOR_PER_TURN,
+    isUndercrewed,
+    CANNON_MAX,
+    CANNON_PRICE,
+    cannonSellValue,
   } from '../game/data/ships.ts';
+  import { LOAN_CAP, LOAN_INTEREST_RATE } from '../game/systems/banking-system.ts';
+  import { INSURANCE_PREMIUM_PER_TURN, INSURANCE_PAYOUT_RATE } from '../game/systems/insurance-system.ts';
+  import {
+    WAREHOUSE_PRICE,
+    WAREHOUSE_INCOME_PER_TURN,
+    MAX_WAREHOUSES_PER_CITY,
+    warehouseSellValue,
+  } from '../game/systems/warehouse-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
+  import CityView from './CityView.svelte';
+  import type { BuildingId } from '../render/city-scene.ts';
 
   export let gameClient: GameClient;
 
-  type Screen = 'new-game' | 'map' | 'port' | 'turn-summary' | 'game-over';
+  type Screen = 'new-game' | 'map' | 'port' | 'city' | 'turn-summary' | 'game-over';
 
   let screen: Screen = 'new-game';
   let playerName = '';
@@ -41,6 +58,28 @@
   let showSaveMenu = false;
   let saveMsg = '';
   let showSeasonInfo = false;
+  let selectedBuilding: BuildingId | undefined;
+  let donationAmount = 100;
+  let loanAmount = 500;
+  let repayAmount = 100;
+
+  // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
+  // building clicks just show a placeholder label for now — no building is
+  // wired to real logic yet.
+  const BUILDING_LABELS: Record<BuildingId, string> = {
+    harbor: 'Harbor',
+    'trading-post': 'Trading Post',
+    shipyard: 'Shipyard',
+    church: 'Church',
+    'counting-house': 'Counting House',
+    'merchants-house': "Merchant's House",
+    'town-hall': 'Town Hall',
+    'warehouse-district': 'Warehouse District',
+  };
+
+  function selectBuilding(event: CustomEvent<BuildingId>): void {
+    selectedBuilding = event.detail;
+  }
 
   const MARITAL_LABEL: Record<string, string> = {
     single: 'Single', married: 'Married', widowed: 'Widowed',
@@ -150,12 +189,91 @@
     else errorMsg = 'Cannot buy ship.';
   }
 
-  async function repairShip() {
+  async function repairShip(shipId: string) {
     errorMsg = '';
-    if (!activeShip) return;
-    const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId: activeShip.id });
+    const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
+  }
+
+  async function hireCrew(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'HIRE_CREW', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot hire crew.';
+  }
+
+  async function releaseCrew(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'RELEASE_CREW', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot release crew.';
+  }
+
+  async function buyCannon(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'BUY_CANNON', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot buy cannon.';
+  }
+
+  async function sellCannon(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SELL_CANNON', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot sell cannon.';
+  }
+
+  async function toggleInsurance(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'TOGGLE_INSURANCE', shipId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot change insurance.';
+  }
+
+  async function buyWarehouse(cityId: CityId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'BUY_WAREHOUSE', cityId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot buy warehouse.';
+  }
+
+  async function sellWarehouse(cityId: CityId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SELL_WAREHOUSE', cityId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot sell warehouse.';
+  }
+
+  async function takeLoan() {
+    errorMsg = '';
+    const amount = Number(loanAmount);
+    if (!amount || amount < 1) return;
+    const result = await gameClient.sendAction({ type: 'TAKE_LOAN', amount });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot take loan.';
+  }
+
+  async function repayLoan() {
+    errorMsg = '';
+    const amount = Number(repayAmount);
+    if (!amount || amount < 1) return;
+    const result = await gameClient.sendAction({ type: 'REPAY_LOAN', amount });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot repay loan.';
+  }
+
+  async function donateToChurch(cityId: CityId) {
+    errorMsg = '';
+    const amount = Number(donationAmount);
+    if (!amount || amount < 1) return;
+    // Pledged Mark converts to completion gradually (at most 1%/turn) during
+    // turn resolution, not instantly — see church-system.ts's
+    // advanceChurchProgress and resolveTurn's own turn-summary event for
+    // when a church actually finishes.
+    const result = await gameClient.sendAction({ type: 'DONATE_CHURCH', cityId, amount });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot donate.';
   }
 
   function orderDest(shipId: string, destination: CityId) {
@@ -265,7 +383,12 @@
   $: netWorth = computeNetWorth(state);
   $: cityMarket = state.market[selectedCityId];
   $: atShipyard = portCity !== undefined && isShipyardCity(portCity);
-  $: shipRepairCost = activeShip ? repairCost(activeShip) : 0;
+  // All of the player's ships docked at this shipyard city, not just the
+  // currently selected one — repair/crew are per-ship, and a player with
+  // multiple ships in the same port should be able to manage each without
+  // switching selection first (reported by a player as "I only see one
+  // ship in the repair and crew list" after buying a second ship).
+  $: shipyardShips = portCity === undefined ? [] : state.fleet.ships.filter(s => isInPort(s) && s.position === portCity);
 </script>
 
 {#if screen === 'new-game'}
@@ -287,7 +410,7 @@
     {#if saveMsg}<p class="save-msg">{saveMsg}</p>{/if}
   </main>
 
-{:else if screen === 'port' || screen === 'map' || screen === 'turn-summary'}
+{:else if screen === 'port' || screen === 'map' || screen === 'city' || screen === 'turn-summary'}
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
@@ -303,6 +426,7 @@
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
+        <button class="nav-btn" class:active={screen === 'city'} on:click={() => { screen = 'city'; }}>🏙️ City</button>
         <button class="nav-btn" on:click={() => { showSaveMenu = !showSaveMenu; saveMsg = ''; }}>💾 Save</button>
       </div>
       <span class="hdr-cash">{state.player.cash} Mark · Net {netWorth} Mark</span>
@@ -343,6 +467,363 @@
         on:selectShip={selectShipFromMap}
       />
     </div>
+
+    <!-- Same persistent-mount reasoning as MapView above (ADR-017) — the
+         city view will grow its own nested scenes (docs/design/city-view.md
+         "Scene Navigation Model"), so recreating its Application on every
+         Port/City toggle would be even more costly to undo later than the
+         Map's was. -->
+    <div class="map-wrap" class:hidden={screen !== 'city'}>
+      <CityView cityId={selectedCityId} on:selectBuilding={selectBuilding} />
+    </div>
+
+    <!-- Harbor and Trading Post (ADR-018 rollout step 2): the same fleet/
+         destination and buy/sell markup and functions already used by the
+         List View port screen below, just reached through the City view
+         instead — pure UI migration, no new game logic. The remaining
+         buildings still show the "Coming soon" placeholder from step 1. -->
+    {#if screen === 'city' && selectedBuilding}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card building-panel">
+          {#if selectedBuilding === 'harbor'}
+            <h2>Harbor</h2>
+            <div class="fleet-list">
+              {#each state.fleet.ships as s (s.id)}
+                <div
+                  class="ship-card"
+                  class:selected={s.id === selectedShipId}
+                  on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
+                  role="button"
+                  tabindex="0"
+                  on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
+                >
+                  <strong>{s.name}</strong>
+                  <span class="tag">{SHIP_TYPES[s.type].name}</span>
+                  <span class="tag">{positionLabel(s)}</span>
+                  {#if pendingDest[s.id]}
+                    <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
+                  {/if}
+                  <span class="tag durability-{durabilityStatus(s.durability)}">
+                    Dur {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
+                  </span>
+                  <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
+                </div>
+              {/each}
+            </div>
+
+            {#if activeShip && portCity}
+              <div class="dest-section">
+                <h3>Set Destination</h3>
+                {#if !canDepart(activeShip.durability)}
+                  <p class="order-note critical">
+                    ⚠️ {activeShip.name} is critically damaged ({activeShip.durability}/100) and cannot depart.
+                    Repair it at a shipyard before setting sail.
+                  </p>
+                {:else}
+                  <div class="dest-btns">
+                    {#each reachableCities(activeShip) as dest}
+                      <button
+                        class="dest-btn"
+                        class:ordered={pendingDest[selectedShipId] === dest}
+                        on:click={() => orderDest(selectedShipId, dest)}
+                      >{CITIES[dest].name} <span class="dest-turns">({shipTravelTurns(activeShip, portCity, dest)}t)</span></button>
+                    {/each}
+                  </div>
+                  {#if pendingDest[selectedShipId]}
+                    <p class="order-note">
+                      ⚓ Orders: depart for <strong>{CITIES[pendingDest[selectedShipId]].name}</strong>
+                      ({shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId])} turn{shipTravelTurns(activeShip, portCity, pendingDest[selectedShipId]) === 1 ? '' : 's'})
+                      when you end the turn.
+                      <button class="link-btn" on:click={() => cancelOrder(selectedShipId)}>cancel</button>
+                    </p>
+                  {:else}
+                    <p class="order-note muted">This ship stays in port until you give sailing orders.</p>
+                  {/if}
+                {/if}
+              </div>
+            {:else if activeShip && isInTransit(activeShip)}
+              <p class="order-note muted">{activeShip.name} is at sea — select a ship in port to give sailing orders.</p>
+            {/if}
+
+          {:else if selectedBuilding === 'trading-post'}
+            <h2>Trading Post</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            {#if activeShip && portCity}
+              <table class="market-table">
+                <thead>
+                  <tr>
+                    <th>Good</th>
+                    <th>Price</th>
+                    <th>Supply</th>
+                    <th>In hold</th>
+                    <th colspan="2">Trade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each GOOD_IDS as goodId}
+                    <tr>
+                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                      <td>{currentPrice(cityMarket[goodId])} M</td>
+                      <td>{cityMarket[goodId].supply}</td>
+                      <td>{activeShip.cargo[goodId] ?? 0}</td>
+                      <td>
+                        {#if selectedCityId === portCity}
+                          <button
+                            class="trade-btn buy"
+                            on:click={() => buy(goodId)}
+                            disabled={cargoSpace(activeShip) < buyQty || state.player.cash < currentPrice(cityMarket[goodId]) * buyQty}
+                          >Buy {buyQty}</button>
+                        {/if}
+                      </td>
+                      <td>
+                        {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
+                          <button
+                            class="trade-btn sell"
+                            on:click={() => sell(goodId)}
+                            disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
+                          >Sell {sellQty}</button>
+                        {/if}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+              <div class="qty-row">
+                <label>Buy qty <input type="number" bind:value={buyQty} min="1" max="50" /></label>
+                <label>Sell qty <input type="number" bind:value={sellQty} min="1" max="50" /></label>
+              </div>
+            {:else}
+              <table class="market-table">
+                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+                <tbody>
+                  {#each GOOD_IDS as goodId}
+                    <tr>
+                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                      <td>{currentPrice(cityMarket[goodId])} M</td>
+                      <td>{cityMarket[goodId].supply}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+              <p class="order-note muted">No ship currently in this port to trade with — showing prices for reference.</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'shipyard'}
+            <h2>Shipyard</h2>
+            {#if atShipyard && shipyardShips.length > 0}
+              {#each shipyardShips as s (s.id)}
+                {@const cost = repairCost(s)}
+                <div class="shipyard-ship-block">
+                  <h3 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h3>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      {#if s.durability >= 100}
+                        Fully seaworthy.
+                      {:else}
+                        Repair to full ({s.durability}/100) for {cost} Mark.
+                      {/if}
+                    </span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => repairShip(s.id)}
+                      disabled={s.durability >= 100 || state.player.cash < cost}
+                    >Repair</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Crew: {s.crew}/{CREW_MAX[s.type]}
+                      {#if isUndercrewed(s.type, s.crew)}
+                        (under-crewed, +1 turn travel time)
+                      {/if}
+                      · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => releaseCrew(s.id)} disabled={s.crew <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => hireCrew(s.id)}
+                      disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
+                    >+1</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Cannons: {s.cannons}/{CANNON_MAX[s.type]} (−{s.cannons * 2} last cargo)
+                      · {CANNON_PRICE} Mark to buy, {cannonSellValue()} Mark on sale.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => sellCannon(s.id)} disabled={s.cannons <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyCannon(s.id)}
+                      disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
+                    >+1</button>
+                  </div>
+                </div>
+              {/each}
+              <div class="ship-buy-grid">
+                {#each SHIP_TYPE_IDS as typeId}
+                  {@const def = SHIP_TYPES[typeId]}
+                  <div class="ship-buy-card">
+                    <strong>{def.name}</strong>
+                    <span class="ship-buy-stats">{def.cargoCapacity} last · {def.purchasePrice} Mark · {speedLabel(typeId)}</span>
+                    <span class="ship-buy-desc">{def.description}</span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyShip(typeId)}
+                      disabled={state.fleet.ships.length >= MAX_SHIPS || state.player.cash < def.purchasePrice}
+                    >Buy {def.name}</button>
+                  </div>
+                {/each}
+              </div>
+              {#if state.fleet.ships.length >= MAX_SHIPS}
+                <p class="order-note muted">Fleet is at the maximum of {MAX_SHIPS} ships.</p>
+              {/if}
+            {:else if portCity}
+              <p class="order-note muted">
+                {CITIES[portCity].name} has no shipyard. Repairs and new ships are available in
+                {SHIPYARD_CITIES.map(c => CITIES[c].name).join(', ')}.
+              </p>
+            {:else}
+              <p class="order-note muted">Select a ship that's currently in port to use the Shipyard.</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'church'}
+            {@const church = state.cities[selectedCityId]}
+            {@const pledgedPercent = Math.min(100 - church.churchCompletion, church.churchPledged / 50)}
+            {@const turnsRemaining = Math.ceil(church.churchPledged / 50)}
+            <h2>Church of {CITIES[selectedCityId].name}</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            <div class="church-progress">
+              <div class="church-progress-bar">
+                <div class="church-progress-fill" style="width: {church.churchCompletion}%"></div>
+                <div class="church-progress-pledged" style="width: {pledgedPercent}%; left: {church.churchCompletion}%"></div>
+              </div>
+              <span class="church-progress-label">{Math.round(church.churchCompletion)}% complete</span>
+            </div>
+
+            {#if church.churchPledged > 0}
+              <p class="order-note muted">
+                {church.churchPledged} Mark pledged, arriving at up to 1% per turn (~{turnsRemaining} more turn{turnsRemaining === 1 ? '' : 's'}).
+              </p>
+            {/if}
+
+            {#if church.churchCompletion >= 100}
+              <p class="order-note">⛪ This church is fully built, thanks in part to your generosity.</p>
+            {:else}
+              <div class="qty-row">
+                <label>Donate <input type="number" bind:value={donationAmount} min="1" max={state.player.cash} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={() => donateToChurch(selectedCityId)}
+                  disabled={!donationAmount || donationAmount < 1 || state.player.cash < donationAmount}
+                >Donate</button>
+              </div>
+              <p class="order-note muted">50 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 100 Mark ≈ 1 reputation in {CITIES[selectedCityId].name} (right away).</p>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'counting-house'}
+            <h2>Counting House</h2>
+            {#if state.player.loan > 0}
+              <p class="order-note">
+                Outstanding loan: <strong>{state.player.loan} Mark</strong>, accruing {Math.round(LOAN_INTEREST_RATE * 100)}% interest per turn.
+              </p>
+              <div class="qty-row">
+                <label>Repay <input type="number" bind:value={repayAmount} min="1" max={Math.min(state.player.cash, state.player.loan)} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={repayLoan}
+                  disabled={!repayAmount || repayAmount < 1 || state.player.cash < 1}
+                >Repay</button>
+              </div>
+            {:else}
+              <p class="order-note muted">No active loan. Borrow up to {LOAN_CAP} Mark, repayable any time, at {Math.round(LOAN_INTEREST_RATE * 100)}% compounding interest per turn.</p>
+              <div class="qty-row">
+                <label>Borrow <input type="number" bind:value={loanAmount} min="1" max={LOAN_CAP} /> Mark</label>
+                <button
+                  class="shipyard-btn"
+                  on:click={takeLoan}
+                  disabled={!loanAmount || loanAmount < 1 || loanAmount > LOAN_CAP}
+                >Borrow</button>
+              </div>
+            {/if}
+
+            <h3 class="counting-house-subhead">Ship Insurance</h3>
+            <p class="order-note muted">
+              {INSURANCE_PREMIUM_PER_TURN} Mark/turn per insured ship · pays {Math.round(INSURANCE_PAYOUT_RATE * 100)}% of storm damage or lost cargo value.
+            </p>
+            <div class="fleet-list">
+              {#each state.fleet.ships as s (s.id)}
+                <div class="ship-card static">
+                  <strong>{s.name}</strong>
+                  <span class="tag">{SHIP_TYPES[s.type].name}</span>
+                  <span class="tag">{s.insured ? 'Insured' : 'Not insured'}</span>
+                  <button class="shipyard-btn" on:click={() => toggleInsurance(s.id)}>{s.insured ? 'Cancel' : 'Insure'}</button>
+                </div>
+              {/each}
+            </div>
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else if selectedBuilding === 'warehouse-district'}
+            {@const owned = state.warehouses[selectedCityId] ?? 0}
+            <h2>Warehouse District of {CITIES[selectedCityId].name}</h2>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+
+            <p class="order-note">
+              Owned here: <strong>{owned}/{MAX_WAREHOUSES_PER_CITY}</strong> · each generates {WAREHOUSE_INCOME_PER_TURN} Mark/turn, no upkeep.
+            </p>
+            <div class="qty-row">
+              <button
+                class="shipyard-btn"
+                on:click={() => sellWarehouse(selectedCityId)}
+                disabled={owned <= 0}
+              >Sell ({warehouseSellValue()} Mark)</button>
+              <button
+                class="shipyard-btn"
+                on:click={() => buyWarehouse(selectedCityId)}
+                disabled={owned >= MAX_WAREHOUSES_PER_CITY || state.player.cash < WAREHOUSE_PRICE}
+              >Buy ({WAREHOUSE_PRICE} Mark)</button>
+            </div>
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
+          {:else}
+            <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
+            <p>Coming soon — this building isn't wired to any actions yet.</p>
+          {/if}
+          <button class="close-building-btn" on:click={() => { selectedBuilding = undefined; }}>Close</button>
+        </div>
+      </div>
+    {/if}
+
     {#if screen === 'port'}
     <div class="layout">
       <section class="panel fleet-panel" class:collapsed={fleetCollapsed}>
@@ -473,20 +954,53 @@
           {#if atShipyard}
             <div class="shipyard-section">
               <h3>Shipyard</h3>
-              <div class="shipyard-row">
-                <span class="shipyard-info">
-                  {#if activeShip.durability >= 100}
-                    {activeShip.name} is fully seaworthy.
-                  {:else}
-                    Repair {activeShip.name} to full ({activeShip.durability}/100) for {shipRepairCost} Mark.
-                  {/if}
-                </span>
-                <button
-                  class="shipyard-btn"
-                  on:click={repairShip}
-                  disabled={activeShip.durability >= 100 || state.player.cash < shipRepairCost}
-                >Repair</button>
-              </div>
+              {#each shipyardShips as s (s.id)}
+                {@const cost = repairCost(s)}
+                <div class="shipyard-ship-block">
+                  <h4 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h4>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      {#if s.durability >= 100}
+                        Fully seaworthy.
+                      {:else}
+                        Repair to full ({s.durability}/100) for {cost} Mark.
+                      {/if}
+                    </span>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => repairShip(s.id)}
+                      disabled={s.durability >= 100 || state.player.cash < cost}
+                    >Repair</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Crew: {s.crew}/{CREW_MAX[s.type]}
+                      {#if isUndercrewed(s.type, s.crew)}
+                        (under-crewed, +1 turn travel time)
+                      {/if}
+                      · {CREW_HIRE_COST} Mark to hire, {WAGE_PER_SAILOR_PER_TURN} Mark/sailor/turn wages.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => releaseCrew(s.id)} disabled={s.crew <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => hireCrew(s.id)}
+                      disabled={s.crew >= CREW_MAX[s.type] || state.player.cash < CREW_HIRE_COST}
+                    >+1</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Cannons: {s.cannons}/{CANNON_MAX[s.type]} (−{s.cannons * 2} last cargo)
+                      · {CANNON_PRICE} Mark to buy, {cannonSellValue()} Mark on sale.
+                    </span>
+                    <button class="shipyard-btn" on:click={() => sellCannon(s.id)} disabled={s.cannons <= 0}>-1</button>
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => buyCannon(s.id)}
+                      disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
+                    >+1</button>
+                  </div>
+                </div>
+              {/each}
               <div class="ship-buy-grid">
                 {#each SHIP_TYPE_IDS as typeId}
                   {@const def = SHIP_TYPES[typeId]}
@@ -755,7 +1269,21 @@
     background: #201810;
   }
   .ship-card.selected { border-color: #c09040; background: #2a1e0c; }
+  .ship-card.static {
+    cursor: default;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .ship-card.static .shipyard-btn { margin-left: auto; }
   .ship-card strong { color: #d4a843; font-size: 0.95rem; }
+  .counting-house-subhead {
+    margin: 1.2rem 0 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid #3a2e18;
+    color: #e0d090;
+    font-size: 1rem;
+  }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
   .tag.durability-seaworthy { color: #8a7a60; }
@@ -865,6 +1393,19 @@
     font-size: 0.85rem;
   }
   .shipyard-info { color: #b0a090; }
+  .shipyard-ship-block {
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px dashed #3a2e18;
+  }
+  .shipyard-ship-name {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    color: #e0d090;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .shipyard-btn {
     padding: 0.3rem 0.9rem;
     font-size: 0.82rem;
@@ -941,6 +1482,32 @@
   }
 
   .turn-summary-actions { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+
+  .building-panel {
+    align-items: stretch;
+    text-align: left;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    gap: 1rem;
+  }
+  .building-panel h2 { text-align: center; }
+  .building-panel .fleet-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .church-progress { display: flex; align-items: center; gap: 0.8rem; margin: 0.6rem 0; }
+  .church-progress-bar {
+    position: relative;
+    flex: 1;
+    height: 12px;
+    background: #241c10;
+    border: 1px solid #4a3a20;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .church-progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: #c8a860; }
+  .church-progress-pledged { position: absolute; top: 0; height: 100%; background: repeating-linear-gradient(45deg, #6a5838, #6a5838 4px, #524128 4px, #524128 8px); }
+  .church-progress-label { font-size: 0.85rem; color: #c8a840; white-space: nowrap; }
+  .close-building-btn { align-self: center; }
 
   .net-worth { font-size: 1.1rem; color: #c8a840; }
   .win { color: #70c870; }

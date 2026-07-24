@@ -1,9 +1,7 @@
 # Design: Church Building & Donations
 
-**Status:** Proposed — not implemented  
+**Status:** Implemented (first pass — thresholds not yet tuned)  
 **Target version:** v1.1
-
-**Blocked on:** `docs/design/city-view.md`'s building skeleton (Harbor/Trading Post/Shipyard) per ADR-018 — this mechanic ships together with its own building's UI, not as a text-panel section.
 
 ## Purpose
 
@@ -30,20 +28,36 @@ Each of the 5 cities starts with a church under construction, at a different com
 
 ### Donating
 
-- New action, e.g. `DONATE_CHURCH { cityId, amount }`, available from the port view of any city (not shipyard-restricted — a church donation isn't a ship transaction).
-- `amount` Mark deducted from `player.cash`.
-- Completion increases by `amount / DONATION_COST_PER_PERCENT` (proposed constant, needs tuning — e.g. 50 Mark per 1%, so fully funding a church from 0% costs 5,000 Mark, a significant but not run-dominating sink relative to the 10,000 Mark win threshold), clamped at 100.
-- Reputation in that city increases via the *same* `gainReputation()` used for sales (`political-system.ts`), proportional to the amount donated rather than the flat +1 per sale — e.g. `+round(amount / REPUTATION_COST_PER_POINT)`, a separate, larger-amount-appropriate rate from the flat per-sale gain.
+- `DONATE_CHURCH { cityId, amount }` action (`game-client.ts`), handled by `donateChurch()` in `church-system.ts`, not shipyard-restricted — a church donation isn't a ship transaction and needs no ship present at all.
+- `amount` Mark deducted from `player.cash` **immediately**, and reputation in that city is granted **immediately** via the *same* `gainReputation()` used for sales (`political-system.ts`), generalised to take an optional `amount` parameter — `+round(amount / REPUTATION_COST_PER_POINT)`, **implemented as 100** Mark per reputation point. Rejected (state returned unchanged) if `amount` isn't a positive finite number, exceeds current cash, or the city has no remaining capacity (already at 100%) — same validation shape as `executeBuy`/`executeSell`.
+- **Completion itself does not move at donation time.** The donated amount (capped at the city's remaining capacity — `(100 - churchCompletion) * 50` Mark) is added to a new `CityState.churchPledged` pool instead. Pledged funds are converted into `churchCompletion` gradually during turn resolution — see "Throttled progress" below.
+
+### Throttled progress (revised 2026-07-23)
+
+- **Original first pass had donations apply instantly** (donate 100 Mark → completion moves the same turn, no delay). Player feedback after actually donating: *"I have donated 300 money to church in Lübeck but the church's progress didn't change. How long does it take to see the progress?"* — followed by an explicit request for a delay mechanic: completion should advance by at most 1% per turn, spreading a large donation over several turns instead of applying it all at once.
+- Implemented as a two-step flow: `donateChurch()` moves cash/reputation immediately and adds to `churchPledged`; a new `advanceChurchProgress(cities)` in `church-system.ts` runs once per turn inside `resolveTurn` (Step 5b, before the political-rank check) and converts at most `PROGRESS_CAP_PER_TURN` (**1** percentage point = 50 Mark) of each city's pledged pool into `churchCompletion`, carrying any remainder in `churchPledged` for the next turn.
+- This directly answers the "how long" question: **progress becomes visible starting from the next turn the player ends, not at the moment of donation, by design.** A 300 Mark donation (6 percentage points) takes 6 turns to fully land.
+- When a city's pledged conversion pushes `churchCompletion` to 100 for the first time, `advanceChurchProgress` reports it in `completedCities`, and `resolveTurn` appends a `TurnSummary` event ("⛪ The Church of {city} was completed, thanks in part to your generosity.") — completion is now a genuine turn-summary event rather than the earlier UI-only banner (below).
 
 ### UI
 
-- Port view gains a small "Church of {city}" section (alongside the existing Shipyard section, following the same card/pattern) showing current completion % and a donate input + button.
-- Crossing 100% triggers a one-line turn-summary event ("⛪ The Church of {city} was completed, thanks in part to your generosity.") — reuses the existing `TurnSummary.events` mechanism, no new UI surface needed.
+- Donations happen through the City view's Church building (`docs/design/city-view.md`), not a Port-screen text section.
+- The panel includes a city selector (donations aren't restricted to wherever a ship happens to be — the player can fund any city's church from the same panel) and a two-segment progress bar: a solid fill for `churchCompletion` and a hatched overlay for pledged-but-not-yet-converted funds, so the player can see both "done" and "in flight" at a glance.
+- While a city has `churchPledged > 0`, the panel shows a note: "{N} Mark pledged, arriving at up to 1% per turn (~{turns} more turns)".
+- **Superseded:** the original plan's inline "just completed" banner and its UI-only `churchJustCompleted` variable in `App.svelte` are removed — completion is now driven by the genuine `TurnSummary.events` mechanism (see above), so the panel just reflects `churchCompletion >= 100` directly instead of tracking a transient flag.
+
+## Implementation Status (as of 2026-07-23)
+
+- ✅ `CityState.churchCompletion` and `CityState.churchPledged`, seeded per city in `starting-config.ts` (Lübeck 60, Hamburg 25, Danzig 30, Riga 15, Malmö 20; `churchPledged` starts at 0 everywhere). Both additive save-file fields — no schema bump; `save-system.ts` defaults missing values (starting seed for `churchCompletion`, 0 for `churchPledged`) for older saves.
+- ✅ `donateChurch()` and `advanceChurchProgress()` (`church-system.ts`), the `DONATE_CHURCH` action wired through `LocalGameClient`, and `advanceChurchProgress` called once per turn from `resolveTurn` (`turn-system.ts`).
+- ✅ Church building in the City view: two-segment progress bar (complete + pledged), city selector, donate input, pledged-funds note, completion messaging via `TurnSummary`.
+- ✅ Unit tests: `church-system.test.ts` covers `donateChurch` (cash deduction, pledging without immediate completion, per-city isolation, capacity capping, rejection at 100%, reputation gain, cash-limited donations, invalid-amount rejection, no-mutation) and `advanceChurchProgress` (no-op with nothing pledged, 1%/turn cap, multi-turn spreading, `completedCities` reported only on the turn 100% is first reached, no-mutation); `turn-system.test.ts` has an integration test confirming a turn resolves a pledge into completion and announces it.
+- ✅ Verified live: donating 300 Mark to Lübeck's church (starting 60%) left completion at 60% immediately (cash correctly deducted) with a "300 Mark pledged... (~6 more turns)" note; after one End Turn, completion advanced to 61% and the note updated to "250 Mark pledged... (~5 more turns)", confirming the 50-Mark-per-turn throttle across a real turn-resolution cycle.
 
 ## Open Questions
 
-- Donation-to-completion and donation-to-reputation rates are placeholder numbers, not tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
-- Should church completion be visible on the Map view (e.g. a small progress ring on each city icon), or only in the Port view? Leaning Port-view-only for v1.1 to avoid another map-rendering feature; revisit if it turns out invisible/easy to forget.
+- Donation-to-completion and donation-to-reputation rates (50 Mark/1%, 100 Mark/reputation point) are still first-pass numbers, not simulation-tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
+- Should church completion be visible on the Map view (e.g. a small progress ring on each city icon), or only in the City view's Church building? Leaning City-view-only for now, consistent with the "at-a-glance building state" Open Question already flagged in `city-view.md`.
 - Multiple players donating to the same church only matters once multiplayer exists (v3, ADR-007) — no design needed now, but worth a one-line note in ADR-007's future revision when that work starts.
 
 ## Related

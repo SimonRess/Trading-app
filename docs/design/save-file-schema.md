@@ -55,6 +55,7 @@ interface PersistedGameState {
   calendar: CalendarState;
   risk: RiskState;         // added in ADR-015; additive, no schema bump needed
   hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
+  warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
   // ui state is deliberately excluded
 }
 ```
@@ -75,6 +76,7 @@ interface PlayerState {
   maritalStatus: 'single' | 'married' | 'widowed';  // added post-v1; additive, no schema bump — save-system.ts defaults to 'single' if absent
   politicalRank: number;         // 0=Citizen, 1=Guild, 2=Council, 3=Mayor
   reputation: Record<CityId, number>;  // 0–100 per city
+  loan: number;                  // outstanding principal, 0 = none; added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
 }
 ```
 
@@ -92,6 +94,9 @@ interface Ship {
   durability: number;            // 0–100
   position: CityId | RoutePosition;
   cargo: Partial<Record<GoodId, number>>;  // good → quantity in last
+  crew: number;                   // 0-CREW_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to defaultCrew(type)
+  cannons: number;                // 0-CANNON_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
+  insured: boolean;               // added post-v1 — additive, no schema bump; save-system.ts defaults missing values to false
 }
 
 interface RoutePosition {
@@ -108,7 +113,8 @@ type CitiesState = Record<CityId, CityState>;
 
 interface CityState {
   id: CityId;
-  // MVP: no stores, no agents — placeholder for v1.1
+  churchCompletion: number;  // 0-100, added post-v1 — additive, no schema bump; save-system.ts defaults missing values to the starting seed
+  churchPledged: number;  // Mark pledged but not yet converted to completion, added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
 }
 ```
 

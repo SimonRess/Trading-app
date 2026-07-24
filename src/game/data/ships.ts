@@ -46,6 +46,50 @@ export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
   },
 };
 
+// Per docs/design/crew-management.md — roughly proportional to cargo capacity.
+export const CREW_MAX: Record<ShipType, number> = {
+  kogge: 8,
+  hulk: 12,
+  schnigge: 5,
+};
+
+export const CREW_HIRE_COST = 20;
+export const WAGE_PER_SAILOR_PER_TURN = 2;
+
+// New ships start half-crewed rather than empty, so a freshly-bought ship
+// isn't immediately under-crewed by default.
+export function defaultCrew(type: ShipType): number {
+  return Math.round(CREW_MAX[type] / 2);
+}
+
+export function isUndercrewed(type: ShipType, crew: number): boolean {
+  return crew < CREW_MAX[type] / 2;
+}
+
+// Under-crewed ships take +1 turn per leg, same shape as
+// durabilityTravelTimePenalty — being short-handed slows a ship down just
+// like being damaged does.
+export function crewTravelTimePenalty(type: ShipType, crew: number): number {
+  return isUndercrewed(type, crew) ? 1 : 0;
+}
+
+// Per docs/design/ship-stats.md "Buying & Selling Cannons" — roughly
+// proportional to each type's cargo capacity, so a Schnigge can't devote
+// most of its small hold to cannons.
+export const CANNON_MAX: Record<ShipType, number> = {
+  kogge: 6,
+  hulk: 8,
+  schnigge: 3,
+};
+
+export const CANNON_PRICE = 150;
+export const CANNON_SELL_FRACTION = 0.6;
+export const CANNON_CARGO_COST = 2;
+
+export function cannonSellValue(): number {
+  return Math.round(CANNON_PRICE * CANNON_SELL_FRACTION);
+}
+
 export function speedRatio(type: ShipType): number {
   return SHIP_TYPES[type].turnsPerLeg / SHIP_TYPES.kogge.turnsPerLeg;
 }

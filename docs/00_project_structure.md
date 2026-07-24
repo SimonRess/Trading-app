@@ -303,6 +303,8 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 016 | Political rank mechanic & continuable win condition | Accepted | decisions/adr-016-political-rank-and-continuable-win.md |
 | 017 | Ship-animation lifecycle (persistent overlays & pause/resume) | Accepted | decisions/adr-017-ship-animation-lifecycle.md |
 | 018 | Feature delivery sequencing (UI and logic ship together) | Accepted | decisions/adr-018-feature-delivery-sequencing.md |
+| 019 | Net worth subtracts outstanding loan principal (amends ADR-014) | Accepted | decisions/adr-019-net-worth-loan-liability.md |
+| 020 | Net worth includes cannon and warehouse resale value (amends ADR-014) | Accepted | decisions/adr-020-net-worth-resellable-assets.md |
 
 ---
 
@@ -323,11 +325,11 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Map view | Draft | design/map-view.md |
 | Political milestones | Implemented (first pass; thresholds not yet tuned) | design/political-rank.md |
 | Family & generational succession | Proposed (not implemented) | design/family-succession.md |
-| Church building & donations | Proposed (not implemented) | design/church-donations.md |
-| Warehouses | Proposed (not implemented) | design/warehouses.md |
-| Crew management | Proposed (not implemented) | design/crew-management.md |
-| Banking & loans | Proposed (not implemented) | design/banking-loans.md |
-| Insurance | Proposed (not implemented) | design/insurance.md |
+| Church building & donations | Implemented (first pass; thresholds not yet tuned) | design/church-donations.md |
+| Warehouses | Implemented (first pass; thresholds not yet tuned) | design/warehouses.md |
+| Crew management | Implemented (first pass; thresholds not yet tuned) | design/crew-management.md |
+| Banking & loans | Implemented (first pass; thresholds not yet tuned) | design/banking-loans.md |
+| Insurance | Implemented (first pass; thresholds not yet tuned) | design/insurance.md |
 | Graphical city view (clickable buildings) | Proposed (not implemented) | design/city-view.md |
 | Combat system detail | **Missing** | — |
 | MVP scope | Draft | design/mvp-scope.md |
@@ -337,17 +339,17 @@ A living index of decisions and their status. Update this table whenever an ADR 
 
 Per ADR-018: the graphical city view's skeleton is a prerequisite that ships before the rest of the current feature backlog, and every mechanic after that point ships together with its own building's UI in the same change — never as a text-panel section to be migrated later. This is the current, ordered plan; update it whenever a step lands or the order changes.
 
-1. **`CityScene`/`CityView.svelte` skeleton** — clickable building icons, no logic wired yet (`design/city-view.md`)
-2. **Harbor + Trading Post buildings** — wire to existing fleet/destination and buy/sell logic (no new game logic; pure UI migration)
-3. **Shipyard building** — wire to existing buy/repair logic
-4. *(from here on, each item below ships with its building, per ADR-018 — order within this list is otherwise not yet prioritized)*
-   - Crew management + Shipyard building extension (`design/crew-management.md`)
-   - Ship weapons (cannons) + Shipyard building extension (`design/ship-stats.md` "Buying & Selling Cannons")
-   - Church donations + Church building (`design/church-donations.md`)
-   - Banking & loans + Counting House building (`design/banking-loans.md`)
-   - Insurance + Counting House building (`design/insurance.md`)
-   - Warehouses + Warehouse District building (`design/warehouses.md`)
-5. **Not yet gated on the city view** (no building assignment decided, or intentionally UI-independent): bulk-purchase price pressure (`market-formula.md`), remaining 5 random events (`event-table.md`), family/generational succession + Merchant's House building (`design/family-succession.md`), political-rank progress readout + Town Hall building (`design/political-rank.md`'s progress-indicator Open Question)
+1. ✅ **`SceneManager`/`CityScene`/`CityView.svelte` skeleton** — clickable building icons for a city (Harbor, Trading Post, Shipyard — only in `SHIPYARD_CITIES` — Church, Counting House, Merchant's House, Town Hall, Warehouse District), a new "🏙️ City" nav toggle alongside Map/Port, and a generic reusable `SceneManager` scene-stack primitive (`src/render/scene-manager.ts`) proven at stack depth 1. Clicking a building opens a placeholder overlay panel ("Coming soon"), no logic wired yet. `drawPixelSprite`/`drawPixelSpriteInto` extracted from `map-scene.ts` into a shared `src/render/pixel-art.ts` module, reused by both scenes (`design/city-view.md`)
+2. ✅ **Harbor + Trading Post buildings** — wired to the existing fleet/destination and buy/sell logic (no new game logic; pure UI migration — the same reactive state and `gameClient.sendAction` calls the List View already used). Verified live: buying a good and setting sail orders through the City view produce the identical state changes as the List View.
+3. ✅ **Shipyard building** — wired to the existing buy/repair logic (same `buyShip`/`repairShip` functions and `atShipyard`/`activeShip`/`portCity` gating as the List View). Verified live: buying a Schnigge through the City view correctly deducted 250 Mark. Ready to extend as crew/cannons/renaming land (step 4).
+4. ✅ **Church donations + Church building** (`design/church-donations.md`) — new `church-system.ts` (`donateChurch`), `CityState.churchCompletion` (additive save field, seeded per city), `DONATE_CHURCH` action, and a fully wired Church building panel (progress bar, city selector, donate control, completion messaging). `political-system.ts`'s `gainReputation` generalised to take an optional amount instead of adding a second function. Verified live: donating advances completion and deducts cash correctly, 100% clamps and shows a completion banner, per-city progress is independent.
+5. ✅ **Crew management + Shipyard building extension** (`design/crew-management.md`) — `Ship.crew` (additive save field), `CREW_MAX`/`defaultCrew`/`isUndercrewed`/`crewTravelTimePenalty` (`ships.ts`), `executeHireCrew`/`executeReleaseCrew` + `HIRE_CREW`/`RELEASE_CREW` actions gated on shipyard cities, a per-turn wage deduction step in `resolveTurn`, and an under-crewed +1 turn travel penalty stacking with the existing durability penalty. Shipyard building (both City view and List view) shows a Crew readout with +1/-1 controls. Verified live: hiring crew deducts cash immediately, ending a turn deducts wages and reports them in the turn summary.
+6. ✅ **Banking & loans + Counting House building** (`design/banking-loans.md`, ADR-019) — `PlayerState.loan` (additive save field, single active loan up to 2,000 Mark), `executeTakeLoan`/`executeRepayLoan` + `TAKE_LOAN`/`REPAY_LOAN` actions, `accrueLoanInterest` (5% compounding per turn, new `resolveTurn` step reporting the interest charged), and a Counting House building panel (borrow/repay controls, outstanding-balance readout). `computeNetWorth` now subtracts outstanding loan principal (ADR-019, amending ADR-014). Verified live: borrowing 500 Mark added it to cash immediately, one End Turn compounded it to 525 Mark with the turn summary reporting "25 Mark in loan interest accrued," and repaying reduced the balance and cash correctly.
+7. ✅ **Ship weapons (cannons) + Shipyard building extension** (`design/ship-stats.md` "Buying & Selling Cannons") — `Ship.cannons` (additive save field), `CANNON_MAX`/`cannonSellValue` (`ships.ts`), `executeBuyCannon`/`executeSellCannon` + `BUY_CANNON`/`SELL_CANNON` actions gated on shipyard cities and on held cargo still fitting the smaller hold, and `fleet-system.ts`'s `cargoCapacity` now subtracts 2 per cannon so the reduced hold is reflected everywhere capacity is checked or displayed. No combat exists yet (ADR-010) — a cannon does nothing but occupy hold space and resell value until combat resolution lands on top. Shipyard building shows a Cannons readout with +1/-1 controls. Verified live: buying a cannon on the starting Kogge deducted 150 Mark and reduced cargo capacity by 2.
+8. ✅ **Insurance + Counting House building** (`design/insurance.md`) — `Ship.insured` (additive save field), new `insurance-system.ts` (`executeToggleInsurance`, `accrueInsurancePremiums`, `computeInsurancePayouts`) and a `TOGGLE_INSURANCE` action, available anytime from any ship (not shipyard-restricted). Implemented as a persistent toggle (resolving the doc's own open question) rather than purchased fresh every turn. A flat 20 Mark/turn premium is deducted per insured ship in `resolveTurn`; a storm or pirate raid against an insured ship pays back 50% of the durability/cargo value lost that turn, computed by diffing ship state immediately before vs. after event resolution (a wrecked ship isn't covered — see the doc's Open Questions). Counting House building lists the fleet with Insure/Cancel toggles. Verified live: insuring a ship and ending a turn correctly charged the 20 Mark premium, reported in the turn summary.
+9. ✅ **Warehouses + Warehouse District building** (`design/warehouses.md`) — `GameState.warehouses` (additive save field, `Partial<Record<CityId, number>>`), new `warehouse-system.ts` (`executeBuyWarehouse`, `executeSellWarehouse`, `accrueWarehouseIncome`) and `BUY_WAREHOUSE`/`SELL_WAREHOUSE` actions, available from any city (not shipyard-restricted). A `MAX_WAREHOUSES_PER_CITY` cap of 3 resolves the doc's own open question about unbounded passive income. Each owned warehouse generates 15 Mark/turn with no per-turn message (same as market drift, to avoid noise). Warehouse District building shows a per-city owned count with Buy/Sell controls. `computeNetWorth` now includes cannon and warehouse resale value (ADR-020, amending ADR-014 alongside ADR-019). Verified live: the Warehouse District panel correctly shows 0/3 owned and gates the Buy button on cash.
+   *(order within this list is otherwise not yet prioritized)*
+10. **Not yet gated on the city view** (no building assignment decided, or intentionally UI-independent): bulk-purchase price pressure (`market-formula.md`), remaining 5 random events (`event-table.md`), family/generational succession + Merchant's House building (`design/family-succession.md`), political-rank progress readout + Town Hall building (`design/political-rank.md`'s progress-indicator Open Question)
 
 ---
 
