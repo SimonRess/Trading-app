@@ -1,12 +1,23 @@
-import type { GameState, Season, Ship, RiskState } from '../state/types.ts';
+import type { GameState, Season, Ship, RiskState, CityId, GoodId, CityEffect } from '../state/types.ts';
 import type { FleetState, MarketState } from '../state/types.ts';
-import { isInTransit } from './fleet-system.ts';
+import { isInTransit, isInPort, cargoSpace } from './fleet-system.ts';
 import { applyStormDamage, applyPirateRaid } from './fleet-system.ts';
 import { ROUTES, findRoute } from '../data/routes.ts';
 import { routeRiskModifier, cityRiskModifier } from './risk-system.ts';
 import { durabilityStormChancePenalty } from '../data/ships.ts';
+import { CITIES } from '../data/cities.ts';
+import { GOODS } from '../data/goods.ts';
 
-export type EventId = 'storm' | 'bumper_harvest' | 'pirate_raid';
+export type EventId =
+  | 'storm'
+  | 'bumper_harvest'
+  | 'pirate_raid'
+  | 'market_boom'
+  | 'guild_festival'
+  | 'shipwreck_salvage'
+  | 'city_plague'
+  | 'diplomatic_embargo'
+  | 'reputation_scandal';
 
 const STORM_WEIGHTS: Record<Season, number> = { spring: 2, summer: 1, autumn: 3, winter: 5 };
 const PIRATE_WEIGHTS: Record<Season, number> = { spring: 2, summer: 3, autumn: 2, winter: 1 };
@@ -18,6 +29,9 @@ const STORM_DAMAGE_MIN = 6;
 const STORM_DAMAGE_MAX = 22;
 
 const BASE_HARVEST_BONUS = 30;
+
+// Duration (in turns) for every CityEffect this module creates.
+const EFFECT_DURATION = 3;
 
 // The pool weights below (STORM_WEIGHTS etc.) are tuned on a 1-5 integer
 // scale. route.stormRisk/pirateRisk are raw probabilities (0.01-0.25) — on
@@ -68,6 +82,7 @@ export function selectEvent(state: GameState): EventId | null {
 
   const season = state.calendar.season;
   const shipsInTransit = state.fleet.ships.filter(isInTransit);
+  const shipsInPort = state.fleet.ships.filter(isInPort);
 
   const pool: Array<{ id: EventId; weight: number }> = [];
 
@@ -80,6 +95,7 @@ export function selectEvent(state: GameState): EventId | null {
       id: 'pirate_raid',
       weight: PIRATE_WEIGHTS[season] * averageShipRisk(state.fleet.ships, state.risk, season, 'pirate'),
     });
+    pool.push({ id: 'shipwreck_salvage', weight: 1 });
   }
 
   if (season === 'summer' || season === 'autumn') {
@@ -88,6 +104,22 @@ export function selectEvent(state: GameState): EventId | null {
       weight: HARVEST_WEIGHTS[season] * cityRiskModifier(state.risk, 'danzig'),
     });
   }
+
+  pool.push({ id: 'market_boom', weight: 2 });
+
+  if (season === 'summer' && shipsInPort.length > 0) {
+    pool.push({ id: 'guild_festival', weight: 2 });
+  }
+
+  if (shipsInPort.length > 0) {
+    pool.push({ id: 'reputation_scandal', weight: 1 });
+  }
+
+  if (season === 'winter' || season === 'spring') {
+    pool.push({ id: 'city_plague', weight: season === 'winter' ? 2 : 1 });
+  }
+
+  pool.push({ id: 'diplomatic_embargo', weight: 1 });
 
   const total = pool.reduce((sum, e) => sum + e.weight, 0);
   if (total <= 0) return null;
@@ -106,6 +138,8 @@ export interface EventResult {
   market: MarketState;
   messages: string[];
   wreckedShips: Ship[];
+  newCityEffects: CityEffect[];
+  reputationChange: { cityId: CityId; amount: number; kind: 'gain' | 'loss' } | null;
 }
 
 export function stormDamageForShip(ship: Ship, risk: RiskState, season: Season): number {
@@ -141,11 +175,42 @@ export function pickPirateTarget(ships: Ship[], risk: RiskState, season: Season)
   return transiting[transiting.length - 1] ?? null;
 }
 
+// Inverse of pickPirateTarget — a calmer, more-traveled route is more
+// likely to be where drifting wreckage is spotted, not a dangerous one.
+function pickSalvageTarget(ships: Ship[], risk: RiskState, season: Season): Ship | null {
+  const transiting = ships.filter(isInTransit);
+  if (transiting.length === 0) return null;
+
+  const weights = transiting.map(ship => {
+    const route = findRoute(ship.position.from, ship.position.to);
+    if (!route) return 0.01;
+    const modifier = routeRiskModifier(risk, ship.position.from, ship.position.to);
+    return Math.max(0.01, 1 - Math.min(1, route.pirateRisk[season] * modifier));
+  });
+
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  let pick = Math.random() * total;
+  for (let i = 0; i < transiting.length; i++) {
+    pick -= weights[i] ?? 0;
+    if (pick <= 0) return transiting[i] ?? null;
+  }
+  return transiting[transiting.length - 1] ?? null;
+}
+
+const CITY_IDS = Object.keys(CITIES) as CityId[];
+const GOOD_IDS = Object.keys(GOODS) as GoodId[];
+
+function randomFrom<T>(items: T[]): T | undefined {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
 export function applyEvent(eventId: EventId, state: GameState): EventResult {
   const messages: string[] = [];
   let fleet = state.fleet;
   let market = state.market;
   let wreckedShips: Ship[] = [];
+  let newCityEffects: CityEffect[] = [];
+  let reputationChange: EventResult['reputationChange'] = null;
   const season = state.calendar.season;
 
   if (eventId === 'storm') {
@@ -165,7 +230,7 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
     const newSupply = Math.min(100, grain.supply + bonus);
     market = { ...market, danzig: { ...danzig, grain: { ...grain, supply: newSupply } } };
     messages.push('🌾 A bumper harvest in the east — grain prices in Danzig collapsed.');
-  } else {
+  } else if (eventId === 'pirate_raid') {
     const target = pickPirateTarget(fleet.ships, state.risk, season);
     if (target) {
       const result = applyPirateRaid(fleet, target.id);
@@ -174,7 +239,67 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
         messages.push(`🏴‍☠️ Pirates intercepted the ${result.raidedShipName}! Part of the cargo was seized.`);
       }
     }
+  } else if (eventId === 'market_boom') {
+    const cityId = randomFrom(CITY_IDS);
+    const goodId = randomFrom(GOOD_IDS);
+    if (cityId && goodId) {
+      const riskMod = cityRiskModifier(state.risk, cityId);
+      newCityEffects = [{
+        cityId,
+        goodId,
+        type: 'market_boost',
+        turnsRemaining: EFFECT_DURATION,
+        supplyBonus: Math.round(20 * riskMod),
+        demandBonus: Math.round(10 * riskMod),
+      }];
+      messages.push(`📈 A trade boom in ${CITIES[cityId].name} — ${GOODS[goodId].name} is flowing more freely.`);
+    }
+  } else if (eventId === 'guild_festival') {
+    const dockedShip = fleet.ships.find(isInPort);
+    if (dockedShip) {
+      const cityId = dockedShip.position as CityId;
+      reputationChange = { cityId, amount: 5, kind: 'gain' };
+      messages.push(`🎉 A Guild Festival in ${CITIES[cityId].name} raised your standing among the merchants there.`);
+    }
+  } else if (eventId === 'shipwreck_salvage') {
+    const target = pickSalvageTarget(fleet.ships, state.risk, season);
+    if (target) {
+      const goodId = randomFrom(GOOD_IDS);
+      const space = cargoSpace(target);
+      if (goodId && space > 0) {
+        const qty = Math.min(space, 1 + Math.floor(Math.random() * 10));
+        const newCargo = { ...target.cargo, [goodId]: (target.cargo[goodId] ?? 0) + qty };
+        fleet = { ships: fleet.ships.map(s => (s.id === target.id ? { ...s, cargo: newCargo } : s)) };
+        messages.push(`⚓ The ${target.name} came across drifting wreckage and recovered ${String(qty)} ${GOODS[goodId].name}.`);
+      }
+    }
+  } else if (eventId === 'city_plague') {
+    const cityId = randomFrom(CITY_IDS);
+    if (cityId) {
+      const riskMod = cityRiskModifier(state.risk, cityId);
+      newCityEffects = [{
+        cityId,
+        type: 'plague',
+        turnsRemaining: EFFECT_DURATION,
+        supplyBonus: -Math.round(15 * riskMod),
+      }];
+      messages.push(`☠️ Plague has struck ${CITIES[cityId].name}. Trade there is disrupted.`);
+    }
+  } else if (eventId === 'diplomatic_embargo') {
+    const cityId = randomFrom(CITY_IDS);
+    const goodId = randomFrom(GOOD_IDS);
+    if (cityId && goodId) {
+      newCityEffects = [{ cityId, goodId, type: 'embargo', turnsRemaining: EFFECT_DURATION }];
+      messages.push(`⚖️ A trade embargo on ${GOODS[goodId].name} has been declared in ${CITIES[cityId].name}.`);
+    }
+  } else {
+    const dockedShip = fleet.ships.find(isInPort);
+    if (dockedShip) {
+      const cityId = dockedShip.position as CityId;
+      reputationChange = { cityId, amount: 5, kind: 'loss' };
+      messages.push(`🍷 Rumors of impropriety at a merchants' gathering in ${CITIES[cityId].name} have damaged your reputation there.`);
+    }
   }
 
-  return { fleet, market, messages, wreckedShips };
+  return { fleet, market, messages, wreckedShips, newCityEffects, reputationChange };
 }

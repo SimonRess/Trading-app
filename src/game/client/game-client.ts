@@ -19,6 +19,8 @@ export type GameAction =
   | { type: 'TOGGLE_INSURANCE'; shipId: string }
   | { type: 'BUY_WAREHOUSE'; cityId: CityId }
   | { type: 'SELL_WAREHOUSE'; cityId: CityId }
+  | { type: 'SEEK_MARRIAGE' }
+  | { type: 'HIRE_TUTOR'; childId: string }
   | { type: 'LOAD_SAVE'; state: GameState };
 
 export interface PlayerOrders {

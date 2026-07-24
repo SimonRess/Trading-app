@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStartingState } from '../data/starting-config.ts';
-import { gainReputation, evaluateRankUp, rankUpMessage } from './political-system.ts';
+import { gainReputation, loseReputation, evaluateRankUp, rankUpMessage } from './political-system.ts';
 import type { PlayerState } from '../state/types.ts';
 
 describe('gainReputation', () => {
@@ -27,6 +27,44 @@ describe('gainReputation', () => {
     const before = { ...player.reputation };
     gainReputation(player.reputation, 'lubeck');
     expect(player.reputation).toEqual(before);
+  });
+
+  it('charismatic boosts gains by 10%', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const next = gainReputation(player.reputation, 'lubeck', 10, ['charismatic']);
+    expect(next.lubeck).toBe(player.reputation.lubeck + 11);
+  });
+});
+
+describe('loseReputation', () => {
+  it('decreases the given city by the amount', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const next = loseReputation(player.reputation, 'lubeck', 5);
+    expect(next.lubeck).toBe(player.reputation.lubeck - 5);
+  });
+
+  it('floors at 0', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const low = { ...player.reputation, lubeck: 2 };
+    expect(loseReputation(low, 'lubeck', 10).lubeck).toBe(0);
+  });
+
+  it('charismatic softens losses to 90%', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const next = loseReputation(player.reputation, 'lubeck', 10, ['charismatic']);
+    expect(next.lubeck).toBe(player.reputation.lubeck - 9);
+  });
+
+  it('hot-tempered worsens losses to 110%', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const next = loseReputation(player.reputation, 'lubeck', 10, ['hot-tempered']);
+    expect(next.lubeck).toBe(player.reputation.lubeck - 11);
+  });
+
+  it('hot-tempered does not affect gains', () => {
+    const { player } = buildStartingState('TestPlayer');
+    const next = gainReputation(player.reputation, 'lubeck', 10, ['hot-tempered']);
+    expect(next.lubeck).toBe(player.reputation.lubeck + 10);
   });
 });
 

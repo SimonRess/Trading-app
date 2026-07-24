@@ -142,3 +142,68 @@ describe('applyEvent bumper_harvest', () => {
     expect(after - before).toBe(Math.round(30 * 1.5));
   });
 });
+
+describe('applyEvent market_boom', () => {
+  it('creates a market_boost city effect with supply bonus larger than demand bonus', () => {
+    const state = buildStartingState('Test');
+    const result = applyEvent('market_boom', state);
+    expect(result.newCityEffects).toHaveLength(1);
+    const effect = result.newCityEffects[0]!;
+    expect(effect.type).toBe('market_boost');
+    expect(effect.supplyBonus).toBeGreaterThan(effect.demandBonus ?? 0);
+    expect(result.messages[0]).toContain('trade boom');
+  });
+});
+
+describe('applyEvent guild_festival', () => {
+  it('gains reputation in the city where a ship is docked', () => {
+    const state = buildStartingState('Test'); // starting ship is in port at lubeck
+    const result = applyEvent('guild_festival', state);
+    expect(result.reputationChange).toEqual({ cityId: 'lubeck', amount: 5, kind: 'gain' });
+  });
+});
+
+describe('applyEvent reputation_scandal', () => {
+  it('loses reputation in the city where a ship is docked', () => {
+    const state = buildStartingState('Test');
+    const result = applyEvent('reputation_scandal', state);
+    expect(result.reputationChange).toEqual({ cityId: 'lubeck', amount: 5, kind: 'loss' });
+  });
+});
+
+describe('applyEvent shipwreck_salvage', () => {
+  it('adds cargo to a ship in transit, capped by cargo space', () => {
+    const state = buildStartingState('Test');
+    const inTransit: GameState = {
+      ...state,
+      fleet: { ships: [{ ...state.fleet.ships[0]!, position: { from: 'lubeck', to: 'danzig', turnsRemaining: 1 }, cargo: {} }] },
+    };
+    const before = inTransit.fleet.ships[0]!.cargo;
+    const result = applyEvent('shipwreck_salvage', inTransit);
+    const after = result.fleet.ships[0]!.cargo;
+    const totalBefore = Object.values(before).reduce((s, v) => s + v, 0);
+    const totalAfter = Object.values(after).reduce((s, v) => s + v, 0);
+    expect(totalAfter).toBeGreaterThan(totalBefore);
+  });
+});
+
+describe('applyEvent city_plague', () => {
+  it('creates a city-wide plague effect (no goodId)', () => {
+    const state = buildStartingState('Test');
+    const result = applyEvent('city_plague', state);
+    expect(result.newCityEffects).toHaveLength(1);
+    expect(result.newCityEffects[0]!.type).toBe('plague');
+    expect(result.newCityEffects[0]!.goodId).toBeUndefined();
+    expect(result.newCityEffects[0]!.supplyBonus).toBeLessThan(0);
+  });
+});
+
+describe('applyEvent diplomatic_embargo', () => {
+  it('creates an embargo effect on one (city, good) pair', () => {
+    const state = buildStartingState('Test');
+    const result = applyEvent('diplomatic_embargo', state);
+    expect(result.newCityEffects).toHaveLength(1);
+    expect(result.newCityEffects[0]!.type).toBe('embargo');
+    expect(result.newCityEffects[0]!.goodId).toBeDefined();
+  });
+});

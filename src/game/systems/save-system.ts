@@ -108,6 +108,11 @@ function parseSaveFile(raw: string): GameState | null {
       ...file.state.player,
       maritalStatus: rawPlayer.maritalStatus ?? 'single',
       loan: rawPlayer.loan ?? 0,
+      gender: rawPlayer.gender ?? 'male',
+      health: rawPlayer.health ?? 100,
+      partner: rawPlayer.partner ?? null,
+      children: rawPlayer.children ?? [],
+      traits: rawPlayer.traits ?? [],
     };
     const rawState = file.state as Partial<GameState>;
 
@@ -142,6 +147,7 @@ function parseSaveFile(raw: string): GameState | null {
       fleet,
       hasWon: rawState.hasWon ?? false,
       warehouses: rawState.warehouses ?? {},
+      cityEffects: rawState.cityEffects ?? [],
     };
   } catch {
     return null;

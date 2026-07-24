@@ -62,20 +62,21 @@ Both conditions must hold — net worth alone would let a player "buy" the mayor
 - ✅ Rank-up thresholds and evaluation — `evaluateRankUp()`, called once per turn in `resolveTurn` (`turn-system.ts`) alongside the existing net-worth calculation. Never demotes; both net worth and Lübeck reputation must clear a threshold.
 - ✅ Turn-summary announcement — `rankUpMessage()` appended to `TurnResult.summary.events`, surfaced through the existing turn-summary overlay.
 - ✅ Header badge — `{name} · Age {age} · {maritalStatus} · {rankLabel}` in `App.svelte`, using `RANK_LABELS`.
-- ✅ **Reaching Mayor (or 10,000+ net worth) is a win condition, but does not end the session** — per explicit player direction, revising the earlier decision. `GameState.hasWon` latches permanently the first time either win condition fires, so the win screen appears exactly once; the player then chooses "Continue Playing →" (returns to the persistent port/map view, same as a normal turn-summary dismissal) or "Retire & Play Again" (starts a new game). Losing (bankruptcy, out of turns) is unaffected and still ends the session normally, even after a prior win.
-- Note: the Mayor rank threshold's own net-worth bar (10,000) currently coincides exactly with the flat net-worth win condition, so in practice there is no scenario where Mayor is reached without net worth alone already qualifying for the win — the two conditions aren't currently distinguishable in play. Worth revisiting once thresholds are tuned (see below): either the Mayor net-worth bar should sit below 10,000 (so Mayor can be a genuinely earlier/different path to victory), or the "OR" should be simplified to just the net-worth check with Mayor left as a pure rank milestone.
-- ❌ Progress indicator (partial progress toward the next rank) — deferred, not implemented; the header only shows the current rank, not how close the player is to the next one.
+- ✅ **Reaching Mayor is the win condition** — revised by ADR-021: the earlier `net worth >= 10,000 OR Mayor` win check is now `politicalRank === 3` only, matching the game's own stated goal instead of letting net worth alone stand in for it. The Mayor threshold's own net-worth bar stays at 10,000 (unchanged number); what changed is that clearing it alone, without the 75-reputation-in-Lübeck requirement, no longer wins. Winning still doesn't end the session (`GameState.hasWon` latches once; "Continue Playing →" / "Retire & Play Again"), and losing (bankruptcy, no eligible heir at death — `family-succession.md`) is unaffected and still applies after a win.
+- ✅ **Resolved: progress indicator, in the Town Hall building** — the Town Hall (City view) shows the current rank plus, while below Mayor, two progress bars toward the next rank's net-worth and Lübeck-reputation thresholds, reading `computeNetWorth`/`player.reputation.lubeck` directly. No new game-logic functions needed — the exported `RANK_THRESHOLDS` array (`political-system.ts`) already had everything the UI needs.
+- ✅ **Reputation can now decrease** — the "immoral activities at a gathering" random event (Reputation Scandal, `docs/design/event-table.md`) subtracts reputation in whichever city has a docked ship, via a new `loseReputation()` counterpart to `gainReputation()`. This also gives the Charismatic/Hot-tempered traits (`family-succession.md`) something to modify — reputation previously only ever increased.
 - ❌ Threshold numbers are a first pass, not yet simulation-tuned (see below).
 
 ## Open Questions
 
 - Exact reputation-gain amount and rank thresholds need playtesting/simulation, not just gut numbers — same caution as ADR-015's risk-weighting bug (a plausible-looking formula produced a badly skewed real distribution until measured).
-- Should a progress indicator be added, and if so where — collapsible panel (matching `showSeasonInfo`/`showSaveMenu`) vs. inline in the fleet/shipyard area?
 
 ## Related
 
 - ADR-014 (Net worth valuation — `computeNetWorth` reused here)
 - ADR-015 (Per-route & session event risk — precedent for "simulate before tuning thresholds")
+- ADR-021 (Win condition is Mayor of Lübeck only)
+- `docs/design/event-table.md` (Reputation Scandal — the new reputation-loss source)
 - `src/game/state/types.ts` (`PoliticalRank`, `PlayerState.reputation`)
-- `src/game/systems/political-system.ts` (`gainReputation`, `evaluateRankUp`, `rankUpMessage`, `RANK_LABELS`)
+- `src/game/systems/political-system.ts` (`gainReputation`, `loseReputation`, `evaluateRankUp`, `rankUpMessage`, `RANK_LABELS`, `RANK_THRESHOLDS`)
 - `src/game/systems/turn-system.ts` (`executeSell`, `resolveTurn`)

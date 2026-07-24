@@ -1,7 +1,34 @@
 # Design: Family & Generational Succession
 
-**Status:** Proposed — not implemented  
-**Last updated:** 2026-07-20
+**Status:** Implemented (first pass — thresholds not yet tuned; see "Implementation Status" below for what changed from the original draft)  
+**Last updated:** 2026-07-24
+
+## Implementation Status (as of 2026-07-24)
+
+Implemented with substantial revisions from the original draft below (kept for historical context — read this section first, since several numbers/mechanisms it describes were superseded before implementation):
+
+- ✅ **Mortality is health-based, not a fixed age-60 trigger** (ADR-022). `PlayerState.health` (0-100) decays every turn by `age/10 + random(0,5) + eventModifier` (`eventModifier` always 0 for now, reserved for future health-affecting events). The same formula applies to every `Child`, tracked from birth. Death happens the turn health reaches 0, not at a scheduled age.
+- ✅ **Succession picks the oldest eligible child automatically** — the original draft's idea of letting the player choose among multiple eligible heirs wasn't implemented in this pass (scope/time); the oldest child aged ≥10 with health > 0 is always chosen. Worth revisiting as a follow-up if multiple simultaneous heirs turn out to be common.
+- ✅ **No eligible heir loses the game** — resolves what was an open design gap in the original draft (which didn't address a "no heir" case at all, since a scheduled age-60 trigger with automatic inheritance never needed to).
+- ✅ **Marriage and children are now required for succession to function at all**, not a deferred v2 extension as originally scoped — see "Marriage" and "Child Development & Traits" below, both substantially rewritten from the original draft.
+- ✅ **`maxTurns` set to 999,999`** (ADR-022) — the fixed-length-game assumption in this doc's own Purpose section ("at least once in a 40-turn game") no longer holds; a session now runs until death or a Mayor win (ADR-021).
+- ✅ Inheritance carryover (fleet/cash/loan/political rank carry over; reputation halves; marital status resets to single, partner cleared) matches the original draft's table, with children *not* carried to the new generation (documented simplification — surviving siblings aren't tracked as the new player's own children).
+- ✅ Turn-summary reporting: a death-with-heir message, a death-without-heir lose message, a per-child death message, and per-child trait-gained/birth messages — all as plain `TurnSummary` events rather than a distinct overlay variant (a scope simplification from the original "third turn-summary overlay variant" idea).
+
+## Marriage (Implemented — revised from "Non-Goal" in the original draft below)
+
+The original draft explicitly kept marriage flavor-only, deferring it as blocking future work. It's now a real mechanic, required for children/succession to function:
+
+- A "Seek Marriage" action at the Merchant's House building, available once `maritalStatus === 'single'` and `age >= 16` (a floor not in the original spec, added to avoid a freshly-succeeded 10-year-old heir marrying immediately).
+- **One partner type exists so far**: "the Fisherman's Daughter" (age 22, female, 300 Mark buyout paid to her father, no ships/status of her own, gifts 10 herring — standing in for the originally-requested "fish", which isn't a good in this economy — to a ship docked in Lübeck if one is present at the time; the gift is simply skipped if none is). `PARTNER_TYPES` (`data/family.ts`) is a registry (matching the `SHIP_TYPES`/`GOODS` pattern) so future partner types slot in without restructuring.
+- **Marriage success is 100% for now** (`MARRIAGE_SUCCESS_CHANCE`), structured so a future pass with multiple partner types can make it genuinely probabilistic without a redesign.
+- `PlayerState.gender` was added specifically to make the birth-chance formula ("whichever of player/partner is female") resolve correctly regardless of which side is which in a future mixed-gender partner roster; the player defaults to `'male'` at New Game (no gender-selection UI yet, since only one — female — partner type exists).
+
+## Children & Birth Chance (Implemented — revised from the original draft's proposal below)
+
+- While married, each Spring rollover has a chance of a new child: `30% − (femaleAge − 20) × 1%`, clamped to `[0%, 30%]` (`birthChance()`, `data/family.ts`) — flatter at the low end than the original unclamped formula would have produced (which went above 30% below age 20 and negative above age 50).
+- **No cap on the number of children** — the original draft's "cap at 3, to bound state" concern was explicitly waived.
+- Each child ages a year on the same Spring rollover and, while under `HEIR_MIN_AGE` (10) with fewer than 2 traits, has a chance to roll a trait: 5% passively, or 25% if a "Hire Tutor" action (Merchant's House, 30 Mark, once per child per year) was used that year — a simplified two-tier version of the original draft's "hired teacher improves odds" idea.
 
 ## Purpose
 
@@ -63,30 +90,33 @@ A second-pass extension once the base succession event above exists: instead of 
 - Traits should meaningfully differentiate a generation's playstyle (e.g. a trade-focused trait vs. a sailing-focused trait) without being so strong they invalidate the base game's balance — an heir is a variation, not a difficulty toggle.
 - The "hired teacher" hook makes trait quality a spendable-cash decision, consistent with every other economic sink in the game (ship repair, church donations, warehouses) rather than a pure random roll the player has no say in.
 
-### Mechanic
+### Mechanic (Implemented — revised)
 
-- Once `maritalStatus === 'married'` (itself still gated on the marriage mechanic being real — currently flavor-only per this doc's own Non-Goals above, so this whole section is blocked on that landing first, whether here or as a separate small feature), a child entity begins "growing up" over a fixed number of turns (proposed: 8 turns, i.e. roughly the same order of magnitude as a ship's travel times, not a multi-generation wait).
-- Each turn the child is growing, the player may optionally pay to hire a teacher for that turn (proposed: a flat per-turn cost, no long-term contract) — hiring improves the odds of gaining a *positive* trait roll that turn; not hiring still allows a trait roll, just at lower quality/probability, so skipping teachers is a valid (cheaper, riskier) strategy rather than a trap.
-- Each growth turn has a chance to roll a trait from a small fixed pool (proposed starting set, mirroring the game's own economic axes: **Shrewd Trader** — better prices; **Bold Navigator** — reduced travel time or storm risk; **Popular** — faster reputation gain; **Frugal** — reduced ship repair/upkeep cost). A child can end up with 0–2 traits by the time growth completes; more than 2 kept out of scope to avoid stacking into an overpowered heir.
-- When succession (the base mechanic above) actually fires, the *most recently grown* child becomes the heir and their traits apply to the new `PlayerState` for that generation. If growth hasn't completed by the time succession fires (a young child, old parent), the heir simply has fewer/no traits — no blocking of succession, traits are a bonus not a requirement.
+- No fixed "growth period" of turns — a child simply exists (`PlayerState.children`) from birth and ages a year on each Spring rollover, same as the player.
+- **Trait pool, revised**: not the originally-proposed Shrewd Trader/Bold Navigator/Popular/Frugal set. The four implemented traits are **Penny-pincher** (purchase prices -5%), **Simpleton** (purchase prices +5%), **Charismatic** (reputation gains +10%, losses -10%), **Hot-tempered** (reputation losses +10%, gains unaffected) — chosen to give the new Reputation Scandal event (`event-table.md`) and the existing price system something concrete to modify, rather than the original set's broader (travel time, storm risk, upkeep) scope. Contradictory pairs (Penny-pincher + Simpleton, Charismatic + Hot-tempered) can coexist on the same child and mathematically cancel — no special-casing to prevent it.
+- Each year a child is under `HEIR_MIN_AGE` (10) with fewer than 2 traits: a 5% base chance to roll a trait, or 25% if "Hire Tutor" (Merchant's House, 30 Mark, once per child per year) was used that year — the "optional paid boost, skipping is valid but riskier" shape from the original proposal, simplified to a two-tier roll rather than a continuous quality curve.
+- Whichever child is chosen as heir at succession (oldest eligible, see "Implementation Status" above) brings their traits into the new `PlayerState.traits`.
 
 ### Non-Goals (this sub-feature)
 
-- No multiple concurrent children / choosing between them — one child growing at a time, same "no branching" spirit as the base mechanic.
-- No negative traits — this is meant to add variety and reward engagement, not introduce a way to end up with a strictly worse heir than doing nothing.
-- No teacher *characters* (named NPCs, portraits) — "optionally hired teacher" is a cash-cost toggle in this pass, not a hiring/roster system.
+- No negative-only traits — Penny-pincher/Charismatic are strict upsides, Simpleton/Hot-tempered are strict downsides; a child can still end up net-negative if unlucky, unlike the original draft's "no strictly worse heir" goal — traded off in favor of a smaller, more legible trait pool.
+- No teacher *characters* (named NPCs, portraits) — "Hire Tutor" is a per-child, per-year cash-cost action, not a hiring/roster system.
 
 ## Open Questions
 
-- Is age 60 the right threshold, or should it scale with `calendar.maxTurns` so succession reliably happens at least once in a standard game without needing the player to "continue playing" past a win first? Needs the same kind of simulation check ADR-015 and `political-rank.md` both flag before trusting a number.
 - Should political rank really carry over unmodified, or partially reset (e.g. drop one rank) to give each generation a real climb? Flagged above as a deliberate but unconfirmed call.
-- Multiple ongoing successions in one session (if the game runs long via "continue playing" after a win) — does the mechanic hold up cleanly across 2-3 generations, or does something (e.g. heir naming running out of the fixed name list) need attention?
-- Child Development depends on marriage becoming a real, non-flavor mechanic first (see that section's own gating note) — sequencing question: is marriage its own small v1.1/v2 feature, or the first step of implementing this section?
-- Trait pool, hire-teacher cost, and growth-turn count are all placeholder numbers pending simulation/tuning, same as every other numeric proposal in this project's docs.
+- Multiple ongoing successions in one session (if the game runs long via "continue playing" after a win, or across several deaths) — does the mechanic hold up cleanly across many generations, or does something (e.g. heir naming running out of the fixed name list) need attention?
+- Trait pool, hire-teacher cost, birth-chance curve, and the health-decay formula's coefficients are all placeholder numbers pending simulation/tuning, same as every other numeric proposal in this project's docs. Child mortality before reaching heir-eligible age is a genuine, non-trivial risk under the current formula — see ADR-022's Consequences.
+- No healing mechanic exists yet — health only ever decreases. A later pass may add ways to slow or reverse decay.
 
 ## Related
 
-- `docs/design/political-rank.md` (precedent for a milestone-as-turn-summary-overlay-variant, and for the "confirm win-condition semantics explicitly rather than assuming" lesson from that feature's own back-and-forth)
-- `src/game/state/types.ts` (`PlayerState.age`, `MaritalStatus` — already defined, still not read by any system prior to this proposal)
+- ADR-021 (Win condition is Mayor of Lübeck only)
+- ADR-022 (Health-based mortality replaces the turn-limit lose condition)
+- `docs/design/political-rank.md` (Reputation Scandal, this doc's Charismatic/Hot-tempered traits' reputation-loss dependency)
+- `docs/design/event-table.md` (Reputation Scandal event)
+- `src/game/state/types.ts` (`PlayerState.age`/`gender`/`health`/`partner`/`children`/`traits`, `Partner`, `Child`, `TraitId`)
+- `src/game/systems/health-system.ts` (`rollHealthDecay`, `applyHealthDecay`)
+- `src/game/systems/family-system.ts` (`executeSeekMarriage`, `executeHireTutor`, `growChildren`, `attemptBirth`, `traitPurchasePriceFactor`)
+- `src/game/data/family.ts` (`PARTNER_TYPES`, `TRAITS`, birth-chance and child-name helpers)
 - `src/game/systems/calendar-system.ts` (`advanceCalendar` — the year-rollover this hooks into)
-- `src/game/data/ships.ts` (`nextShipName` — precedent pattern for a small fixed name list)

@@ -19,6 +19,7 @@ import { donateChurch } from '../systems/church-system.ts';
 import { executeTakeLoan, executeRepayLoan } from '../systems/banking-system.ts';
 import { executeToggleInsurance } from '../systems/insurance-system.ts';
 import { executeBuyWarehouse, executeSellWarehouse } from '../systems/warehouse-system.ts';
+import { executeSeekMarriage, executeHireTutor } from '../systems/family-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -113,6 +114,14 @@ export class LocalGameClient implements GameClient {
 
       case 'SELL_WAREHOUSE':
         this.state = executeSellWarehouse(this.state, action.cityId);
+        return Promise.resolve(this.state);
+
+      case 'SEEK_MARRIAGE':
+        this.state = executeSeekMarriage(this.state);
+        return Promise.resolve(this.state);
+
+      case 'HIRE_TUTOR':
+        this.state = executeHireTutor(this.state, action.childId);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {
