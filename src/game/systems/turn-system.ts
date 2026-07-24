@@ -114,8 +114,13 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // felt gradually rather than instantly.
   const churchProgress = advanceChurchProgress(newState.cities);
   newState = { ...newState, cities: churchProgress.cities };
-  for (const cityId of churchProgress.completedCities) {
-    events.push(`⛪ The Church of ${CITIES[cityId].name} was completed, thanks in part to your generosity.`);
+  const completedCitySet = new Set(churchProgress.completedCities);
+  for (const { cityId, gained, completion } of churchProgress.progressed) {
+    if (completedCitySet.has(cityId)) {
+      events.push(`⛪ The Church of ${CITIES[cityId].name} was completed, thanks in part to your generosity.`);
+    } else {
+      events.push(`⛪ Church of ${CITIES[cityId].name}: +${String(Math.round(gained))}% (now ${String(Math.round(completion))}%).`);
+    }
   }
 
   // Step 5c: Deduct crew wages (docs/design/crew-management.md) — an
@@ -146,11 +151,13 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
 
   // Step 5f: Accrue warehouse income (docs/design/warehouses.md) — flat
   // per-turn cash effect, opposite sign from crew wages/loan interest/
-  // insurance premiums above; no turn-summary message, same as market
-  // price drift, to avoid a noisy event every single turn.
+  // insurance premiums above. Originally silent (like market drift) to
+  // avoid a noisy event every turn, but reported per player feedback that
+  // every cash-affecting change should show up in the turn summary.
   const warehouseIncome = accrueWarehouseIncome(newState.warehouses);
   if (warehouseIncome > 0) {
     newState = { ...newState, player: { ...newState.player, cash: newState.player.cash + warehouseIncome } };
+    events.push(`🏬 Earned ${String(warehouseIncome)} Mark in warehouse income.`);
   }
 
   // Step 6: Net worth, then political rank (needs net worth + Lübeck
@@ -276,6 +283,22 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
   const newPlayer = { ...state.player, cash: state.player.cash - cost };
 
   return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+const MAX_SHIP_NAME_LENGTH = 30;
+
+// Free, available anywhere — purely cosmetic, no gating like the other
+// Shipyard actions need (a name isn't a physical repair/upgrade).
+export function executeRenameShip(state: GameState, shipId: string, name: string): GameState {
+  const trimmed = name.trim().slice(0, MAX_SHIP_NAME_LENGTH);
+  if (!trimmed) return state;
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || trimmed === ship.name) return state;
+
+  const newShip = { ...ship, name: trimmed };
+  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+
+  return { ...state, fleet: newFleet };
 }
 
 export function executeHireCrew(state: GameState, shipId: string): GameState {

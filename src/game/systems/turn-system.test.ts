@@ -7,6 +7,7 @@ import {
   executeSell,
   executeBuyShip,
   executeRepairShip,
+  executeRenameShip,
   executeHireCrew,
   executeReleaseCrew,
   executeBuyCannon,
@@ -215,6 +216,50 @@ describe('executeRepairShip', () => {
   });
 });
 
+describe('executeRenameShip', () => {
+  it('renames the ship', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeRenameShip(state, shipId, 'Seemöwe');
+    expect(next.fleet.ships[0]!.name).toBe('Seemöwe');
+  });
+
+  it('trims whitespace and caps length at 30 characters', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeRenameShip(state, shipId, `  ${'A'.repeat(40)}  `);
+    expect(next.fleet.ships[0]!.name).toBe('A'.repeat(30));
+  });
+
+  it('is available regardless of ship position (not shipyard-restricted)', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    const next = executeRenameShip(state, shipId, 'Seemöwe');
+    expect(next.fleet.ships[0]!.name).toBe('Seemöwe');
+  });
+
+  it('rejects a blank or whitespace-only name', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    expect(executeRenameShip(state, shipId, '')).toBe(state);
+    expect(executeRenameShip(state, shipId, '   ')).toBe(state);
+  });
+
+  it('is a no-op when the name is unchanged', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeRenameShip(state, shipId, state.fleet.ships[0]!.name);
+    expect(next).toBe(state);
+  });
+
+  it('is a no-op for an unknown ship id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeRenameShip(state, 'no-such-ship', 'Seemöwe');
+    expect(next).toBe(state);
+  });
+});
+
 describe('executeHireCrew', () => {
   it('adds one crew and deducts the hire cost at a shipyard city', () => {
     const state = buildStartingState('TestPlayer');
@@ -358,6 +403,16 @@ describe('resolveTurn', () => {
     expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('completed'))).toBe(true);
   });
 
+  it('announces incremental church progress even when not yet complete', () => {
+    const state = buildStartingState('TestPlayer');
+    const pledged = {
+      ...state,
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 100 } },
+    };
+    const { summary } = resolveTurn(pledged, { destinations: {} });
+    expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('+1%'))).toBe(true);
+  });
+
   it('deducts crew wages each turn (2 Mark per sailor)', () => {
     const state = buildStartingState('TestPlayer');
     const crew = state.fleet.ships[0]!.crew;
@@ -396,13 +451,19 @@ describe('resolveTurn', () => {
     expect(summary.events.some(e => e.includes('insurance premiums'))).toBe(false);
   });
 
-  it('adds warehouse income each turn without a turn-summary message', () => {
+  it('adds warehouse income each turn and reports it in the turn summary', () => {
     const state = buildStartingState('TestPlayer');
     const rich = { ...state, player: { ...state.player, cash: 2_000 } };
     const withWarehouse = executeBuyWarehouse(rich, 'lubeck');
     const beforeCash = withWarehouse.player.cash;
     const { state: next, summary } = resolveTurn(withWarehouse, { destinations: {} });
     expect(next.player.cash).toBe(beforeCash + 15 - 8); // +15 income, -8 crew wages
+    expect(summary.events.some(e => e.toLowerCase().includes('warehouse'))).toBe(true);
+  });
+
+  it('does not report warehouse income when there are no warehouses', () => {
+    const state = buildStartingState('TestPlayer');
+    const { summary } = resolveTurn(state, { destinations: {} });
     expect(summary.events.some(e => e.toLowerCase().includes('warehouse'))).toBe(false);
   });
 

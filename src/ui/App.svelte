@@ -62,6 +62,7 @@
   let donationAmount = 100;
   let loanAmount = 500;
   let repayAmount = 100;
+  let renameDrafts: Record<string, string> = {};
 
   // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
   // building clicks just show a placeholder label for now — no building is
@@ -194,6 +195,30 @@
     const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
+  }
+
+  function setRenameDraft(shipId: string, value: string) {
+    renameDrafts = { ...renameDrafts, [shipId]: value };
+  }
+
+  function handleRenameInput(event: Event, shipId: string) {
+    const target = event.currentTarget as HTMLInputElement;
+    setRenameDraft(shipId, target.value);
+  }
+
+  async function renameShip(shipId: string) {
+    errorMsg = '';
+    const name = (renameDrafts[shipId] ?? '').trim();
+    if (!name) return;
+    const result = await gameClient.sendAction({ type: 'RENAME_SHIP', shipId, name });
+    if ('player' in result) {
+      state = result as GameState;
+      const { [shipId]: _drop, ...rest } = renameDrafts;
+      void _drop;
+      renameDrafts = rest;
+    } else {
+      errorMsg = 'Cannot rename ship.';
+    }
   }
 
   async function hireCrew(shipId: string) {
@@ -506,7 +531,7 @@
                   <span class="tag durability-{durabilityStatus(s.durability)}">
                     Dur {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
                   </span>
-                  <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
+                  <span class="tag">Cargo {cargoTotal(s)}/{cargoCapacity(s)}{s.cannons > 0 ? ` (${String(s.cannons * 2)} used by cannons)` : ''}</span>
                 </div>
               {/each}
             </div>
@@ -622,8 +647,24 @@
             {#if atShipyard && shipyardShips.length > 0}
               {#each shipyardShips as s (s.id)}
                 {@const cost = repairCost(s)}
+                {@const renameDraft = renameDrafts[s.id] ?? s.name}
                 <div class="shipyard-ship-block">
                   <h3 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h3>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">Ship name:</span>
+                    <input
+                      type="text"
+                      class="rename-input"
+                      value={renameDraft}
+                      on:input={(e) => handleRenameInput(e, s.id)}
+                      maxlength="30"
+                    />
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => renameShip(s.id)}
+                      disabled={!renameDraft.trim() || renameDraft.trim() === s.name}
+                    >Rename</button>
+                  </div>
                   <div class="shipyard-row">
                     <span class="shipyard-info">
                       {#if s.durability >= 100}
@@ -856,7 +897,7 @@
               <span class="tag durability-{durabilityStatus(s.durability)}">
                 Dur {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
               </span>
-              <span class="tag">Cargo {cargoTotal(s)}/{SHIP_TYPES[s.type].cargoCapacity}</span>
+              <span class="tag">Cargo {cargoTotal(s)}/{cargoCapacity(s)}{s.cannons > 0 ? ` (${String(s.cannons * 2)} used by cannons)` : ''}</span>
             </div>
           {/each}
         {/if}
@@ -956,8 +997,24 @@
               <h3>Shipyard</h3>
               {#each shipyardShips as s (s.id)}
                 {@const cost = repairCost(s)}
+                {@const renameDraft = renameDrafts[s.id] ?? s.name}
                 <div class="shipyard-ship-block">
                   <h4 class="shipyard-ship-name">{s.name} <span class="tag">{SHIP_TYPES[s.type].name}</span></h4>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">Ship name:</span>
+                    <input
+                      type="text"
+                      class="rename-input"
+                      value={renameDraft}
+                      on:input={(e) => handleRenameInput(e, s.id)}
+                      maxlength="30"
+                    />
+                    <button
+                      class="shipyard-btn"
+                      on:click={() => renameShip(s.id)}
+                      disabled={!renameDraft.trim() || renameDraft.trim() === s.name}
+                    >Rename</button>
+                  </div>
                   <div class="shipyard-row">
                     <span class="shipyard-info">
                       {#if s.durability >= 100}
@@ -1393,6 +1450,7 @@
     font-size: 0.85rem;
   }
   .shipyard-info { color: #b0a090; }
+  .rename-input { flex: 1; min-width: 0; }
   .shipyard-ship-block {
     margin-bottom: 1rem;
     padding-bottom: 0.8rem;
