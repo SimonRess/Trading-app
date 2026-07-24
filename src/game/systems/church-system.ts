@@ -46,16 +46,28 @@ export function donateChurch(state: GameState, cityId: CityId, amount: number): 
   };
 }
 
+export interface ChurchProgress {
+  cityId: CityId;
+  gained: number; // percentage points gained this turn
+  completion: number; // resulting completion percentage
+}
+
 export interface ChurchProgressResult {
   cities: CitiesState;
   completedCities: CityId[];
+  progressed: ChurchProgress[];
 }
 
 // Called once per turn (turn-system.ts's resolveTurn) — converts pledged
 // Mark into actual completion, capped at PROGRESS_CAP_PER_TURN percentage
-// points per city per turn.
+// points per city per turn. Every city that actually advanced is reported
+// in `progressed` so resolveTurn can surface it in the turn summary — not
+// just the turn a church finally crosses 100% (docs/design/
+// church-donations.md, per player feedback that turn-summary reporting
+// should cover every change, not only completions).
 export function advanceChurchProgress(cities: CitiesState): ChurchProgressResult {
   const completedCities: CityId[] = [];
+  const progressed: ChurchProgress[] = [];
   const nextCities = { ...cities };
 
   for (const cityId of Object.keys(cities) as CityId[]) {
@@ -66,10 +78,12 @@ export function advanceChurchProgress(cities: CitiesState): ChurchProgressResult
     const consumed = Math.min(city.churchPledged, maxMarkThisTurn);
     const wasComplete = city.churchCompletion >= 100;
     const nextCompletion = Math.min(100, city.churchCompletion + consumed / DONATION_COST_PER_PERCENT);
+    const gained = nextCompletion - city.churchCompletion;
 
     nextCities[cityId] = { ...city, churchCompletion: nextCompletion, churchPledged: city.churchPledged - consumed };
+    if (gained > 0) progressed.push({ cityId, gained, completion: nextCompletion });
     if (!wasComplete && nextCompletion >= 100) completedCities.push(cityId);
   }
 
-  return { cities: nextCities, completedCities };
+  return { cities: nextCities, completedCities, progressed };
 }

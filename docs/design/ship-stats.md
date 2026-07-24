@@ -101,6 +101,7 @@ Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate
 - ✅ `fleet-system.ts`'s `cargoCapacity` subtracts `cannons × 2` — the single function everything else reads for capacity, so the reduced hold is automatically reflected in `cargoSpace`, the cargo display, and buy-quantity checks.
 - ✅ `cannonSellValue()` = 60% of `CANNON_PRICE` (150 Mark), rounded.
 - ✅ Shipyard building (both City view and List view) shows a Cannons readout with +1/-1 controls next to Repair/Crew.
+- ✅ Every "Cargo N/M" readout (Harbor building's fleet list and the List view's fleet panel) now reads the cannon-reduced `cargoCapacity(ship)` and, when the ship carries cannons, appends "(N used by cannons)" — previously these showed the raw, un-reduced type capacity, so a cannon's cargo cost wasn't visible anywhere outside the Shipyard panel itself (reported by a player as missing from the Cargo status).
 - ✅ Cannon resale value counted in `computeNetWorth` — see ADR-020.
 - ✅ Unit tests: `ships.test.ts` (`cannonSellValue`, `CANNON_MAX`), `turn-system.test.ts` (`executeBuyCannon`/`executeSellCannon` cash/cap/shipyard-gating/cargo-fit rejections), `fleet-system.test.ts` (`cargoSpace` reduced by cannons).
 - ✅ Verified live: buying a cannon on the starting Kogge deducted 150 Mark and reduced cargo capacity from 50 to 48.
@@ -176,9 +177,9 @@ Both actions are only available while a ship is **in port at a shipyard city** (
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 
-## Renaming Ships (Proposed, v1.1)
+## Renaming Ships (Implemented, v1.1)
 
-Ships get a name from a small fixed list at creation (`nextShipName` in `ships.ts`) and nothing lets the player change it afterward. Proposed: a simple text input in the fleet panel (or ship-selection area) for the currently-selected ship, free (no cash cost — this is flavor, not an economic decision) and unrestricted (any non-empty string, no uniqueness requirement across the fleet — two ships can share a name, matching how nothing else in the data model assumes uniqueness). A `RENAME_SHIP { shipId, name }` `GameAction` sets `Ship.name` directly; no other state changes. No open design questions — this is a small, low-risk feature, more an implementation task than something needing a dedicated design doc.
+Ships get a name from a small fixed list at creation (`nextShipName` in `ships.ts`); the player can now change it afterward. Implemented as proposed: a text input next to each ship in the Shipyard building (both City view and List view), free (no cash cost — flavor, not an economic decision) and unrestricted (any non-empty string up to 30 characters, no uniqueness requirement across the fleet — two ships can share a name). `executeRenameShip` (`turn-system.ts`) and the `RENAME_SHIP { shipId, name }` action set `Ship.name` directly, trimming whitespace and rejecting a blank or unchanged name; no other state changes. Unlike the doc's original "fleet panel, currently-selected ship" sketch, the control lives in the Shipyard section per-ship (matching the "Ready to extend as crew/cannons/renaming land" note left when the Shipyard building first shipped) and is **not** restricted to shipyard cities — renaming doesn't need a dry-dock, so it's available on any ship regardless of position, same reasoning as insurance's anytime-toggle. Verified live: renaming a ship updates its name immediately across the UI.
 
 ## Implementation Status (as of 2026-07-18)
 

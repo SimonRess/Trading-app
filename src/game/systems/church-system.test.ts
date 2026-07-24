@@ -83,6 +83,19 @@ describe('advanceChurchProgress', () => {
     expect(cities.hamburg.churchPledged).toBe(150);
   });
 
+  it('reports every city that gained progress this turn', () => {
+    const state = buildStartingState('TestPlayer');
+    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 200 } };
+    const { progressed } = advanceChurchProgress(pledged);
+    expect(progressed).toEqual([{ cityId: 'hamburg', gained: 1, completion: state.cities.hamburg.churchCompletion + 1 }]);
+  });
+
+  it('does not report a city with nothing pledged', () => {
+    const state = buildStartingState('TestPlayer');
+    const { progressed } = advanceChurchProgress(state.cities);
+    expect(progressed).toEqual([]);
+  });
+
   it('spreads a large pledge across multiple calls (turns)', () => {
     const state = buildStartingState('TestPlayer');
     let cities = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 150 } };

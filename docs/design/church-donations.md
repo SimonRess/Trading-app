@@ -38,6 +38,7 @@ Each of the 5 cities starts with a church under construction, at a different com
 - Implemented as a two-step flow: `donateChurch()` moves cash/reputation immediately and adds to `churchPledged`; a new `advanceChurchProgress(cities)` in `church-system.ts` runs once per turn inside `resolveTurn` (Step 5b, before the political-rank check) and converts at most `PROGRESS_CAP_PER_TURN` (**1** percentage point = 50 Mark) of each city's pledged pool into `churchCompletion`, carrying any remainder in `churchPledged` for the next turn.
 - This directly answers the "how long" question: **progress becomes visible starting from the next turn the player ends, not at the moment of donation, by design.** A 300 Mark donation (6 percentage points) takes 6 turns to fully land.
 - When a city's pledged conversion pushes `churchCompletion` to 100 for the first time, `advanceChurchProgress` reports it in `completedCities`, and `resolveTurn` appends a `TurnSummary` event ("⛪ The Church of {city} was completed, thanks in part to your generosity.") — completion is now a genuine turn-summary event rather than the earlier UI-only banner (below).
+- **Revised (2026-07-24):** every turn a pledged city gains ground — not just the turn it finishes — `advanceChurchProgress` now reports it via a `progressed` list (`{ cityId, gained, completion }`), and `resolveTurn` appends a "⛪ Church of {city}: +N% (now M%)" event each time, per player feedback that all turn-affecting changes should show up in the turn summary, not only completions.
 
 ### UI
 
