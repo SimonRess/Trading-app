@@ -1,4 +1,4 @@
-import type { GameState, GoodId, CityId, ShipType, Child, CityEffect } from '../state/types.ts';
+import type { GameState, GoodId, CityId, ShipType, Child, CityEffect, LoseReason } from '../state/types.ts';
 import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
@@ -65,7 +65,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // heirs at the moment of death) — no further turns resolve until it's
   // answered. Defensive: the UI hides End Turn while this is set.
   if (state.pendingSuccession) {
-    return { state, summary: { events: [], outcome: null } };
+    return { state, summary: { events: [], outcome: null, loseReason: null } };
   }
 
   const events: string[] = [];
@@ -312,20 +312,26 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // see docs/design/family-succession.md — since maxTurns is set so high
   // it's never reached in practice).
   let outcome: 'win' | 'lose' | null = null;
+  let loseReason: LoseReason = null;
   if (awaitingHeirChoice) {
     // Paused — not a loss, not a normal turn either; the game stays here
     // until CHOOSE_HEIR resolves it.
   } else if (newState.player.health <= 0 && !succession) {
     outcome = 'lose';
+    loseReason = 'no-heir';
     events.push('Without an heir to carry the family name, the trading house closes its doors.');
   } else if (newState.player.politicalRank === 3 && !newState.hasWon) {
     outcome = 'win';
     newState = { ...newState, hasWon: true };
-  } else if (netWorth <= 0 || calendar.turn >= calendar.maxTurns) {
+  } else if (netWorth <= 0) {
     outcome = 'lose';
+    loseReason = 'bankruptcy';
+  } else if (calendar.turn >= calendar.maxTurns) {
+    outcome = 'lose';
+    loseReason = 'out-of-turns';
   }
 
-  return { state: newState, summary: { events, outcome } };
+  return { state: newState, summary: { events, outcome, loseReason } };
 }
 
 export function executeBuy(

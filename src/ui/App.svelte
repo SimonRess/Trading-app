@@ -39,8 +39,11 @@
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
+  import pkg from '../../package.json';
+  import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
 
   export let gameClient: GameClient;
+  const APP_VERSION = pkg.version;
 
   type Screen = 'new-game' | 'map' | 'port' | 'city' | 'turn-summary' | 'game-over';
 
@@ -59,6 +62,7 @@
   let showSaveMenu = false;
   let saveMsg = '';
   let showSeasonInfo = false;
+  let showChangelog = false;
   let selectedBuilding: BuildingId | undefined;
   let donationAmount = 100;
   let loanAmount = 500;
@@ -468,6 +472,11 @@
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
+      <button
+        class="version-btn"
+        aria-label="Version and changelog"
+        on:click={() => { showChangelog = !showChangelog; }}
+      >v{APP_VERSION} ⓘ</button>
       <span class="hdr-info">
         {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · Turn {state.calendar.turn}/{state.calendar.maxTurns}
         <button
@@ -490,6 +499,13 @@
       <div class="season-info">
         Seasons run in order — <strong>Spring → Summer → Autumn → Winter</strong> — each lasting exactly 1 turn. A new year begins right after Winter. At {state.calendar.maxTurns} turns total, this game runs {state.calendar.maxTurns / 4} years.
         <button class="link-btn" on:click={() => { showSeasonInfo = false; }}>close</button>
+      </div>
+    {/if}
+
+    {#if showChangelog}
+      <div class="save-menu changelog-panel">
+        <pre class="changelog-text">{CHANGELOG_RAW}</pre>
+        <button class="link-btn" on:click={() => { showChangelog = false; }}>close</button>
       </div>
     {/if}
 
@@ -1336,8 +1352,16 @@
 
 {:else if screen === 'game-over'}
   <main class="screen center">
-    <h1 class="lose">Bankrupt</h1>
-    <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
+    {#if lastSummary?.loseReason === 'no-heir'}
+      <h1 class="lose">The Dynasty Has Ended</h1>
+      <p>{state.player.name} has passed away with no heir old enough to carry on the family trade. Final net worth: {netWorth} Mark.</p>
+    {:else if lastSummary?.loseReason === 'out-of-turns'}
+      <h1 class="lose">Time's Up</h1>
+      <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
+    {:else}
+      <h1 class="lose">Bankrupt</h1>
+      <p>The trading house has gone under. Final net worth: {netWorth} Mark.</p>
+    {/if}
     <button on:click={newGame}>Play Again</button>
   </main>
 {/if}
@@ -1423,6 +1447,29 @@
     line-height: 1;
   }
   .info-btn:hover { background: none; color: #d4a843; }
+
+  .version-btn {
+    background: none;
+    border: none;
+    color: #9a8060;
+    padding: 0 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+  .version-btn:hover { background: none; color: #d4a843; }
+
+  .changelog-panel {
+    display: block;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .changelog-text {
+    white-space: pre-wrap;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: #c0a880;
+    margin: 0 0 0.6rem 0;
+  }
 
   .season-info {
     padding: 0.6rem 1.2rem;

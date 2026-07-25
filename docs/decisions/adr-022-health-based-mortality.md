@@ -12,7 +12,7 @@ This is a real shift in what "the game ending" means: previously, a session had 
 
 ## Decision
 
-**`PlayerState.health` (0-100) decays every turn** by `age/10 + random(0,5) + eventModifier` (`eventModifier` reserved for future health-affecting events, always 0 for now), floored at 0. The same formula applies to every `Child` from birth, tracked independently.
+**`PlayerState.health` (0-100) decays every turn** by `age/40 + random(0,0.5) + eventModifier` (`eventModifier` reserved for future health-affecting events, always 0 for now), floored at 0. The same formula applies to every `Child` from birth, tracked independently. (Revised 2026-07-25, down from `age/10 + random(0,5)` — the original rate made pre-heir-age child mortality near-certain; see Consequences.)
 
 **Death and succession replace the age-60 trigger:** when `player.health` reaches 0, the oldest child aged ≥10 with health > 0 becomes heir (fleet, cash, loan, and political rank carry over; reputation halves; the new player's age/gender/health/traits come from the heir). **With no eligible heir, the game is lost** — "without an heir, the trading house closes its doors."
 
@@ -29,7 +29,7 @@ This is a real shift in what "the game ending" means: previously, a session had 
 ✅ Death is a real, unscheduled risk every turn, not a fixed deadline — more consistent with "family across generations" than a single predictable age gate
 ✅ No fixed session length — a game now runs until death (with or without succession) or a Mayor win
 ✅ `eventModifier` is already wired into the formula, so future health-affecting events (plague striking the player, storm injury) are additive, not a redesign
-⚠️ Because young children decay by the same formula (age/10 term near zero, so effectively just the random(0,5) term), child mortality before reaching heir-eligible age (10) is a genuine, non-trivial risk — a family can lose all its children before any reaches heir age, at which point the *next* player death loses the game. This is accepted as an intentional part of the mortality theme, not a balance oversight, but is flagged here since it's the single biggest swing factor in whether a session continues across generations
+⚠️ Because young children decay by the same formula (age/40 term near zero, so effectively just the random(0,0.5) term), child mortality before reaching heir-eligible age (10) is still a risk, though a much smaller one since the 2026-07-25 rate reduction — a family can in principle still lose all its children before any reaches heir age, at which point the *next* player death loses the game. This is accepted as an intentional part of the mortality theme, not a balance oversight, but is flagged here since it's the single biggest swing factor in whether a session continues across generations
 ⚠️ No healing mechanic exists yet — health only ever decreases; a future pass may add ways to slow or reverse decay (see `family-succession.md`)
 🔒 Directly enables ADR-021 (Mayor-only win) making sense as a long-run goal rather than a race against a 40-turn clock
 

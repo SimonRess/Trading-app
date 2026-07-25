@@ -270,7 +270,7 @@ describe('executeChooseHeir', () => {
     const state = buildStartingState('TestPlayer');
     const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: ['charismatic'], tutoredThisYear: false };
     const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 70, traits: [], tutoredThisYear: false };
-    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB], reputation: { ...state.player.reputation, lubeck: 40 } } };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB], reputation: { ...state.player.reputation, lubeck: 40 } } };
     const result = resolveTurn(dying, { destinations: {} }).state;
     vi.restoreAllMocks();
     return result;
@@ -282,7 +282,7 @@ describe('executeChooseHeir', () => {
     expect(next.pendingSuccession).toBeNull();
     expect(next.player.name).toBe('Hans');
     expect(next.player.age).toBe(12);
-    expect(next.player.health).toBeCloseTo(70 - 12 / 10);
+    expect(next.player.health).toBeCloseTo(70 - 12 / 40);
     expect(next.player.traits).toEqual([]);
     expect(next.player.reputation.lubeck).toBe(20); // halved from 40, snapshotted at death
   });
@@ -598,7 +598,7 @@ describe('resolveTurn', () => {
 
   it('decays and can kill a child, reporting it in the turn summary', () => {
     const state = buildStartingState('TestPlayer');
-    const child: Child = { id: 'c1', name: 'Hans', age: 5, gender: 'male', health: 1, traits: [], tutoredThisYear: false };
+    const child: Child = { id: 'c1', name: 'Hans', age: 5, gender: 'male', health: 0, traits: [], tutoredThisYear: false };
     const withChild = { ...state, player: { ...state.player, children: [child] } };
     const { state: next, summary } = resolveTurn(withChild, { destinations: {} });
     expect(next.player.children).toHaveLength(0);
@@ -614,7 +614,7 @@ describe('resolveTurn', () => {
     const tooYoung: Child = { id: 'young', name: 'Peter', age: 5, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
     const dying = {
       ...state,
-      player: { ...state.player, health: 1, children: [tooYoung, heir], reputation: { ...state.player.reputation, lubeck: 40 } },
+      player: { ...state.player, health: 0, children: [tooYoung, heir], reputation: { ...state.player.reputation, lubeck: 40 } },
     };
     const { state: next, summary } = resolveTurn(dying, { destinations: {} });
     expect(next.player.name).toBe('Grete');
@@ -628,7 +628,7 @@ describe('resolveTurn', () => {
 
   it('loses the game when the player dies with no eligible heir', () => {
     const state = buildStartingState('TestPlayer');
-    const dying = { ...state, player: { ...state.player, health: 1, children: [] } };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [] } };
     const { summary } = resolveTurn(dying, { destinations: {} });
     expect(summary.outcome).toBe('lose');
   });
@@ -636,7 +636,7 @@ describe('resolveTurn', () => {
   it('does not select a child under the heir-eligible age', () => {
     const state = buildStartingState('TestPlayer');
     const tooYoung: Child = { id: 'young', name: 'Peter', age: 5, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
-    const dying = { ...state, player: { ...state.player, health: 1, children: [tooYoung] } };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [tooYoung] } };
     const { summary } = resolveTurn(dying, { destinations: {} });
     expect(summary.outcome).toBe('lose');
   });
@@ -645,7 +645,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
     const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
-    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB] } };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB] } };
     const { state: next, summary } = resolveTurn(dying, { destinations: {} });
     expect(next.pendingSuccession).not.toBeNull();
     expect(next.pendingSuccession?.candidates.map(c => c.id).sort()).toEqual(['a', 'b']);
@@ -658,7 +658,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
     const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
-    const dying = { ...state, player: { ...state.player, health: 1, children: [heirA, heirB] } };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB] } };
     const { state: paused } = resolveTurn(dying, { destinations: {} });
     const { state: still, summary } = resolveTurn(paused, { destinations: {} });
     expect(still).toBe(paused);

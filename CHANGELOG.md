@@ -11,15 +11,32 @@ touches. See `docs/00_project_structure.md` §5 (Contribution Workflow).
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 Dates are `YYYY-MM-DD`.
 
+**Versioning:** `MAJOR.MINOR.PATCH`, but sized by *scope of change* rather than
+strict semver compatibility rules (this is a single-player game with no public
+API to break): **MAJOR** for large systems/rollouts (a new core mechanic
+family, a fundamentally different game structure), **MINOR** for a
+medium-sized feature or a meaningful mechanic revision, **PATCH** for small
+edits, tuning, and bug fixes. The current version is shown in the app header
+and in the in-app changelog viewer (ⓘ next to the version number), both
+reading `package.json`'s `version` field — bump it in the same change that
+adds the corresponding `CHANGELOG.md` entry.
+
 ---
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-07-25
+
+### Added
+- **In-app version display and changelog viewer** — the header now shows the current version (from `package.json`), and a new button opens a panel rendering this file, so players can see what changed without leaving the app.
 
 ### Fixed
 - **Black screen after End Turn (reported: "got in two games, clicking End Turn and couldn't do anything")** — root cause: `CityScene.destroy()` destroyed each registered scene's PixiJS container via `sceneManager.destroy()`, then destroyed the same containers again via `app.destroy(true, { children: true })` immediately after. This double-destroy corrupted PixiJS's shared canvas-text texture pool, throwing an uncaught internal error ("Cannot read properties of undefined (reading 'push')") the *next* time any scene tore down anywhere in the app — aborting Svelte's in-flight screen transition and leaving a blank screen. This was rare before this change (game-over needed a fixed 40-turn run or bankruptcy to trigger the first-ever scene teardown of a session) but became common with the new mortality system (see below), which makes death — and the resulting `MapView`/`CityView` unmount — the primary way sessions end. Fixed the double-destroy (`city-scene.ts`'s per-scene `destroy()` is now a no-op, since `app.destroy()` already covers it) and added defense-in-depth try/catch around both `MapScene`/`CityScene`'s `app.destroy()` calls, since the scene is being discarded either way. See ADR-017's Consequences for the full writeup. Verified live: 120 consecutive End Turns (enough to trigger a bankruptcy game-over) with zero uncaught page errors, correctly reaching the "Bankrupt / Play Again" screen and successfully starting a new game afterward.
 - **Trading table showed "Supply" but not "Demand"** — a player asked whether the Stock figure already accounted for both; it does (`Stock(T2) = Stock(T1) + Supply(T1) - Demand(T1)`), but the UI only ever showed a single "Supply" column, which was actually the *Stock* value, with no way to see the underlying Supply/Demand flow rates. All four market tables (Trading Post, City-view read-only fallback, List-view Port, List-view read-only fallback) now show Stock/Supply/Demand as three separate columns.
 
 ### Changed
+- **Health decay rate reduced** — a player reported the rate was too high. Formula changed from `age/10 + random(0,5)` to `age/40 + random(0,0.5)` (both terms roughly 10x smaller), keeping the same shape (older decays faster, `eventModifier` reserved for future health-affecting events, still 0). See ADR-022, `health-system.ts`.
+- **Dying with no eligible heir now shows a distinct "The Dynasty Has Ended" screen** instead of the generic "Bankrupt" one — a player pointed out the game-over screen didn't distinguish why the session ended. `TurnSummary` gained a `loseReason: 'bankruptcy' | 'no-heir' | 'out-of-turns' | null` field; the game-over screen branches on it.
 - **Multiple eligible heirs now let the player choose, instead of always picking the oldest** — with exactly one heir-eligible child at the moment of death, succession still resolves automatically (no real decision to make); with two or more, the game now pauses (`GameState.pendingSuccession`) and shows a chooser overlay, rather than silently auto-selecting. A new `CHOOSE_HEIR { childId }` action resolves it and resumes play. See `docs/design/family-succession.md`.
 - **Player health is now shown in the header and Merchant's House**, next to marital status — previously tracked internally (`family-succession.md`, ADR-022) but not visible anywhere in the UI.
 - **Town Hall now shows each city's population** — a new static `CityDefinition.population` field (`data/cities.ts`), flavor only (not simulated), shown alongside the political-rank progress readout.

@@ -189,9 +189,14 @@ export interface CityEffect {
 
 export type GameOutcome = 'win' | 'lose' | null;
 
+// Distinguishes why a 'lose' outcome fired, so the UI can show a different
+// game-over screen for each — see docs/design/family-succession.md.
+export type LoseReason = 'bankruptcy' | 'no-heir' | 'out-of-turns' | null;
+
 export interface TurnSummary {
   events: string[];
   outcome: GameOutcome;
+  loseReason: LoseReason;
 }
 
 export interface TurnResult {
