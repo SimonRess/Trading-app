@@ -20,6 +20,7 @@ import {
   CANNON_MAX,
   CANNON_PRICE,
   cannonSellValue,
+  auctionSaleValue,
 } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
 import { evaluateRankUp, gainReputation, loseReputation, rankUpMessage } from './political-system.ts';
@@ -435,6 +436,23 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
   const newShip = { ...ship, durability: 100, repairCooldown: 1 };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - cost };
+
+  return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+// Sells the ship to the highest bidder at an immediate auction — no waiting
+// period is simulated yet (a future pass could spread this across turns
+// like church donations do); the ship and any cargo aboard it leave the
+// fleet right away for `auctionSaleValue()` Mark. Available from any port,
+// not just shipyard cities, since this is a sale rather than a build/repair
+// action. See docs/design/ship-stats.md "Auctioning Ships".
+export function executeAuctionShip(state: GameState, shipId: string): GameState {
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || !isInPort(ship)) return state;
+
+  const proceeds = auctionSaleValue(SHIP_TYPES[ship.type].purchasePrice, ship.durability);
+  const newFleet = { ships: state.fleet.ships.filter(s => s.id !== shipId) };
+  const newPlayer = { ...state.player, cash: state.player.cash + proceeds };
 
   return { ...state, player: newPlayer, fleet: newFleet };
 }

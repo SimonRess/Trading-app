@@ -98,6 +98,24 @@ describe('growChildren', () => {
     vi.restoreAllMocks();
   });
 
+  it('reports when a tutored child\'s roll does not produce a trait', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9); // above CHILD_TUTORED_TRAIT_ROLL_CHANCE (0.25)
+    const children: Child[] = [{ id: 'a', name: 'Hans', age: 5, gender: 'male', health: 100, traits: [], tutoredThisYear: true }];
+    const { children: next, messages } = growChildren(children);
+    expect(next[0]!.traits.length).toBe(0);
+    expect(next[0]!.tutoredThisYear).toBe(false);
+    expect(messages).toEqual(["📚 Hans's tutoring this year didn't produce a new trait — hire again to try next year."]);
+    vi.restoreAllMocks();
+  });
+
+  it('does not report anything for an untutored child that fails its roll', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const children: Child[] = [{ id: 'a', name: 'Hans', age: 5, gender: 'male', health: 100, traits: [], tutoredThisYear: false }];
+    const { messages } = growChildren(children);
+    expect(messages).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
   it('does not roll traits past the max of 2', () => {
     const children: Child[] = [{ id: 'a', name: 'Hans', age: 5, gender: 'male', health: 100, traits: ['charismatic', 'penny-pincher'], tutoredThisYear: true }];
     const { children: next } = growChildren(children);

@@ -97,6 +97,15 @@ export function growChildren(children: Child[]): { children: Child[]; messages: 
       }
     }
 
+    // A tutor was hired but this year's (boosted) roll didn't produce a
+    // trait — surface that explicitly. Without this, the "Tutored" flag
+    // just silently reverted to "Hire Tutor" at the next Spring rollover
+    // with no visible cause, which players reported as the tutor
+    // "randomly disappearing" (2026-07-25).
+    if (child.tutoredThisYear) {
+      messages.push(`📚 ${child.name}'s tutoring this year didn't produce a new trait — hire again to try next year.`);
+    }
+
     return { ...child, age, tutoredThisYear: false };
   });
 

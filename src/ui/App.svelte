@@ -25,6 +25,7 @@
     CANNON_MAX,
     CANNON_PRICE,
     cannonSellValue,
+    auctionSaleValue,
   } from '../game/data/ships.ts';
   import { LOAN_CAP, LOAN_INTEREST_RATE } from '../game/systems/banking-system.ts';
   import { INSURANCE_PREMIUM_PER_TURN, INSURANCE_PAYOUT_RATE } from '../game/systems/insurance-system.ts';
@@ -68,6 +69,7 @@
   let loanAmount = 500;
   let repayAmount = 100;
   let renameDrafts: Record<string, string> = {};
+  let auctionResult: { shipName: string; price: number; date: string } | null = null;
 
   // Step 1 of the city-view rollout (ADR-018, docs/design/city-view.md):
   // building clicks just show a placeholder label for now — no building is
@@ -200,6 +202,25 @@
     const result = await gameClient.sendAction({ type: 'REPAIR_SHIP', shipId });
     if ('player' in result) state = result as GameState;
     else errorMsg = 'Cannot repair ship.';
+  }
+
+  // No real waiting period is simulated yet — the auction resolves the
+  // moment it's created, so the price shown here (computed from state
+  // before dispatch) is exactly what the ship sells for. See
+  // docs/design/ship-stats.md "Auctioning Ships".
+  async function auctionShip(shipId: string) {
+    errorMsg = '';
+    const ship = state.fleet.ships.find(s => s.id === shipId);
+    if (!ship) return;
+    const price = auctionSaleValue(SHIP_TYPES[ship.type].purchasePrice, ship.durability);
+    const date = `${SEASON_LABEL[state.calendar.season]} ${state.calendar.year}`;
+    const result = await gameClient.sendAction({ type: 'AUCTION_SHIP', shipId });
+    if ('player' in result) {
+      state = result as GameState;
+      auctionResult = { shipName: ship.name, price, date };
+    } else {
+      errorMsg = 'Cannot auction ship.';
+    }
   }
 
   function setRenameDraft(shipId: string, value: string) {
@@ -761,6 +782,12 @@
                       disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
                     >+1</button>
                   </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Auction this ship to the highest bidder for {auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability)} Mark ({SHIP_TYPES[s.type].purchasePrice} Mark base × 80% × {s.durability}/100 health).
+                    </span>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>Auction</button>
+                  </div>
                 </div>
               {/each}
               <div class="ship-buy-grid">
@@ -1225,6 +1252,12 @@
                       disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
                     >+1</button>
                   </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Auction this ship to the highest bidder for {auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability)} Mark ({SHIP_TYPES[s.type].purchasePrice} Mark base × 80% × {s.durability}/100 health).
+                    </span>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>Auction</button>
+                  </div>
                 </div>
               {/each}
               <div class="ship-buy-grid">
@@ -1296,6 +1329,16 @@
         {state.pendingSuccession ? 'Choose an heir first' : busyTurn ? 'Resolving...' : 'End Turn →'}
       </button>
     </footer>
+
+    {#if auctionResult}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card">
+          <h2>⚖️ Ship Auction — {auctionResult.date}</h2>
+          <p class="order-note">{auctionResult.shipName} was sold to the highest bidder for {auctionResult.price} Mark.</p>
+          <button class="shipyard-btn" on:click={() => { auctionResult = null; }}>Close</button>
+        </div>
+      </div>
+    {/if}
 
     {#if state.pendingSuccession}
       <div class="turn-summary-overlay">

@@ -13,6 +13,7 @@ import {
   executeSellCannon,
   executeRenameShip,
   executeChooseHeir,
+  executeAuctionShip,
 } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
@@ -75,6 +76,10 @@ export class LocalGameClient implements GameClient {
 
       case 'RENAME_SHIP':
         this.state = executeRenameShip(this.state, action.shipId, action.name);
+        return Promise.resolve(this.state);
+
+      case 'AUCTION_SHIP':
+        this.state = executeAuctionShip(this.state, action.shipId);
         return Promise.resolve(this.state);
 
       case 'HIRE_CREW':

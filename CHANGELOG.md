@@ -25,6 +25,14 @@ adds the corresponding `CHANGELOG.md` entry.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-25
+
+### Added
+- **Auction a ship for instant cash** — every ship in the Shipyard section (both City and List views) now has an Auction button, usable from any port. Sells the ship immediately to "the highest bidder" for `purchase price × 80% × (durability / 100)` — a full-durability Kogge nets 3,200 Mark. A popup confirms the sale with the in-game date and the price paid. First-pass, single-step implementation — no real waiting period or competing bidders simulated yet. See `docs/design/ship-stats.md` "Auctioning Ships".
+
+### Fixed
+- **Investigated "the hired tutor disappears randomly"** — root cause: `Child.tutoredThisYear` resets at the next Spring rollover regardless of whether the boosted trait roll actually succeeded, which it usually doesn't (75% of the time even with the boost). The "Hire Tutor" button silently reverting with no visible cause read as random to the player. `growChildren` now pushes an explicit turn-summary message when a tutored roll fails, so the outcome is visible. The underlying mechanic (one roll per hire, resetting at the next year) is unchanged — this fixes the missing feedback, not the odds. See `docs/design/family-succession.md`.
+
 ## [0.3.0] - 2026-07-25
 
 ### Added

@@ -106,6 +106,16 @@ export function shipNetWorth(purchasePrice: number, durability: number): number 
   return Math.round(purchasePrice * (durability / 100));
 }
 
+// Auction proceeds are the type's purchase price scaled by both durability
+// (a beat-up ship fetches less) and a flat 80% "highest bidder" discount
+// off list price (proposed, unvalidated by simulation like every other
+// numeric first pass — see docs/design/ship-stats.md).
+export const AUCTION_SALE_FRACTION = 0.8;
+
+export function auctionSaleValue(purchasePrice: number, durability: number): number {
+  return Math.round(purchasePrice * AUCTION_SALE_FRACTION * (durability / 100));
+}
+
 export function repairCost(ship: { type: ShipType; durability: number }): number {
   const def = SHIP_TYPES[ship.type];
   return (100 - ship.durability) * def.repairCostPerPoint;

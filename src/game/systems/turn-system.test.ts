@@ -13,6 +13,7 @@ import {
   executeBuyCannon,
   executeSellCannon,
   executeChooseHeir,
+  executeAuctionShip,
 } from './turn-system.ts';
 import { executeToggleInsurance } from './insurance-system.ts';
 import { executeBuyWarehouse } from './warehouse-system.ts';
@@ -217,6 +218,58 @@ describe('executeRepairShip', () => {
     };
     const next = executeRepairShip(state, shipId);
     expect(next).toBe(state);
+  });
+});
+
+describe('executeAuctionShip', () => {
+  it('removes the ship and pays 80% of purchase price scaled by durability', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
+    };
+    const before = state.player.cash;
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
+    // Kogge purchase price 4000 * 0.8 * 50/100 = 1600
+    expect(next.player.cash).toBe(before + 1600);
+  });
+
+  it('pays full 80% at full durability', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const before = state.player.cash;
+    const next = executeAuctionShip(state, shipId);
+    expect(next.player.cash).toBe(before + 3200); // 4000 * 0.8
+  });
+
+  it('rejects auctioning a ship that is in transit', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: { from: 'lubeck', to: 'hamburg', turnsRemaining: 1 } } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects an unknown ship id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeAuctionShip(state, 'nonexistent');
+    expect(next).toBe(state);
+  });
+
+  it('is not restricted to shipyard cities', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga' as const } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
   });
 });
 
