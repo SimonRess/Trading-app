@@ -43,9 +43,11 @@
   import type { BuildingId } from '../render/city-scene.ts';
   import pkg from '../../package.json';
   import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
+  import { renderMarkdown } from './markdown.ts';
 
   export let gameClient: GameClient;
   const APP_VERSION = pkg.version;
+  const CHANGELOG_HTML = renderMarkdown(CHANGELOG_RAW);
 
   type Screen = 'new-game' | 'map' | 'port' | 'city' | 'turn-summary' | 'game-over';
 
@@ -557,7 +559,7 @@
 
     {#if showChangelog}
       <div class="save-menu changelog-panel">
-        <pre class="changelog-text">{CHANGELOG_RAW}</pre>
+        <div class="changelog-text">{@html CHANGELOG_HTML}</div>
         <button class="link-btn" on:click={() => { showChangelog = false; }}>close</button>
       </div>
     {/if}
@@ -1584,12 +1586,22 @@
     overflow-y: auto;
   }
   .changelog-text {
-    white-space: pre-wrap;
     font-family: inherit;
     font-size: 0.8rem;
     color: #c0a880;
     margin: 0 0 0.6rem 0;
   }
+  .changelog-text :global(h1) { font-size: 1.1rem; color: #f0dca0; margin: 0.4rem 0; }
+  .changelog-text :global(h2) { font-size: 1rem; color: #e8c878; margin: 0.8rem 0 0.3rem; border-bottom: 1px solid #3a2e18; padding-bottom: 0.2rem; }
+  .changelog-text :global(h3) { font-size: 0.9rem; color: #d4a843; margin: 0.6rem 0 0.2rem; }
+  .changelog-text :global(h4) { font-size: 0.85rem; color: #c0a880; margin: 0.5rem 0 0.2rem; }
+  .changelog-text :global(p) { margin: 0.3rem 0; line-height: 1.4; }
+  .changelog-text :global(ul) { margin: 0.2rem 0 0.5rem; padding-left: 1.2rem; }
+  .changelog-text :global(li) { margin: 0.2rem 0; line-height: 1.4; }
+  .changelog-text :global(strong) { color: #f0dca0; }
+  .changelog-text :global(code) { background: #1c1508; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.75rem; }
+  .changelog-text :global(a) { color: #d4a843; }
+  .changelog-text :global(hr) { border: none; border-top: 1px solid #3a2e18; margin: 0.6rem 0; }
 
   .season-info {
     padding: 0.6rem 1.2rem;
