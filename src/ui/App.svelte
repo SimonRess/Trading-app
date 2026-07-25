@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
-  import { currentPrice } from '../game/systems/market-system.ts';
+  import { currentPrice, resolveTradeStepped } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoSpace, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { RANK_LABELS, RANK_THRESHOLDS } from '../game/systems/political-system.ts';
@@ -36,6 +36,7 @@
     warehouseSellValue,
   } from '../game/systems/warehouse-system.ts';
   import { PARTNER_TYPES, MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE, TRAITS } from '../game/data/family.ts';
+  import { traitPurchasePriceFactor } from '../game/systems/family-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
@@ -104,6 +105,30 @@
   const GOOD_IDS = Object.keys(GOODS) as GoodId[];
   const CITY_IDS = Object.keys(CITIES) as CityId[];
   const SHIP_TYPE_IDS = Object.keys(SHIP_TYPES) as ShipType[];
+
+  const POSTURE_IDS: Ship['posture'][] = ['aggressive', 'defensive', 'flee'];
+  const POSTURE_LABELS: Record<Ship['posture'], string> = {
+    aggressive: 'Aggressive',
+    defensive: 'Defensive',
+    flee: 'Flee',
+  };
+  const POSTURE_DESCRIPTIONS: Record<Ship['posture'], string> = {
+    aggressive: 'fight back at full strength; better odds, cannons and crew matter most.',
+    defensive: 'fight back cautiously; the safe default.',
+    flee: 'always escape, but jettison some cargo doing it.',
+  };
+
+  // Bulk orders move the price against the trader as they fill (see
+  // resolveTradeStepped, market-system.ts) — these compute the same
+  // preview client-side, against the current market, so the Buy/Sell
+  // buttons can show the real total/avg-per-unit cost before committing,
+  // not just today's single-unit spot price.
+  function buyPreview(goodId: GoodId, qty: number) {
+    return resolveTradeStepped(state.market[selectedCityId][goodId], qty, 1, traitPurchasePriceFactor(state.player.traits));
+  }
+  function sellPreview(goodId: GoodId, qty: number) {
+    return resolveTradeStepped(state.market[selectedCityId][goodId], qty, -1);
+  }
 
   // Friendly label for the shipyard cards — speedRatio() itself is a raw
   // multiplier relative to the Kogge (1.5 for Hulk, 0.5 for Schnigge);
@@ -221,6 +246,13 @@
     } else {
       errorMsg = 'Cannot auction ship.';
     }
+  }
+
+  async function setPosture(shipId: string, posture: Ship['posture']) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SET_POSTURE', shipId, posture });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot set posture.';
   }
 
   function setRenameDraft(shipId: string, value: string) {
@@ -672,20 +704,24 @@
                       <td>{activeShip.cargo[goodId] ?? 0}</td>
                       <td>
                         {#if selectedCityId === portCity}
+                          {@const preview = buyPreview(goodId, buyQty)}
                           <button
                             class="trade-btn buy"
                             on:click={() => buy(goodId)}
-                            disabled={cargoSpace(activeShip) < buyQty || state.player.cash < currentPrice(cityMarket[goodId]) * buyQty}
-                          >Buy {buyQty}</button>
+                            disabled={cargoSpace(activeShip) < buyQty || state.player.cash < preview.totalCost}
+                            title={buyQty > 1 ? `avg ${preview.avgUnitPrice.toFixed(1)} M/unit (spot ${currentPrice(cityMarket[goodId])} M)` : ''}
+                          >Buy {buyQty} ({preview.totalCost} M)</button>
                         {/if}
                       </td>
                       <td>
                         {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
+                          {@const preview = sellPreview(goodId, sellQty)}
                           <button
                             class="trade-btn sell"
                             on:click={() => sell(goodId)}
                             disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
-                          >Sell {sellQty}</button>
+                            title={sellQty > 1 ? `avg ${preview.avgUnitPrice.toFixed(1)} M/unit (spot ${currentPrice(cityMarket[goodId])} M)` : ''}
+                          >Sell {sellQty} ({preview.totalCost} M)</button>
                         {/if}
                       </td>
                     </tr>
@@ -781,6 +817,20 @@
                       on:click={() => buyCannon(s.id)}
                       disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
                     >+1</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Posture if pirates strike: <strong>{POSTURE_LABELS[s.posture]}</strong> — {POSTURE_DESCRIPTIONS[s.posture]}
+                    </span>
+                    <div class="posture-btns">
+                      {#each POSTURE_IDS as postureId}
+                        <button
+                          class="nav-btn"
+                          class:active={s.posture === postureId}
+                          on:click={() => setPosture(s.id, postureId)}
+                        >{POSTURE_LABELS[postureId]}</button>
+                      {/each}
+                    </div>
                   </div>
                   <div class="shipyard-row">
                     <span class="shipyard-info">
@@ -1128,20 +1178,24 @@
                   <td>{activeShip.cargo[goodId] ?? 0}</td>
                   <td>
                     {#if selectedCityId === portCity}
+                      {@const preview = buyPreview(goodId, buyQty)}
                       <button
                         class="trade-btn buy"
                         on:click={() => buy(goodId)}
-                        disabled={cargoSpace(activeShip) < buyQty || state.player.cash < currentPrice(cityMarket[goodId]) * buyQty}
-                      >Buy {buyQty}</button>
+                        disabled={cargoSpace(activeShip) < buyQty || state.player.cash < preview.totalCost}
+                        title={buyQty > 1 ? `avg ${preview.avgUnitPrice.toFixed(1)} M/unit (spot ${currentPrice(cityMarket[goodId])} M)` : ''}
+                      >Buy {buyQty} ({preview.totalCost} M)</button>
                     {/if}
                   </td>
                   <td>
                     {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
+                      {@const preview = sellPreview(goodId, sellQty)}
                       <button
                         class="trade-btn sell"
                         on:click={() => sell(goodId)}
                         disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
-                      >Sell {sellQty}</button>
+                        title={sellQty > 1 ? `avg ${preview.avgUnitPrice.toFixed(1)} M/unit (spot ${currentPrice(cityMarket[goodId])} M)` : ''}
+                      >Sell {sellQty} ({preview.totalCost} M)</button>
                     {/if}
                   </td>
                 </tr>
@@ -1251,6 +1305,20 @@
                       on:click={() => buyCannon(s.id)}
                       disabled={s.cannons >= CANNON_MAX[s.type] || state.player.cash < CANNON_PRICE || cargoTotal(s) > cargoCapacity(s) - 2}
                     >+1</button>
+                  </div>
+                  <div class="shipyard-row">
+                    <span class="shipyard-info">
+                      Posture if pirates strike: <strong>{POSTURE_LABELS[s.posture]}</strong> — {POSTURE_DESCRIPTIONS[s.posture]}
+                    </span>
+                    <div class="posture-btns">
+                      {#each POSTURE_IDS as postureId}
+                        <button
+                          class="nav-btn"
+                          class:active={s.posture === postureId}
+                          on:click={() => setPosture(s.id, postureId)}
+                        >{POSTURE_LABELS[postureId]}</button>
+                      {/each}
+                    </div>
                   </div>
                   <div class="shipyard-row">
                     <span class="shipyard-info">
@@ -1541,6 +1609,8 @@
     color: #c0a880;
   }
   .nav-btn.active { background: #3a2810; border-color: #c09040; color: #f0dca0; }
+
+  .posture-btns { display: flex; gap: 0.3rem; }
 
   .layout { display: flex; flex: 1; overflow: hidden; }
 

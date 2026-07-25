@@ -14,6 +14,7 @@ import {
   executeRenameShip,
   executeChooseHeir,
   executeAuctionShip,
+  executeSetPosture,
 } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
@@ -112,6 +113,10 @@ export class LocalGameClient implements GameClient {
 
       case 'TOGGLE_INSURANCE':
         this.state = executeToggleInsurance(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'SET_POSTURE':
+        this.state = executeSetPosture(this.state, action.shipId, action.posture);
         return Promise.resolve(this.state);
 
       case 'BUY_WAREHOUSE':

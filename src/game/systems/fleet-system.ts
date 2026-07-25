@@ -8,6 +8,7 @@ import {
   speedRatio,
   CANNON_CARGO_COST,
 } from '../data/ships.ts';
+import type { CombatResult } from './combat-system.ts';
 
 export function isInTransit(ship: Ship): ship is Ship & { position: { from: CityId; to: CityId; turnsRemaining: number } } {
   return typeof ship.position !== 'string';
@@ -89,31 +90,57 @@ export function applyStormDamage(
   return { fleet: { ships }, wrecked };
 }
 
-// targetShipId is chosen by the caller (event-system.ts), weighted by
-// route pirate-risk — this function only applies the raid once a target is
-// already decided, keeping the RNG centralised in one place.
-export function applyPirateRaid(
+// Applies a CombatResult (event-system.ts's pirate_raid, via
+// combat-system.ts's resolveCombat) to the targeted ship: cargo lost to
+// the fraction rolled, any victory loot added back (capped by remaining
+// cargo space), and durability reduced. A ship whose durability reaches 0
+// is removed from the fleet entirely — same "wrecked/sunk" fate and same
+// pattern as applyStormDamage, just triggered by combat instead of
+// weather. Does not decide the outcome itself (that's resolveCombat's
+// job) — this only ever applies a result that's already been rolled,
+// keeping the RNG centralised in combat-system.ts.
+export function applyCombatOutcome(
   fleet: FleetState,
   targetShipId: string,
-): { fleet: FleetState; raidedShipName: string | null; loot: Partial<Record<GoodId, number>> } {
+  result: CombatResult,
+): { fleet: FleetState; sunk: boolean; shipName: string | null } {
   const target = fleet.ships.find(s => s.id === targetShipId);
-  if (!target) return { fleet, raidedShipName: null, loot: {} };
+  if (!target) return { fleet, sunk: false, shipName: null };
 
-  const loot: Partial<Record<GoodId, number>> = {};
-  const newCargo: Partial<Record<GoodId, number>> = {};
-  for (const [goodId, qty] of Object.entries(target.cargo) as Array<[GoodId, number]>) {
-    if (!qty) continue;
-    const seized = Math.floor(qty * 0.15);
-    loot[goodId] = seized;
-    const remaining = qty - seized;
-    if (remaining > 0) newCargo[goodId] = remaining;
+  const newDurability = target.durability - result.durabilityLoss;
+  if (newDurability <= 0) {
+    return { fleet: { ships: fleet.ships.filter(s => s.id !== target.id) }, sunk: true, shipName: target.name };
   }
 
-  const ships = fleet.ships.map(s =>
-    s.id === target.id ? { ...s, cargo: newCargo } : s,
-  );
+  let newCargo: Partial<Record<GoodId, number>> = { ...target.cargo };
+  if (result.cargoLossFraction > 0) {
+    const afterLoss: Partial<Record<GoodId, number>> = {};
+    for (const [goodId, qty] of Object.entries(newCargo) as Array<[GoodId, number]>) {
+      if (!qty) continue;
+      const remaining = qty - Math.floor(qty * result.cargoLossFraction);
+      if (remaining > 0) afterLoss[goodId] = remaining;
+    }
+    newCargo = afterLoss;
+  }
 
-  return { fleet: { ships }, raidedShipName: target.name, loot };
+  const lootEntries = Object.entries(result.loot) as Array<[GoodId, number]>;
+  if (lootEntries.length > 0) {
+    const currentTotal = Object.values(newCargo).reduce<number>((sum, qty) => sum + qty, 0);
+    let remainingSpace = cargoCapacity(target) - currentTotal;
+    for (const [goodId, qty] of lootEntries) {
+      if (remainingSpace <= 0) break;
+      const grant = Math.min(qty, remainingSpace);
+      newCargo[goodId] = (newCargo[goodId] ?? 0) + grant;
+      remainingSpace -= grant;
+    }
+  }
+
+  const newShip = { ...target, durability: newDurability, cargo: newCargo };
+  return {
+    fleet: { ships: fleet.ships.map(s => (s.id === target.id ? newShip : s)) },
+    sunk: false,
+    shipName: target.name,
+  };
 }
 
 export function cargoTotal(ship: Ship): number {

@@ -39,6 +39,7 @@ export function buildStartingState(playerName: string): GameState {
           cannons: 0,
           insured: false,
           repairCooldown: 0,
+          posture: 'defensive',
         },
       ],
     },

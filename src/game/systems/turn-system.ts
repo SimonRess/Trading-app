@@ -1,8 +1,8 @@
-import type { GameState, GoodId, CityId, ShipType, Child, CityEffect, LoseReason } from '../state/types.ts';
+import type { GameState, GoodId, CityId, ShipType, Child, CityEffect, LoseReason, Ship } from '../state/types.ts';
 import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
-import { updateAllMarkets, currentPrice, resolveTrade, isEmbargoed } from './market-system.ts';
+import { updateAllMarkets, resolveTradeStepped, isEmbargoed } from './market-system.ts';
 import { advanceShips, setDestination, isInPort, cargoSpace, cargoTotal, cargoCapacity } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
 import { driftRiskState } from './risk-system.ts';
@@ -352,14 +352,13 @@ export function executeBuy(
   if (isEmbargoed(state.cityEffects, cityId, goodId)) return state;
 
   const market = state.market[cityId][goodId];
-  const price = Math.round(currentPrice(market) * traitPurchasePriceFactor(state.player.traits));
-  const totalCost = price * quantity;
+  const { market: nextGoodMarket, totalCost } = resolveTradeStepped(market, quantity, 1, traitPurchasePriceFactor(state.player.traits));
   if (state.player.cash < totalCost) return state;
 
   const newCargo = { ...ship.cargo, [goodId]: (ship.cargo[goodId] ?? 0) + quantity };
   const newShip = { ...ship, cargo: newCargo };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
-  const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: resolveTrade(market, quantity) } };
+  const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: nextGoodMarket } };
   const newPlayer = { ...state.player, cash: state.player.cash - totalCost };
 
   return { ...state, player: newPlayer, fleet: newFleet, market: newMarket };
@@ -379,8 +378,7 @@ export function executeSell(
   if (isEmbargoed(state.cityEffects, cityId, goodId)) return state;
 
   const market = state.market[cityId][goodId];
-  const price = currentPrice(market);
-  const totalRevenue = price * quantity;
+  const { market: nextGoodMarket, totalCost: totalRevenue } = resolveTradeStepped(market, quantity, -1);
 
   const newQty = currentQty - quantity;
   const { [goodId]: _drop, ...rest } = ship.cargo;
@@ -389,7 +387,7 @@ export function executeSell(
 
   const newShip = { ...ship, cargo: newCargo };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
-  const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: resolveTrade(market, -quantity) } };
+  const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: nextGoodMarket } };
   const newPlayer = {
     ...state.player,
     cash: state.player.cash + totalRevenue,
@@ -417,6 +415,7 @@ export function executeBuyShip(state: GameState, cityId: CityId, type: ShipType)
     cannons: 0,
     insured: false,
     repairCooldown: 0,
+    posture: 'defensive' as const,
   };
 
   const newFleet = { ships: [...state.fleet.ships, newShip] };
@@ -455,6 +454,20 @@ export function executeAuctionShip(state: GameState, shipId: string): GameState 
   const newPlayer = { ...state.player, cash: state.player.cash + proceeds };
 
   return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+const SHIP_POSTURES = ['aggressive', 'defensive', 'flee'] as const;
+
+// Pre-battle posture (ADR-010, combat-system.ts) — set anytime, not
+// shipyard-restricted, same as insurance's toggle: it's a standing order,
+// not a physical action on the ship.
+export function executeSetPosture(state: GameState, shipId: string, posture: Ship['posture']): GameState {
+  if (!SHIP_POSTURES.includes(posture)) return state;
+  const ship = state.fleet.ships.find(s => s.id === shipId);
+  if (!ship || ship.posture === posture) return state;
+
+  const newShip = { ...ship, posture };
+  return { ...state, fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) } };
 }
 
 const MAX_SHIP_NAME_LENGTH = 30;

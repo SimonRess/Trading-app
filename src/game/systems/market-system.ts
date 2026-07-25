@@ -22,6 +22,41 @@ export function resolveTrade(
   };
 }
 
+export interface SteppedTradeResult {
+  market: GoodMarket;
+  totalCost: number;
+  avgUnitPrice: number;
+}
+
+// Buying/selling used to price an entire order at a single "spot" unit
+// price (price × quantity), with the market's supply shift only applied
+// once the whole order was already paid for — so a 50-unit order cost
+// exactly 50x today's single-unit price, with no in-transaction price
+// pressure at all. This instead re-derives currentPrice() after each unit
+// (via the existing resolveTrade supply shift), same curve as before, just
+// applied incrementally rather than all at once — so a large order
+// genuinely moves the price against the trader as it's filled. `sign` is
+// +1 for a buy (supply falls, price rises) or -1 for a sell (supply rises,
+// price falls); `unitPriceFactor` applies flat multipliers that don't
+// depend on the market itself (e.g. a Penny-pincher/Simpleton trait).
+export function resolveTradeStepped(
+  market: GoodMarket,
+  quantity: number,
+  sign: 1 | -1,
+  unitPriceFactor = 1,
+): SteppedTradeResult {
+  let currentMarket = market;
+  let totalCost = 0;
+
+  for (let i = 0; i < quantity; i++) {
+    const unitPrice = Math.round(currentPrice(currentMarket) * unitPriceFactor);
+    totalCost += unitPrice;
+    currentMarket = resolveTrade(currentMarket, sign);
+  }
+
+  return { market: currentMarket, totalCost, avgUnitPrice: quantity > 0 ? totalCost / quantity : 0 };
+}
+
 // production/consumption are the underlying flow rates (kept as-is
 // internally, no save-file rename) — conceptually "Supply" and "Demand"
 // per docs/design/event-table.md. supplyBonus/demandBonus come from active

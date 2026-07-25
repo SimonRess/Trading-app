@@ -14,6 +14,7 @@ import {
   executeSellCannon,
   executeChooseHeir,
   executeAuctionShip,
+  executeSetPosture,
 } from './turn-system.ts';
 import { executeToggleInsurance } from './insurance-system.ts';
 import { executeBuyWarehouse } from './warehouse-system.ts';
@@ -217,6 +218,38 @@ describe('executeRepairShip', () => {
       fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
     };
     const next = executeRepairShip(state, shipId);
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeSetPosture', () => {
+  it('sets the posture on the given ship', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeSetPosture(state, shipId, 'aggressive');
+    expect(next.fleet.ships[0]!.posture).toBe('aggressive');
+  });
+
+  it('does not affect other ships', () => {
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
+    state = executeBuyShip(state, 'lubeck', 'kogge');
+    const [first, second] = state.fleet.ships;
+    const next = executeSetPosture(state, first!.id, 'flee');
+    expect(next.fleet.ships.find(s => s.id === first!.id)!.posture).toBe('flee');
+    expect(next.fleet.ships.find(s => s.id === second!.id)!.posture).toBe('defensive');
+  });
+
+  it('rejects an unknown ship id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeSetPosture(state, 'no-such-ship', 'aggressive');
+    expect(next).toBe(state);
+  });
+
+  it('is a no-op if the posture is unchanged', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeSetPosture(state, shipId, 'defensive');
     expect(next).toBe(state);
   });
 });

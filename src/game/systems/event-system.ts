@@ -1,7 +1,8 @@
 import type { GameState, Season, Ship, RiskState, CityId, GoodId, CityEffect } from '../state/types.ts';
 import type { FleetState, MarketState } from '../state/types.ts';
 import { isInTransit, isInPort, cargoSpace } from './fleet-system.ts';
-import { applyStormDamage, applyPirateRaid } from './fleet-system.ts';
+import { applyStormDamage, applyCombatOutcome } from './fleet-system.ts';
+import { resolveCombat } from './combat-system.ts';
 import { ROUTES, findRoute } from '../data/routes.ts';
 import { routeRiskModifier, cityRiskModifier } from './risk-system.ts';
 import { durabilityStormChancePenalty } from '../data/ships.ts';
@@ -233,10 +234,30 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
   } else if (eventId === 'pirate_raid') {
     const target = pickPirateTarget(fleet.ships, state.risk, season);
     if (target) {
-      const result = applyPirateRaid(fleet, target.id);
-      fleet = result.fleet;
-      if (result.raidedShipName !== null) {
-        messages.push(`🏴‍☠️ Pirates intercepted the ${result.raidedShipName}! Part of the cargo was seized.`);
+      const combat = resolveCombat(target, state.risk, season);
+      const applied = applyCombatOutcome(fleet, target.id, combat);
+      fleet = applied.fleet;
+
+      if (applied.shipName) {
+        const strength = combat.playerPower !== null && combat.enemyPower !== null
+          ? ` Your strength: ${String(Math.round(combat.playerPower))} vs. their strength: ${String(Math.round(combat.enemyPower))}.`
+          : '';
+
+        if (applied.sunk) {
+          wreckedShips = [target];
+          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Overwhelmed — the ${applied.shipName} was sunk with all hands and cargo.`);
+        } else if (combat.outcome === 'victory') {
+          const lootDesc = Object.entries(combat.loot)
+            .map(([goodId, qty]) => `${String(qty)} ${GOODS[goodId as GoodId].name}`)
+            .join(', ');
+          messages.push(`⚔️ Pirates intercepted the ${applied.shipName}!${strength} Victory! Captured ${lootDesc || 'nothing — the hold was full'}.`);
+        } else if (combat.outcome === 'defeat') {
+          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Defeated — the ${applied.shipName} took damage and lost cargo fighting them off.`);
+        } else if (combat.outcome === 'flee') {
+          messages.push(`🏳️ Pirates gave chase to the ${applied.shipName} — the crew fled, jettisoning cargo to outrun them.`);
+        } else {
+          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} The crew fought them off and retreated, losing some cargo.`);
+        }
       }
     }
   } else if (eventId === 'market_boom') {

@@ -25,6 +25,14 @@ adds the corresponding `CHANGELOG.md` entry.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-25
+
+### Added
+- **Combat system (ADR-010)** — cannons and crew finally do something. A pirate encounter now resolves via `combat-system.ts`'s power-roll formula (`cannons×10 + crew×2 + posture bonus` vs. a route-scaled enemy roll): **Victory** captures random loot, **Retreat** loses 10-20% cargo, **Defeat** costs 20-40 durability and 30-50% cargo (a ship reduced to 0 durability is sunk and removed from the fleet, same as a storm wreck), and **Flee** (a new ship posture) always escapes at a fixed 20-35% cargo cost. Posture (Aggressive/Defensive/Flee) is set anytime via a new selector in the Shipyard section. Every fought encounter's turn-summary message reports both sides' strength so the outcome is legible, not arbitrary. Insurance covers combat damage automatically — no changes needed there, it already diffs ship state generically. Victory loot is drawn from a fixed random-goods pool for now, not a simulated enemy fleet — deferred, not rejected, pending a future "private fleets with real routes/cargo/ships" pass. See `docs/design/ship-stats.md` "Combat" and `docs/decisions/adr-010-combat.md`.
+
+### Changed
+- **Bulk purchases and sales now move the price as the order fills**, instead of pricing the whole order at a single flat spot price — a 20-unit buy costs progressively more per unit as supply falls during that same order (and a bulk sell earns progressively less as supply rises), via the existing price curve applied per-unit instead of once per order (`resolveTradeStepped`, `market-system.ts`). The Buy/Sell buttons now show the real total cost (e.g. "Buy 20 (127 M)") and a tooltip breaking out the average per-unit price vs. today's spot price, so the cost is visible before committing — a player asked specifically to be able to see this. See `docs/design/market-formula.md` "Bulk-Purchase Price Pressure".
+
 ## [0.4.0] - 2026-07-25
 
 ### Added

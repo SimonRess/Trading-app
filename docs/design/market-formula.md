@@ -184,22 +184,26 @@ Lives in `src/game/systems/market-system.ts`. Pure functions — no side effects
 
 ---
 
-## Bulk-Purchase Price Pressure (Proposed, v1.1)
+## Bulk-Purchase Price Pressure (Implemented, 2026-07-25)
 
-**Status:** Proposed — not implemented, target v1.1 (`mvp-scope.md`'s out-of-scope table)
+**Status:** Implemented, exactly as proposed below — a player asked for it directly ("it needs to be possible for the player to see what price per unit he will pay for a bulk buy").
 
-Currently `executeBuy`/`executeSell` (`turn-system.ts`) compute one price via `currentPrice(market)` and multiply by the full quantity — a 20-unit purchase costs exactly 20× the 1-unit price, with no within-order price movement. This is the explicitly-scoped-out MVP behavior ("no bulk-purchase price bumps — direct buy/sell only"). This section proposes the v1.1 version.
+Previously `executeBuy`/`executeSell` (`turn-system.ts`) computed one price via `currentPrice(market)` and multiplied by the full quantity — a 20-unit purchase cost exactly 20× the 1-unit price, with no within-order price movement.
 
 ### Mechanic
 
-- Instead of one flat price for the whole order, walk `resolveTrade`'s existing supply-delta logic **unit by unit** within a single buy/sell call: each unit bought nudges supply down (raising the price-per-unit for the *next* unit in the same order, per the existing `price_factor(supply)` curve), and each unit sold nudges supply up (lowering it for the next unit). The total cost/revenue is the sum of each unit's price at its own point in that walk, not `unit_price × quantity`.
-- This requires no new formula — `price_factor(supply)` and `resolveTrade`'s supply-clamping already fully describe the curve; bulk pressure is purely a change in *when* the existing curve is sampled (once per unit within an order, instead of once per order).
-- Net effect: large orders get progressively worse pricing as they proceed (buying 50 units of Furs costs meaningfully more than 50× the 1-unit price), which is the entire point — it makes order *sizing* a real decision, not just a multiplier on an already-decided trade.
+`resolveTradeStepped(market, quantity, sign, unitPriceFactor)` (`market-system.ts`) walks `resolveTrade`'s existing supply-delta logic **unit by unit** within a single buy/sell call: each unit bought nudges supply down (raising the price-per-unit for the *next* unit in the same order, per the existing `price_factor(supply)` curve), each unit sold nudges supply up (lowering it for the next). `sign` is `+1` for a buy or `-1` for a sell; `unitPriceFactor` carries the existing trait price modifier (`traitPurchasePriceFactor`) through every step of a buy, same as it applied to the old flat calculation. Returns `{ market, totalCost, avgUnitPrice }` — the total is the sum of each unit's price at its own point in the walk, not `unit_price × quantity`. No new formula was needed — `price_factor(supply)` and `resolveTrade`'s supply-clamping already fully described the curve; bulk pressure is purely a change in *when* it's sampled (once per unit within an order, instead of once per order).
 
-### Open Questions (this section)
+`executeBuy`/`executeSell` call `resolveTradeStepped` instead of a flat `price × quantity`, so large orders now get progressively worse pricing as they fill.
 
-- Performance: looping per-unit for very large orders (is there a practical quantity cap, or does the existing `cargoSpace`-bounded order size make this a non-issue in practice — likely yes, since cargo capacity is 20–100 last per ship, not thousands)?
-- Should the UI show a projected total cost that reflects the walked price (not just `displayed_unit_price × quantity`) before the player commits to a large order? Almost certainly yes — showing a misleadingly-cheap flat estimate for what will actually cost more once bulk pressure applies would be a discoverability trap, not a fun surprise.
+### UI
+
+The Buy/Sell buttons (Trading Post — both City and List views) show the real total cost, not the misleading `spot price × quantity` estimate: `Buy 20 (127 M)` rather than just `Buy 20`. A `title` tooltip on the button additionally breaks out the average per-unit price vs. the current spot price once quantity > 1 (e.g. "avg 6.3 M/unit (spot 5 M)"), computed client-side via the same `resolveTradeStepped` against the live market state — so the divergence between "today's single-unit price" and "what this order will actually cost" is visible before committing, not just in the result. The disabled/afford check now also compares against the real stepped total, not the old flat estimate, which was a latent inconsistency (a large order could previously show as affordable by the flat check while the actual — now-implemented — cost would exceed cash).
+
+### Resolved Open Questions (from the original proposal)
+
+- Performance: negligible — cargo capacity (20-100 last per ship) bounds order size, so the per-unit loop is at most ~100 iterations.
+- The UI does show the real projected cost (see above) rather than a misleading flat estimate.
 
 ## Open Questions
 
