@@ -38,6 +38,7 @@ export function buildStartingState(playerName: string): GameState {
           crew: defaultCrew('kogge'),
           cannons: 0,
           insured: false,
+          repairCooldown: 0,
         },
       ],
     },

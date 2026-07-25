@@ -124,11 +124,12 @@ describe('executeSell', () => {
 
 describe('executeBuyShip', () => {
   it('deducts cash and adds a new ship in port', () => {
-    const state = buildStartingState('TestPlayer');
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
     const before = state.player.cash;
     const next = executeBuyShip(state, 'lubeck', 'kogge');
     expect(next.fleet.ships).toHaveLength(2);
-    expect(next.player.cash).toBe(before - 400);
+    expect(next.player.cash).toBe(before - 4000);
     const newShip = next.fleet.ships[1]!;
     expect(newShip.position).toBe('lubeck');
     expect(newShip.durability).toBe(100);
@@ -159,17 +160,18 @@ describe('executeBuyShip', () => {
 
   it('buys a Hulk at its own price and capacity', () => {
     const state = buildStartingState('TestPlayer');
-    const richState = { ...state, player: { ...state.player, cash: 1000 } };
+    const richState = { ...state, player: { ...state.player, cash: 10_000 } };
     const next = executeBuyShip(richState, 'lubeck', 'hulk');
-    expect(next.player.cash).toBe(1000 - 800);
+    expect(next.player.cash).toBe(10_000 - 8000);
     expect(next.fleet.ships[1]!.type).toBe('hulk');
   });
 
   it('buys a Schnigge at its own price', () => {
-    const state = buildStartingState('TestPlayer');
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
     const before = state.player.cash;
     const next = executeBuyShip(state, 'lubeck', 'schnigge');
-    expect(next.player.cash).toBe(before - 250);
+    expect(next.player.cash).toBe(before - 2500);
     expect(next.fleet.ships[1]!.type).toBe('schnigge');
   });
 });
@@ -443,7 +445,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const almostDone = {
       ...state,
-      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 99, churchPledged: 100 } },
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 99, churchPledged: 500 } },
     };
     const { state: next, summary } = resolveTurn(almostDone, { destinations: {} });
     expect(next.cities.hamburg.churchCompletion).toBe(100);
@@ -454,7 +456,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const pledged = {
       ...state,
-      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 100 } },
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 500 } },
     };
     const { summary } = resolveTurn(pledged, { destinations: {} });
     expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('+1%'))).toBe(true);
@@ -538,7 +540,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const wonButBroke = {
       ...state,
-      player: { ...state.player, cash: -1_000, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
+      player: { ...state.player, cash: -10_000, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
       hasWon: true,
     };
     const { summary } = resolveTurn(wonButBroke, { destinations: {} });

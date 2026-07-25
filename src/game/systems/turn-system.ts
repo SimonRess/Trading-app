@@ -89,6 +89,10 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(`⚓ ${ship.name} arrived in ${city}.`);
   }
 
+  // Step 3b: Tick down repair cooldowns — a repaired ship sits in dock for
+  // 1 turn before it can depart again (docs/design/ship-stats.md).
+  fleet = { ships: fleet.ships.map(s => (s.repairCooldown > 0 ? { ...s, repairCooldown: s.repairCooldown - 1 } : s)) };
+
   // Step 4: Update market (natural economy — before player trades), using
   // last turn's active city effects (market boosts, plague) — this turn's
   // own event (if any) only starts affecting the market next turn, see
@@ -411,6 +415,7 @@ export function executeBuyShip(state: GameState, cityId: CityId, type: ShipType)
     crew: defaultCrew(type),
     cannons: 0,
     insured: false,
+    repairCooldown: 0,
   };
 
   const newFleet = { ships: [...state.fleet.ships, newShip] };
@@ -427,7 +432,7 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
   const cost = repairCost(ship);
   if (state.player.cash < cost) return state;
 
-  const newShip = { ...ship, durability: 100 };
+  const newShip = { ...ship, durability: 100, repairCooldown: 1 };
   const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - cost };
 

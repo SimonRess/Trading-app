@@ -68,10 +68,10 @@ describe('computeInsurancePayouts', () => {
     const state = buildStartingState('TestPlayer');
     const insured = executeToggleInsurance(state, state.fleet.ships[0]!.id);
     const pre = insured.fleet.ships;
-    // Kogge purchase price 400; 20-point durability loss = 80 Mark value lost.
+    // Kogge purchase price 4000; 20-point durability loss = 800 Mark value lost.
     const post = [{ ...insured.fleet.ships[0]!, durability: pre[0]!.durability - 20 }];
     const result = computeInsurancePayouts(pre, post);
-    expect(result.totalPayout).toBe(40);
+    expect(result.totalPayout).toBe(400);
     expect(result.messages[0]).toContain('storm damage');
   });
 

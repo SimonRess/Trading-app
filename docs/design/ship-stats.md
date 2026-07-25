@@ -17,7 +17,7 @@ The Kogge is the Hanseatic workhorse: reliable, widely available, and affordable
 |------|-------|------|----------|
 | **Cargo capacity** | 50 last | 100 last | 20 last |
 | **Speed** | Baseline (1×) | 1.5× slower | 2× faster |
-| **Purchase price** | 400 Mark | 800 Mark | 250 Mark |
+| **Purchase price** | 4,000 Mark | 8,000 Mark | 2,500 Mark |
 | **Repair cost** | 2 Mark/durability point | 2 Mark/durability point | 2 Mark/durability point |
 
 Shared across all types:
@@ -66,7 +66,7 @@ Ships contribute to the player's net worth for win/lose evaluation:
 ship_value = purchase_price × (durability / 100)
 ```
 
-A fully intact Kogge is worth 400 Mark. A critical Kogge (25 durability) is worth 100 Mark.
+A fully intact Kogge is worth 4,000 Mark. A critical Kogge (25 durability) is worth 1,000 Mark. (Prices raised ×10 from the original 400/800/250 Mark — 2026-07-25, per player feedback that ship prices were too low relative to trading income.)
 
 Ship value is one of the three components of total net worth (cash + ship value + cargo value). Cargo is valued at each good's fixed base price. See **ADR-014** and `mvp-scope.md` for the full net-worth definition.
 
@@ -173,7 +173,7 @@ export const MAX_SHIPS = 3;
 Both actions are only available while a ship is **in port at a shipyard city** (`SHIPYARD_CITIES`), shown as a "Shipyard" section in the port view.
 
 - **Buy ship** — the Shipyard section shows a card per ship type (capacity, price, speed relative to the Kogge — "standard speed" / "1.5x slower" / "2x faster", derived from `speedRatio()` — and a one-line description) with its own Buy button, each independently disabled if the fleet is at `MAX_SHIPS` (3, shared across all types) or the player can't afford that specific type. Spawns a new ship of the chosen type at full durability and empty cargo in the current port.
-- **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark (same rate for every type). There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs.
+- **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark (same rate for every type). There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs. A repaired ship also sits in dock for **1 turn** before it can depart again (`Ship.repairCooldown`, ticked down once per turn in `resolveTurn`) — a repair takes a turn, not an instant fix. (2026-07-25, per player feedback.)
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 

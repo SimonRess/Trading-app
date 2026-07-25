@@ -589,6 +589,10 @@
                     ⚠️ {activeShip.name} is critically damaged ({activeShip.durability}/100) and cannot depart.
                     Repair it at a shipyard before setting sail.
                   </p>
+                {:else if activeShip.repairCooldown > 0}
+                  <p class="order-note critical">
+                    ⚠️ {activeShip.name} is still in dock being repaired and cannot depart this turn.
+                  </p>
                 {:else}
                   <div class="dest-btns">
                     {#each reachableCities(activeShip) as dest}
@@ -826,7 +830,7 @@
                   disabled={!donationAmount || donationAmount < 1 || state.player.cash < donationAmount}
                 >Donate</button>
               </div>
-              <p class="order-note muted">50 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 100 Mark ≈ 1 reputation in {CITIES[selectedCityId].name} (right away).</p>
+              <p class="order-note muted">500 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 1000 Mark ≈ 1 reputation in {CITIES[selectedCityId].name} (right away).</p>
             {/if}
 
             {#if errorMsg}
@@ -938,6 +942,7 @@
               {/each}
             </div>
             <p class="order-note muted">Inhabitants: {CITIES[selectedCityId].population.toLocaleString()}</p>
+            <p class="order-note muted">Reputation: {state.player.reputation[selectedCityId]}</p>
             {@const activeEffects = state.cityEffects.filter(e => e.cityId === selectedCityId)}
             {#if activeEffects.length === 0}
               <p class="order-note muted">No active effects.</p>
@@ -1128,6 +1133,10 @@
               <p class="order-note critical">
                 ⚠️ {activeShip.name} is critically damaged ({activeShip.durability}/100) and cannot depart.
                 Repair it at a shipyard before setting sail.
+              </p>
+            {:else if activeShip.repairCooldown > 0}
+              <p class="order-note critical">
+                ⚠️ {activeShip.name} is still in dock being repaired and cannot depart this turn.
               </p>
             {:else}
               <div class="dest-btns">

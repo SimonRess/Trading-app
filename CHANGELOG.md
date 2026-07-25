@@ -25,6 +25,19 @@ adds the corresponding `CHANGELOG.md` entry.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-25
+
+### Added
+- **Reputation is now shown for every city in the Town Hall**, not just Lübeck — a player got a Malmö reputation-damage event and had no way to see the resulting number. The City Status panel now shows the selected city's reputation alongside its population.
+
+### Changed
+- **Ship purchase prices raised ×10** (Kogge 400→4,000, Hulk 800→8,000, Schnigge 250→2,500 Mark) — ships were too cheap relative to trading income.
+- **Church donation rates raised ×10** (500 Mark per 1% completion, 1,000 Mark per reputation point, up from 50/100) — to stay proportional with the ship price increase.
+- **Repairing a ship now takes 1 turn in dock** before it can depart again (`Ship.repairCooldown`), instead of being an instant fix — a player expected a repair to have some downtime cost.
+
+### Fixed
+- **A route with a ship on it always showed the plain "active" gold colour on the map, even during a storm** — a player reported a storm hitting the Baltic two turns running in winter without the route ever showing red. Root cause: `map-scene.ts`'s route-colouring picked `isActive ? ROUTE_ACTIVE_COLOR : dangerColor` — an active route (ship currently sailing it) unconditionally discarded the danger tint. Fixed by blending the two colours instead, so a dangerous route with a ship on it now reads as a red-tinged gold rather than losing the danger signal.
+
 ## [0.2.0] - 2026-07-25
 
 ### Added

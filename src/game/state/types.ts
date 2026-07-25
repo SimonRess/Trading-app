@@ -92,6 +92,11 @@ export interface Ship {
   // INSURANCE_PAYOUT_RATE of any storm damage/pirate cargo loss that turn
   // — see docs/design/insurance.md, insurance-system.ts.
   insured: boolean;
+  // Turns left before this ship can depart again, set to 1 by
+  // executeRepairShip and decremented once per turn in resolveTurn — a
+  // repair takes a turn in dock, not an instant fix. 0 the rest of the
+  // time. See docs/design/ship-stats.md.
+  repairCooldown: number;
 }
 
 export interface FleetState {

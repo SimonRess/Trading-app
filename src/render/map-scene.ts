@@ -517,13 +517,20 @@ export class MapScene {
       // "above average" half of that range onto the calm->danger gradient.
       const dangerT = (danger - 1.0) / (RISK_FACTOR_MAX - 1.0);
       const dangerColor = lerpColor(ROUTE_COLOR, ROUTE_DANGER_COLOR, dangerT);
+      // An active (ship en route) line used to fully replace the danger
+      // tint with plain gold, which hid exactly the case a player most
+      // needs to see: a ship currently sailing a route that's genuinely
+      // dangerous right now. Blend the two instead so a dangerous+active
+      // route reads as a red-tinged gold rather than losing the danger
+      // signal entirely.
+      const routeColor = isActive ? lerpColor(dangerColor, ROUTE_ACTIVE_COLOR, 0.5) : dangerColor;
 
       const line = new Graphics()
         .moveTo(from.x, from.y)
         .lineTo(to.x, to.y)
         .stroke({
           width: isActive ? 4 : 2.5,
-          color: isActive ? ROUTE_ACTIVE_COLOR : dangerColor,
+          color: routeColor,
           alpha: isActive ? 0.95 : 0.8,
         });
       this.routeLayer.addChild(line);

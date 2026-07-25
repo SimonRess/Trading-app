@@ -14,6 +14,7 @@ const shipInTransit = (overrides?: Partial<Ship>): Ship => ({
   crew: 8,
   cannons: 0,
   insured: false,
+  repairCooldown: 0,
   ...overrides,
 });
 

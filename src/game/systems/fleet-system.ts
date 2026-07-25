@@ -21,6 +21,7 @@ export function setDestination(ship: Ship, destination: CityId): Ship {
   if (!isInPort(ship)) return ship;
   if (ship.position === destination) return ship;
   if (!canDepart(ship.durability)) return ship;
+  if (ship.repairCooldown > 0) return ship;
 
   const route = findRoute(ship.position, destination);
   if (!route) return ship;

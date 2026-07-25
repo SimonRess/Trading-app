@@ -5,52 +5,56 @@ import { donateChurch, advanceChurchProgress } from './church-system.ts';
 describe('donateChurch', () => {
   it('deducts cash', () => {
     const state = buildStartingState('TestPlayer');
-    const next = donateChurch(state, 'hamburg', 100);
-    expect(next.player.cash).toBe(state.player.cash - 100);
+    const rich = { ...state, player: { ...state.player, cash: 5000 } };
+    const next = donateChurch(rich, 'hamburg', 1000);
+    expect(next.player.cash).toBe(rich.player.cash - 1000);
   });
 
   it('pledges the amount without moving completion yet', () => {
     const state = buildStartingState('TestPlayer');
-    const before = state.cities.hamburg.churchCompletion;
-    const next = donateChurch(state, 'hamburg', 100);
+    const rich = { ...state, player: { ...state.player, cash: 5000 } };
+    const before = rich.cities.hamburg.churchCompletion;
+    const next = donateChurch(rich, 'hamburg', 1000);
     expect(next.cities.hamburg.churchCompletion).toBe(before);
-    expect(next.cities.hamburg.churchPledged).toBe(100);
+    expect(next.cities.hamburg.churchPledged).toBe(1000);
   });
 
   it('does not affect other cities', () => {
     const state = buildStartingState('TestPlayer');
-    const before = state.cities.riga.churchPledged;
-    const next = donateChurch(state, 'hamburg', 100);
+    const rich = { ...state, player: { ...state.player, cash: 5000 } };
+    const before = rich.cities.riga.churchPledged;
+    const next = donateChurch(rich, 'hamburg', 1000);
     expect(next.cities.riga.churchPledged).toBe(before);
   });
 
   it('caps the accepted amount at the city\'s remaining capacity', () => {
     const state = buildStartingState('TestPlayer');
-    const rich = { ...state, player: { ...state.player, cash: 100_000 } };
-    // Hamburg starts at 25% -> 75 percentage points remaining = 3,750 Mark capacity.
-    const next = donateChurch(rich, 'hamburg', 10_000);
-    expect(next.cities.hamburg.churchPledged).toBe(3_750);
-    expect(next.player.cash).toBe(rich.player.cash - 3_750);
+    const rich = { ...state, player: { ...state.player, cash: 1_000_000 } };
+    // Hamburg starts at 25% -> 75 percentage points remaining = 37,500 Mark capacity.
+    const next = donateChurch(rich, 'hamburg', 100_000);
+    expect(next.cities.hamburg.churchPledged).toBe(37_500);
+    expect(next.player.cash).toBe(rich.player.cash - 37_500);
   });
 
   it('rejects further donations once a city has no remaining capacity', () => {
     const state = buildStartingState('TestPlayer');
     const complete = { ...state, cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 100 } } };
-    const next = donateChurch(complete, 'hamburg', 100);
+    const next = donateChurch(complete, 'hamburg', 1000);
     expect(next).toBe(complete);
   });
 
-  it('increases reputation in the target city immediately (100 Mark per point)', () => {
+  it('increases reputation in the target city immediately (1000 Mark per point)', () => {
     const state = buildStartingState('TestPlayer');
-    const before = state.player.reputation.hamburg;
-    const next = donateChurch(state, 'hamburg', 250);
+    const rich = { ...state, player: { ...state.player, cash: 5000 } };
+    const before = rich.player.reputation.hamburg;
+    const next = donateChurch(rich, 'hamburg', 2500);
     expect(next.player.reputation.hamburg).toBe(before + 3);
   });
 
   it('rejects a donation larger than current cash', () => {
     const state = buildStartingState('TestPlayer');
     const poor = { ...state, player: { ...state.player, cash: 10 } };
-    const next = donateChurch(poor, 'hamburg', 100);
+    const next = donateChurch(poor, 'hamburg', 1000);
     expect(next.cities.hamburg.churchPledged).toBe(10);
   });
 
@@ -63,7 +67,7 @@ describe('donateChurch', () => {
   it('does not mutate the input state', () => {
     const state = buildStartingState('TestPlayer');
     const before = JSON.parse(JSON.stringify(state)) as typeof state;
-    donateChurch(state, 'hamburg', 100);
+    donateChurch(state, 'hamburg', 1000);
     expect(state).toEqual(before);
   });
 });
@@ -75,17 +79,17 @@ describe('advanceChurchProgress', () => {
     expect(cities).toEqual(state.cities);
   });
 
-  it('converts at most 50 Mark (1%) of pledged funds per turn', () => {
+  it('converts at most 500 Mark (1%) of pledged funds per turn', () => {
     const state = buildStartingState('TestPlayer');
-    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 200 } };
+    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 2000 } };
     const { cities } = advanceChurchProgress(pledged);
     expect(cities.hamburg.churchCompletion).toBe(state.cities.hamburg.churchCompletion + 1);
-    expect(cities.hamburg.churchPledged).toBe(150);
+    expect(cities.hamburg.churchPledged).toBe(1500);
   });
 
   it('reports every city that gained progress this turn', () => {
     const state = buildStartingState('TestPlayer');
-    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 200 } };
+    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 2000 } };
     const { progressed } = advanceChurchProgress(pledged);
     expect(progressed).toEqual([{ cityId: 'hamburg', gained: 1, completion: state.cities.hamburg.churchCompletion + 1 }]);
   });
@@ -98,7 +102,7 @@ describe('advanceChurchProgress', () => {
 
   it('spreads a large pledge across multiple calls (turns)', () => {
     const state = buildStartingState('TestPlayer');
-    let cities = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 150 } };
+    let cities = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 1500 } };
     const startCompletion = cities.hamburg.churchCompletion;
 
     ({ cities } = advanceChurchProgress(cities));
@@ -113,11 +117,11 @@ describe('advanceChurchProgress', () => {
   it('reports a city as completed only on the turn it first reaches 100%', () => {
     const state = buildStartingState('TestPlayer');
     // 74% + 1% = 75%, not yet complete.
-    let cities = { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 74, churchPledged: 100 } };
+    let cities = { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 74, churchPledged: 1000 } };
     let result = advanceChurchProgress(cities);
     expect(result.completedCities).toEqual([]);
 
-    cities = { ...result.cities, hamburg: { ...result.cities.hamburg, churchCompletion: 99, churchPledged: 50 } };
+    cities = { ...result.cities, hamburg: { ...result.cities.hamburg, churchCompletion: 99, churchPledged: 500 } };
     result = advanceChurchProgress(cities);
     expect(result.cities.hamburg.churchCompletion).toBe(100);
     expect(result.completedCities).toEqual(['hamburg']);
@@ -129,7 +133,7 @@ describe('advanceChurchProgress', () => {
 
   it('does not mutate the input', () => {
     const state = buildStartingState('TestPlayer');
-    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 100 } };
+    const pledged = { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 1000 } };
     const before = JSON.parse(JSON.stringify(pledged)) as typeof pledged;
     advanceChurchProgress(pledged);
     expect(pledged).toEqual(before);
