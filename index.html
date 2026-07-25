@@ -3,9 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- GitHub Pages doesn't let us set real Cache-Control headers, and this
+         shell file isn't content-hashed like the built assets are, so a
+         browser can hold a stale copy (pointing at old script/css hashes)
+         past a deploy. This is a best-effort browser-side hint only — it
+         does not affect any CDN edge cache in front of Pages, so a stale
+         load can still require one hard refresh after a deploy. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Hanse – Die Expedition</title>
-    <script type="module" crossorigin src="/Trading-app/assets/index-CIt3Age3.js"></script>
-    <link rel="stylesheet" crossorigin href="/Trading-app/assets/index-Cji4crM1.css">
+    <script type="module" crossorigin src="/Trading-app/assets/index-DHhrHqy_.js"></script>
+    <link rel="stylesheet" crossorigin href="/Trading-app/assets/index-BHY8Rxny.css">
   </head>
   <body>
     <div id="app"></div>
