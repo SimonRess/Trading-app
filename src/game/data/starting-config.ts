@@ -10,9 +10,14 @@ export function buildStartingState(playerName: string): GameState {
       name: playerName,
       cash: 500,
       age: 22,
+      gender: 'male',
       maritalStatus: 'single',
       politicalRank: 0,
       loan: 0,
+      health: 100,
+      partner: null,
+      children: [],
+      traits: [],
       reputation: {
         lubeck: 20,
         hamburg: 10,
@@ -51,10 +56,15 @@ export function buildStartingState(playerName: string): GameState {
       year: 1320,
       season: 'spring' as Season,
       turn: 1,
-      maxTurns: 40,
+      // Effectively unbounded — see docs/design/family-succession.md.
+      // The session now ends via death (with or without an heir) or a
+      // Mayor-of-Lübeck win, not a turn counter.
+      maxTurns: 999_999,
     },
     risk: buildInitialRiskState(),
     hasWon: false,
     warehouses: {},
+    cityEffects: [],
+    pendingSuccession: null,
   };
 }

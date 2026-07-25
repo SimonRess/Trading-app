@@ -1,9 +1,25 @@
-import type { CityId, PlayerState, PoliticalRank } from '../state/types.ts';
+import type { CityId, PlayerState, PoliticalRank, TraitId } from '../state/types.ts';
 
-// Reputation is earned, not spent — capped at 100, never decays in this
-// pass (see docs/design/political-rank.md "Non-Goals").
+// Reputation is earned, not spent by default — capped at 100. It can now
+// lose ground via the "immoral activities at a gathering" random event
+// (event-system.ts), not idle-turn decay — see docs/design/
+// political-rank.md "Non-Goals" and event-table.md.
 const REPUTATION_PER_SALE = 1;
 const REPUTATION_CAP = 100;
+
+// Charismatic boosts gains and softens losses; Hot-tempered only worsens
+// losses (does not affect gains) — see docs/design/family-succession.md
+// "Traits".
+function reputationGainMultiplier(traits: TraitId[]): number {
+  return traits.includes('charismatic') ? 1.1 : 1;
+}
+
+function reputationLossMultiplier(traits: TraitId[]): number {
+  let multiplier = 1;
+  if (traits.includes('charismatic')) multiplier *= 0.9;
+  if (traits.includes('hot-tempered')) multiplier *= 1.1;
+  return multiplier;
+}
 
 // `amount` defaults to the flat per-sale gain, but callers earning
 // reputation a different way (e.g. church-system.ts's donateChurch, scaled
@@ -12,8 +28,21 @@ export function gainReputation(
   reputation: PlayerState['reputation'],
   cityId: CityId,
   amount: number = REPUTATION_PER_SALE,
+  traits: TraitId[] = [],
 ): PlayerState['reputation'] {
-  const next = Math.min(REPUTATION_CAP, reputation[cityId] + amount);
+  const scaled = Math.round(amount * reputationGainMultiplier(traits));
+  const next = Math.min(REPUTATION_CAP, reputation[cityId] + scaled);
+  return { ...reputation, [cityId]: next };
+}
+
+export function loseReputation(
+  reputation: PlayerState['reputation'],
+  cityId: CityId,
+  amount: number,
+  traits: TraitId[] = [],
+): PlayerState['reputation'] {
+  const scaled = Math.round(amount * reputationLossMultiplier(traits));
+  const next = Math.max(0, reputation[cityId] - scaled);
   return { ...reputation, [cityId]: next };
 }
 
@@ -29,7 +58,7 @@ interface RankThreshold {
 // alone would let a low-net-worth player rank up via small repeated trades.
 // Numbers are a first pass, not yet tuned by simulation — see
 // docs/design/political-rank.md "Open Questions".
-const RANK_THRESHOLDS: RankThreshold[] = [
+export const RANK_THRESHOLDS: RankThreshold[] = [
   { rank: 1, netWorth: 1_500, lubeckReputation: 30, label: 'Guild Member' },
   { rank: 2, netWorth: 4_000, lubeckReputation: 50, label: 'Council Member' },
   { rank: 3, netWorth: 10_000, lubeckReputation: 75, label: 'Mayor of Lübeck' },

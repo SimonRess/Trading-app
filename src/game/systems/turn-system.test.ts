@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildStartingState } from '../data/starting-config.ts';
 import {
   resolveTurn,
@@ -12,10 +12,12 @@ import {
   executeReleaseCrew,
   executeBuyCannon,
   executeSellCannon,
+  executeChooseHeir,
 } from './turn-system.ts';
 import { executeToggleInsurance } from './insurance-system.ts';
 import { executeBuyWarehouse } from './warehouse-system.ts';
 import { cannonSellValue } from '../data/ships.ts';
+import type { CityEffect, Child } from '../state/types.ts';
 
 describe('computeNetWorth', () => {
   it('includes cash + ship value + cargo value', () => {
@@ -260,6 +262,51 @@ describe('executeRenameShip', () => {
   });
 });
 
+describe('executeChooseHeir', () => {
+  function pendingState() {
+    // Pin Math.random so child health decay this turn is deterministic
+    // (age/10 exactly, no random component).
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: ['charismatic'], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 70, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB], reputation: { ...state.player.reputation, lubeck: 40 } } };
+    const result = resolveTurn(dying, { destinations: {} }).state;
+    vi.restoreAllMocks();
+    return result;
+  }
+
+  it('applies the chosen child as the new player and clears pendingSuccession', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'b');
+    expect(next.pendingSuccession).toBeNull();
+    expect(next.player.name).toBe('Hans');
+    expect(next.player.age).toBe(12);
+    expect(next.player.health).toBeCloseTo(70 - 12 / 40);
+    expect(next.player.traits).toEqual([]);
+    expect(next.player.reputation.lubeck).toBe(20); // halved from 40, snapshotted at death
+  });
+
+  it('can choose the other candidate too', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'a');
+    expect(next.player.name).toBe('Grete');
+    expect(next.player.traits).toEqual(['charismatic']);
+  });
+
+  it('is a no-op with no pending succession', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeChooseHeir(state, 'a');
+    expect(next).toBe(state);
+  });
+
+  it('is a no-op for an unknown candidate id', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'no-such-child');
+    expect(next).toBe(paused);
+  });
+});
+
 describe('executeHireCrew', () => {
   it('adds one crew and deducts the hire cost at a shipyard city', () => {
     const state = buildStartingState('TestPlayer');
@@ -467,31 +514,34 @@ describe('resolveTurn', () => {
     expect(summary.events.some(e => e.toLowerCase().includes('warehouse'))).toBe(false);
   });
 
-  it('returns win outcome when net worth reaches threshold, and sets hasWon', () => {
+  it('does not win on net worth alone — only reaching Mayor wins (ADR-021)', () => {
     const state = buildStartingState('TestPlayer');
     const richState = { ...state, player: { ...state.player, cash: 9_999 } };
-    // net worth = 9999 cash + 400 ship + cargo — will exceed 10000
-    const { state: next, summary } = resolveTurn(richState, { destinations: {} });
-    expect(summary.outcome).toBe('win');
-    expect(next.hasWon).toBe(true);
+    // net worth exceeds 10,000, but Lübeck reputation doesn't clear the
+    // Mayor threshold, so this must not win.
+    const { summary } = resolveTurn(richState, { destinations: {} });
+    expect(summary.outcome).not.toBe('win');
   });
 
   it('does not re-trigger the win outcome on a later turn once hasWon is set', () => {
     const state = buildStartingState('TestPlayer');
-    const alreadyWon = { ...state, player: { ...state.player, cash: 9_999 }, hasWon: true };
+    const alreadyWon = {
+      ...state,
+      player: { ...state.player, cash: 9_600, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
+      hasWon: true,
+    };
     const { summary } = resolveTurn(alreadyWon, { destinations: {} });
     expect(summary.outcome).toBeNull();
   });
 
-  it('winning does not prevent a later lose outcome (e.g. running out of turns)', () => {
+  it('winning does not prevent a later lose outcome (e.g. bankruptcy)', () => {
     const state = buildStartingState('TestPlayer');
-    const wonButOutOfTime = {
+    const wonButBroke = {
       ...state,
-      player: { ...state.player, cash: 9_999 },
+      player: { ...state.player, cash: -1_000, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
       hasWon: true,
-      calendar: { ...state.calendar, turn: 40, maxTurns: 40 },
     };
-    const { summary } = resolveTurn(wonButOutOfTime, { destinations: {} });
+    const { summary } = resolveTurn(wonButBroke, { destinations: {} });
     expect(summary.outcome).toBe('lose');
   });
 
@@ -503,6 +553,8 @@ describe('resolveTurn', () => {
   });
 
   it('promotes political rank and announces it once thresholds are met', () => {
+    // Pin Math.random so no random event nudges reputation this turn.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const state = buildStartingState('TestPlayer');
     const eligible = {
       ...state,
@@ -511,13 +563,15 @@ describe('resolveTurn', () => {
     const { state: next, summary } = resolveTurn(eligible, { destinations: {} });
     expect(next.player.politicalRank).toBe(1);
     expect(summary.events.some(e => e.includes('Guild'))).toBe(true);
+    vi.restoreAllMocks();
   });
 
   it('reaching Mayor rank triggers a win outcome', () => {
+    // Pin Math.random so no random event (which could nudge Lübeck
+    // reputation) fires this turn — keeps the rank-threshold check
+    // deterministic.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const state = buildStartingState('TestPlayer');
-    // The Mayor threshold's own net-worth bar (10,000) already coincides
-    // with the flat net-worth win condition, so this also exercises that
-    // both conditions land on the same turn without double-counting.
     const eligible = {
       ...state,
       player: { ...state.player, cash: 9_600, reputation: { ...state.player.reputation, lubeck: 75 } },
@@ -525,6 +579,7 @@ describe('resolveTurn', () => {
     const { state: next, summary } = resolveTurn(eligible, { destinations: {} });
     expect(next.player.politicalRank).toBe(3);
     expect(summary.outcome).toBe('win');
+    vi.restoreAllMocks();
   });
 
   it('does not promote rank when only one condition is met', () => {
@@ -532,5 +587,138 @@ describe('resolveTurn', () => {
     const richButUnknown = { ...state, player: { ...state.player, cash: 5_000 } };
     const { state: next } = resolveTurn(richButUnknown, { destinations: {} });
     expect(next.player.politicalRank).toBe(0);
+  });
+
+  it('decays player health every turn', () => {
+    const state = buildStartingState('TestPlayer');
+    const before = state.player.health;
+    const { state: next } = resolveTurn(state, { destinations: {} });
+    expect(next.player.health).toBeLessThan(before);
+  });
+
+  it('decays and can kill a child, reporting it in the turn summary', () => {
+    const state = buildStartingState('TestPlayer');
+    const child: Child = { id: 'c1', name: 'Hans', age: 5, gender: 'male', health: 0, traits: [], tutoredThisYear: false };
+    const withChild = { ...state, player: { ...state.player, children: [child] } };
+    const { state: next, summary } = resolveTurn(withChild, { destinations: {} });
+    expect(next.player.children).toHaveLength(0);
+    expect(summary.events.some(e => e.includes('Hans') && e.includes('died'))).toBe(true);
+  });
+
+  it('succeeds to the oldest eligible child when the player dies', () => {
+    // Pin Math.random so no random event nudges reputation this turn,
+    // keeping the halving math deterministic.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const state = buildStartingState('TestPlayer');
+    const heir: Child = { id: 'heir', name: 'Grete', age: 15, gender: 'female', health: 80, traits: ['charismatic'], tutoredThisYear: false };
+    const tooYoung: Child = { id: 'young', name: 'Peter', age: 5, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = {
+      ...state,
+      player: { ...state.player, health: 0, children: [tooYoung, heir], reputation: { ...state.player.reputation, lubeck: 40 } },
+    };
+    const { state: next, summary } = resolveTurn(dying, { destinations: {} });
+    expect(next.player.name).toBe('Grete');
+    expect(next.player.age).toBe(15);
+    expect(next.player.traits).toEqual(['charismatic']);
+    expect(next.player.maritalStatus).toBe('single');
+    expect(next.player.reputation.lubeck).toBe(20); // halved from 40
+    expect(summary.events.some(e => e.includes('Grete'))).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('loses the game when the player dies with no eligible heir', () => {
+    const state = buildStartingState('TestPlayer');
+    const dying = { ...state, player: { ...state.player, health: 0, children: [] } };
+    const { summary } = resolveTurn(dying, { destinations: {} });
+    expect(summary.outcome).toBe('lose');
+  });
+
+  it('does not select a child under the heir-eligible age', () => {
+    const state = buildStartingState('TestPlayer');
+    const tooYoung: Child = { id: 'young', name: 'Peter', age: 5, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [tooYoung] } };
+    const { summary } = resolveTurn(dying, { destinations: {} });
+    expect(summary.outcome).toBe('lose');
+  });
+
+  it('pauses for a heir choice when more than one child is eligible, instead of auto-picking', () => {
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB] } };
+    const { state: next, summary } = resolveTurn(dying, { destinations: {} });
+    expect(next.pendingSuccession).not.toBeNull();
+    expect(next.pendingSuccession?.candidates.map(c => c.id).sort()).toEqual(['a', 'b']);
+    expect(next.player.name).toBe('TestPlayer'); // unchanged — not yet succeeded
+    expect(summary.outcome).toBeNull(); // paused, not a loss
+    expect(summary.events.some(e => e.includes('Choose'))).toBe(true);
+  });
+
+  it('does not resolve further turns while a heir choice is pending', () => {
+    const state = buildStartingState('TestPlayer');
+    const heirA: Child = { id: 'a', name: 'Grete', age: 15, gender: 'female', health: 80, traits: [], tutoredThisYear: false };
+    const heirB: Child = { id: 'b', name: 'Hans', age: 12, gender: 'male', health: 80, traits: [], tutoredThisYear: false };
+    const dying = { ...state, player: { ...state.player, health: 0, children: [heirA, heirB] } };
+    const { state: paused } = resolveTurn(dying, { destinations: {} });
+    const { state: still, summary } = resolveTurn(paused, { destinations: {} });
+    expect(still).toBe(paused);
+    expect(summary.events).toEqual([]);
+    expect(summary.outcome).toBeNull();
+  });
+
+  it('expires city effects after their duration and applies event-created ones', () => {
+    const state = buildStartingState('TestPlayer');
+    const effect: CityEffect = { cityId: 'hamburg', goodId: 'salt', type: 'embargo', turnsRemaining: 1 };
+    const withEffect = { ...state, cityEffects: [effect] };
+    const { state: next } = resolveTurn(withEffect, { destinations: {} });
+    // The pre-existing effect (turnsRemaining 1) should have expired.
+    expect(next.cityEffects.some(e => e.cityId === 'hamburg' && e.goodId === 'salt')).toBe(false);
+  });
+
+  it('advances a full year (age, birth chance, child growth) on the Spring rollover', () => {
+    const state = buildStartingState('TestPlayer');
+    // calendar starts at spring turn 1; advancing 4 turns rolls into the
+    // next spring, incrementing year and player age.
+    let current = state;
+    for (let i = 0; i < 4; i++) {
+      current = resolveTurn(current, { destinations: {} }).state;
+    }
+    expect(current.calendar.season).toBe('spring');
+    expect(current.player.age).toBe(state.player.age + 1);
+  });
+});
+
+describe('executeBuy trait and embargo interactions', () => {
+  it('applies the penny-pincher discount to purchase price', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const withTrait = { ...state, player: { ...state.player, traits: ['penny-pincher' as const] } };
+    const plain = executeBuy(state, shipId, 'lubeck', 'furs', 10);
+    const discounted = executeBuy(withTrait, shipId, 'lubeck', 'furs', 10);
+    const plainCost = state.player.cash - plain.player.cash;
+    const discountedCost = withTrait.player.cash - discounted.player.cash;
+    expect(discountedCost).toBeLessThan(plainCost);
+  });
+
+  it('rejects buying an embargoed good', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const embargoed = {
+      ...state,
+      cityEffects: [{ cityId: 'lubeck' as const, goodId: 'grain' as const, type: 'embargo' as const, turnsRemaining: 2 }],
+    };
+    const next = executeBuy(embargoed, shipId, 'lubeck', 'grain', 1);
+    expect(next).toBe(embargoed);
+  });
+
+  it('rejects selling an embargoed good', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const embargoed = {
+      ...state,
+      cityEffects: [{ cityId: 'lubeck' as const, goodId: 'salt' as const, type: 'embargo' as const, turnsRemaining: 2 }],
+    };
+    const next = executeSell(embargoed, shipId, 'lubeck', 'salt', 1);
+    expect(next).toBe(embargoed);
   });
 });

@@ -56,7 +56,18 @@ interface PersistedGameState {
   risk: RiskState;         // added in ADR-015; additive, no schema bump needed
   hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
   warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
+  cityEffects: CityEffect[];  // active plague/embargo/market-boost effects, added post-v1; additive, no schema bump — save-system.ts defaults to [] if absent
+  pendingSuccession: PendingSuccession | null;  // set when the player died with 2+ heir-eligible children, awaiting a CHOOSE_HEIR action; added post-v1; additive, no schema bump — save-system.ts defaults to null if absent
   // ui state is deliberately excluded
+}
+
+interface CityEffect {
+  cityId: CityId;
+  goodId?: GoodId;          // absent = city-wide (plague); present = one good (embargo, market_boost)
+  type: 'embargo' | 'plague' | 'market_boost';
+  turnsRemaining: number;
+  supplyBonus?: number;     // market_boost/plague only
+  demandBonus?: number;     // market_boost only
 }
 ```
 
@@ -77,6 +88,36 @@ interface PlayerState {
   politicalRank: number;         // 0=Citizen, 1=Guild, 2=Council, 3=Mayor
   reputation: Record<CityId, number>;  // 0–100 per city
   loan: number;                  // outstanding principal, 0 = none; added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
+  gender: 'male' | 'female';     // added post-v1 (ADR-022); additive, no schema bump — save-system.ts defaults to 'male' if absent
+  health: number;                // 0-100, decays each turn; added post-v1 (ADR-022); additive, no schema bump — save-system.ts defaults to 100 if absent
+  partner: Partner | null;       // added post-v1; additive, no schema bump — save-system.ts defaults to null if absent
+  children: Child[];             // added post-v1; additive, no schema bump — save-system.ts defaults to [] if absent
+  traits: TraitId[];             // inherited from whichever child became heir; added post-v1 — save-system.ts defaults to [] if absent
+}
+
+type TraitId = 'penny-pincher' | 'simpleton' | 'charismatic' | 'hot-tempered';
+
+interface Partner {
+  title: string;    // e.g. "the Fisherman's Daughter" — flavor, not a proper name
+  age: number;
+  gender: 'male' | 'female';
+}
+
+interface Child {
+  id: string;
+  name: string;
+  age: number;
+  gender: 'male' | 'female';
+  health: number;         // tracked from birth using the same decay formula as the player
+  traits: TraitId[];
+  tutoredThisYear: boolean;  // resets each Spring rollover
+}
+
+interface PendingSuccession {
+  candidates: Child[];
+  halvedReputation: Record<CityId, number>;
+  deceasedName: string;
+  deceasedAge: number;
 }
 ```
 
@@ -139,7 +180,7 @@ interface CalendarState {
   year: number;
   season: Season;          // 'spring' | 'summer' | 'autumn' | 'winter'
   turn: number;
-  maxTurns: number;
+  maxTurns: number;  // 999,999 as of ADR-022 — effectively unbounded; the session now ends via death or a Mayor win, not a turn counter
   pendingEvents: GameEvent[];   // events queued to resolve this turn
 }
 ```

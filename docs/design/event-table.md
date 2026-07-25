@@ -1,7 +1,7 @@
 # Design: Event Probability Table
 
-**Status:** Draft  
-**Last updated:** 2026-07-20
+**Status:** Implemented (all 9 events; thresholds not yet tuned)  
+**Last updated:** 2026-07-24
 
 ## Purpose
 
@@ -79,9 +79,14 @@ Notes:
 
 ---
 
-## Full Event Table — Events 4–8 (Proposed, v1.1)
+## Full Event Table — Events 4–9 (Implemented, v1.1)
 
-**Status:** Proposed — not implemented. The MVP event pool above (storm, bumper harvest, pirate raid) is the only part actually built and consumed by `event-system.ts`; `mvp-scope.md` always scoped a "full random event table (8 events)" for v1.1, and these five fill that out. Each follows the same shape as events 1–3 (ID, seasons, eligibility, weight, effect, message) so they slot into the existing `selectEvent`/`applyEvent` pool mechanism without needing a new resolution algorithm — only new entries in the pool and their effect functions.
+**Status:** Implemented (first pass — thresholds not yet tuned). `mvp-scope.md` scoped a "full random event table (8 events)" for v1.1; this pass implements those five plus a sixth (Reputation Scandal, added to give the Charismatic/Hot-tempered traits — `family-succession.md` — a reputation-loss mechanism to modify, replacing an originally-proposed idle-turn decay). Each follows the same shape as events 1–3 (ID, seasons, eligibility, weight, effect, message) and slots into the existing `selectEvent`/`applyEvent` pool mechanism.
+
+**Deviations from the original proposal, both driven by player feedback:**
+- **Market Boom no longer mutates stock directly.** The original draft below described a one-off "-25 stock" shock. Implemented instead as a temporary `CityEffect` (`type: 'market_boost'`, 3 turns) that raises both a good's `production` ("Supply") and `consumption` ("Demand") flow rates for that city, with the supply increase bigger than the demand increase — net effect: stock drifts up, price eases. This reframes the event from "a demand shock that spikes price" to "a trade boom, supply outpacing demand" — the opposite price direction from the original draft's flavor text below, which is now stale (kept for historical context; see Implementation Status).
+- **City Plague and Diplomatic Embargo** are implemented via the same `CityEffect` mechanism (`type: 'plague'` — city-wide, no `goodId`; `type: 'embargo'` — blocks `executeBuy`/`executeSell` for one city/good pair). Both expire after 3 turns, decremented once per turn in `resolveTurn` alongside any new effect that turn's event created.
+- **Active effects (plague/embargo/market-boost durations) are now visible in the Town Hall building** (`docs/design/political-rank.md`), per player feedback that city state like this should be surfaced, not just inferred from price movements.
 
 ### Event 4 — Market Boom
 
@@ -143,11 +148,33 @@ Notes:
 | **Effect** | One random (city, good) pair becomes untradeable (`executeBuy`/`executeSell` reject that specific pair) for a fixed number of turns (proposed: 3) — the only event in the table that changes *what actions are legal*, not just numeric state, so this needs a small new piece of state (e.g. `GameState.embargoes: Array<{ cityId, goodId, turnsRemaining }>`) rather than fitting purely into existing `market`/`fleet` shapes |
 | **Player message** | "⚖️ A trade embargo on {good} has been declared in {city}." |
 
-### Open Questions (events 4–8)
+### Event 9 — Reputation Scandal
 
-- All weights and magnitudes above are placeholder numbers, not simulation-validated — same caveat as the original three events' own tuning (ADR-015's "Alternatives Considered" describes exactly the kind of skew a plausible-looking-but-untested weight can produce).
-- `diplomatic_embargo` is the one event needing genuinely new state (an embargo list) rather than reusing `market`/`fleet`/`risk` — worth confirming this is worth the added complexity before implementation, versus a simpler version (e.g. a temporary price penalty instead of an outright trade block) that would fit the existing shapes.
-- Should `shipwreck_salvage`'s "low risk = more likely to salvage" targeting share code with `pickPirateTarget`'s "high risk = more likely to be targeted" (same weighted-random mechanism, inverted weight), or is a separate, smaller function clearer? Leaning toward a shared `weightedRandomShip(ships, weightFn)` helper both could call.
+Added during implementation (not in the original v1.1 draft above) specifically to give the Charismatic/Hot-tempered traits (`family-succession.md`) a reputation-loss mechanism to modify — reputation previously only ever increased in this game.
+
+| Field | Value |
+|-------|-------|
+| **ID** | `reputation_scandal` |
+| **Description** | Rumors of impropriety at a merchants' gathering damage the player's standing |
+| **Seasons** | All |
+| **Eligibility** | At least one player ship currently in port |
+| **Base weight** | 1 (rare) |
+| **Effect** | -5 reputation (via the new `loseReputation()`, `political-system.ts`) in whichever city has a docked player ship — same targeting as Guild Festival, its mirror-image positive counterpart |
+| **Player message** | "🍷 Rumors of impropriety at a merchants' gathering in {city} have damaged your reputation there." |
+
+### Implementation Status (as of 2026-07-24)
+
+- ✅ All 6 events (4–9) implemented in `event-system.ts`'s `selectEvent`/`applyEvent`, using the `CityEffect` mechanism described above for Market Boom/City Plague/Diplomatic Embargo.
+- ✅ `GameState.cityEffects` (additive save-file field, no schema bump) tracks active effects; decremented once per turn in `resolveTurn`, with any new effect from that turn's event appended after.
+- ✅ `market-system.ts`'s `updateAllMarkets`/`resolveTurnMarket` accept the active effects and apply their supply/demand bonuses; `isEmbargoed()` gates `executeBuy`/`executeSell`.
+- ✅ Guild Festival and Reputation Scandal both target "the city where a player ship is docked" (first in-port ship found), and use the new trait-aware `gainReputation`/`loseReputation`.
+- ✅ `shipwreck_salvage`'s low-risk targeting (`pickSalvageTarget`) is a separate function from `pickPirateTarget`, not a shared generic helper — the originally-proposed shared `weightedRandomShip` abstraction wasn't worth the indirection for two call sites with inverted weighting logic.
+- Unit tests: `event-system.test.ts` (one describe block per new event), `market-system.test.ts` (`updateAllMarkets` with effects, `isEmbargoed`), `turn-system.test.ts` (effect expiry, embargo rejection in `executeBuy`/`executeSell`).
+
+### Open Questions
+
+- All weights and magnitudes above are still placeholder numbers, not simulation-validated — same caveat as the original three events' own tuning (ADR-015's "Alternatives Considered" describes exactly the kind of skew a plausible-looking-but-untested weight can produce).
+- Market Boom's flavor text ("A trade boom... flowing more freely") no longer describes a price *spike* — worth deciding whether a separate, genuinely price-raising demand-shock event should exist alongside it, since the original design intent (a price-raising event) doesn't currently have an implementation.
 
 ---
 

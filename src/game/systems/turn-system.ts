@@ -1,8 +1,8 @@
-import type { GameState, GoodId, CityId, ShipType } from '../state/types.ts';
+import type { GameState, GoodId, CityId, ShipType, Child, CityEffect, LoseReason } from '../state/types.ts';
 import type { TurnResult } from '../state/types.ts';
 import type { PlayerOrders } from '../client/game-client.ts';
 import { advanceCalendar } from './calendar-system.ts';
-import { updateAllMarkets, currentPrice, resolveTrade } from './market-system.ts';
+import { updateAllMarkets, currentPrice, resolveTrade, isEmbargoed } from './market-system.ts';
 import { advanceShips, setDestination, isInPort, cargoSpace, cargoTotal, cargoCapacity } from './fleet-system.ts';
 import { selectEvent, applyEvent } from './event-system.ts';
 import { driftRiskState } from './risk-system.ts';
@@ -22,11 +22,14 @@ import {
   cannonSellValue,
 } from '../data/ships.ts';
 import { GOODS } from '../data/goods.ts';
-import { evaluateRankUp, gainReputation, rankUpMessage } from './political-system.ts';
+import { evaluateRankUp, gainReputation, loseReputation, rankUpMessage } from './political-system.ts';
 import { advanceChurchProgress } from './church-system.ts';
 import { accrueLoanInterest } from './banking-system.ts';
 import { accrueInsurancePremiums, computeInsurancePayouts } from './insurance-system.ts';
 import { accrueWarehouseIncome, warehouseSellValue } from './warehouse-system.ts';
+import { applyHealthDecay } from './health-system.ts';
+import { growChildren, attemptBirth, traitPurchasePriceFactor } from './family-system.ts';
+import { HEIR_MIN_AGE } from '../data/family.ts';
 import { CITIES } from '../data/cities.ts';
 
 export function computeNetWorth(state: GameState): number {
@@ -58,6 +61,13 @@ export function computeNetWorth(state: GameState): number {
 }
 
 export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult {
+  // The game is paused awaiting a CHOOSE_HEIR action (multiple eligible
+  // heirs at the moment of death) — no further turns resolve until it's
+  // answered. Defensive: the UI hides End Turn while this is set.
+  if (state.pendingSuccession) {
+    return { state, summary: { events: [], outcome: null, loseReason: null } };
+  }
+
   const events: string[] = [];
 
   // Step 1: Apply destination orders
@@ -79,8 +89,11 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(`⚓ ${ship.name} arrived in ${city}.`);
   }
 
-  // Step 4: Update market (natural economy — before player trades)
-  const market = updateAllMarkets(state.market);
+  // Step 4: Update market (natural economy — before player trades), using
+  // last turn's active city effects (market boosts, plague) — this turn's
+  // own event (if any) only starts affecting the market next turn, see
+  // Step 5g below.
+  const market = updateAllMarkets(state.market, state.cityEffects);
 
   // Step 4b: Drift regional risk modifiers (session-persistent, see risk-system.ts)
   const risk = driftRiskState(state.risk);
@@ -90,15 +103,36 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   const eventId = selectEvent(stateForEvent);
   let finalMarket = market;
   const preEventShips = fleet.ships;
+  let eventCityEffects: CityEffect[] = [];
+  let eventReputationChange: { cityId: CityId; amount: number; kind: 'gain' | 'loss' } | null = null;
 
   if (eventId) {
     const eventResult = applyEvent(eventId, stateForEvent);
     fleet = eventResult.fleet;
     finalMarket = eventResult.market;
     events.push(...eventResult.messages);
+    eventCityEffects = eventResult.newCityEffects;
+    eventReputationChange = eventResult.reputationChange;
   }
 
   let newState: GameState = { ...state, fleet, market: finalMarket, calendar, risk };
+
+  // Step 5g: Expire/decrement active city effects, then add any this
+  // turn's event created — see docs/design/event-table.md.
+  const decayedEffects = newState.cityEffects
+    .map(e => ({ ...e, turnsRemaining: e.turnsRemaining - 1 }))
+    .filter(e => e.turnsRemaining > 0);
+  newState = { ...newState, cityEffects: [...decayedEffects, ...eventCityEffects] };
+
+  // Step 5h: Apply this turn's event reputation change, if any (Guild
+  // Festival gain, or the "immoral activities" scandal loss).
+  if (eventReputationChange) {
+    const { cityId, amount, kind } = eventReputationChange;
+    const reputation = kind === 'gain'
+      ? gainReputation(newState.player.reputation, cityId, amount, newState.player.traits)
+      : loseReputation(newState.player.reputation, cityId, amount, newState.player.traits);
+    newState = { ...newState, player: { ...newState.player, reputation } };
+  }
 
   // Step 5a2: Insurance payouts (docs/design/insurance.md) — compares ship
   // state just before vs. after the event above, paying insured ships 50%
@@ -160,6 +194,102 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(`🏬 Earned ${String(warehouseIncome)} Mark in warehouse income.`);
   }
 
+  // Step 5i: Yearly family update (Spring rollover only) — age the player
+  // and any partner/children by a year, attempt a birth, and roll child
+  // trait growth. See docs/design/family-succession.md.
+  const isYearRollover = calendar.year > state.calendar.year;
+  if (isYearRollover) {
+    const birth = attemptBirth(newState);
+    if (birth.message) events.push(birth.message);
+    const grown = growChildren(birth.children);
+    events.push(...grown.messages);
+
+    newState = {
+      ...newState,
+      player: {
+        ...newState.player,
+        age: newState.player.age + 1,
+        partner: newState.player.partner ? { ...newState.player.partner, age: newState.player.partner.age + 1 } : null,
+        children: grown.children,
+      },
+    };
+  }
+
+  // Step 5j: Health decay — every turn, for the player and every child,
+  // using the same mortality formula (health-system.ts). A child reaching
+  // 0 health dies and is removed from the family.
+  const nextChildren: Child[] = [];
+  for (const child of newState.player.children) {
+    const health = applyHealthDecay(child.health, child.age);
+    if (health <= 0) {
+      events.push(`💀 Young ${child.name} has died.`);
+    } else {
+      nextChildren.push({ ...child, health });
+    }
+  }
+  const playerHealth = applyHealthDecay(newState.player.health, newState.player.age);
+  newState = { ...newState, player: { ...newState.player, health: playerHealth, children: nextChildren } };
+
+  // Step 5k: Succession — the player dies at 0 health. Among children age
+  // >= HEIR_MIN_AGE (with health > 0, so a just-died child can't inherit):
+  // with exactly one eligible child, they become heir automatically;
+  // with more than one, the game pauses (GameState.pendingSuccession) so
+  // the player can choose which child inherits (CHOOSE_HEIR action) rather
+  // than an arbitrary pick. Fleet, cash, loan, and political rank carry
+  // over; reputation halves; the heir's own tracked health/age/gender/
+  // traits become the new player's. With no eligible heir, the family line
+  // ends and the game is lost. See docs/design/family-succession.md.
+  let succession = false;
+  let awaitingHeirChoice = false;
+  if (newState.player.health <= 0) {
+    const eligible = newState.player.children.filter(c => c.age >= HEIR_MIN_AGE && c.health > 0);
+
+    if (eligible.length > 1) {
+      awaitingHeirChoice = true;
+      const halvedReputation = { ...newState.player.reputation };
+      for (const cityId of Object.keys(halvedReputation) as CityId[]) {
+        halvedReputation[cityId] = Math.floor(halvedReputation[cityId] / 2);
+      }
+      newState = {
+        ...newState,
+        pendingSuccession: {
+          candidates: eligible,
+          halvedReputation,
+          deceasedName: newState.player.name,
+          deceasedAge: newState.player.age,
+        },
+      };
+      events.push(`⚱️ ${newState.player.name} has passed away at age ${String(newState.player.age)}. Choose which child takes up the family trade.`);
+    } else {
+      const heir = eligible[0] ?? null;
+      if (heir) {
+        succession = true;
+        const deceasedName = newState.player.name;
+        const deceasedAge = newState.player.age;
+        const halvedReputation = { ...newState.player.reputation };
+        for (const cityId of Object.keys(halvedReputation) as CityId[]) {
+          halvedReputation[cityId] = Math.floor(halvedReputation[cityId] / 2);
+        }
+        newState = {
+          ...newState,
+          player: {
+            ...newState.player,
+            name: heir.name,
+            age: heir.age,
+            gender: heir.gender,
+            health: heir.health,
+            traits: heir.traits,
+            maritalStatus: 'single',
+            partner: null,
+            children: [],
+            reputation: halvedReputation,
+          },
+        };
+        events.push(`⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`);
+      }
+    }
+  }
+
   // Step 6: Net worth, then political rank (needs net worth + Lübeck
   // reputation — see docs/design/political-rank.md).
   const netWorth = computeNetWorth(newState);
@@ -169,22 +299,39 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     events.push(rankUpMessage(nextRank));
   }
 
-  // Step 7: Check win/lose. Winning (10,000+ net worth, or reaching Mayor)
-  // no longer ends the session — the player can continue playing — so it
-  // only ever fires the 'win' outcome once per game (newState.hasWon
-  // latches permanently) rather than re-triggering the win screen every
-  // subsequent turn while the qualifying condition remains true. Losing
-  // conditions are unaffected and still apply even after a win.
+  // Step 7: Check win/lose. The win condition is reaching Mayor of Lübeck
+  // specifically (ADR-021, revising the earlier "10,000 net worth OR
+  // Mayor" framing) — net worth alone no longer wins by itself, only
+  // actually becoming Mayor does, which itself still requires 10,000 net
+  // worth AND 75 Lübeck reputation (political-rank.md's thresholds,
+  // unchanged). Winning no longer ends the session — the player can
+  // continue playing — so it only ever fires the 'win' outcome once per
+  // game (newState.hasWon latches permanently). Losing now also includes
+  // dying without an eligible heir (Step 5k above), on top of the existing
+  // bankruptcy and turn-limit checks (the latter is effectively disabled —
+  // see docs/design/family-succession.md — since maxTurns is set so high
+  // it's never reached in practice).
   let outcome: 'win' | 'lose' | null = null;
-  const qualifiesForWin = netWorth >= 10_000 || newState.player.politicalRank === 3;
-  if (qualifiesForWin && !newState.hasWon) {
+  let loseReason: LoseReason = null;
+  if (awaitingHeirChoice) {
+    // Paused — not a loss, not a normal turn either; the game stays here
+    // until CHOOSE_HEIR resolves it.
+  } else if (newState.player.health <= 0 && !succession) {
+    outcome = 'lose';
+    loseReason = 'no-heir';
+    events.push('Without an heir to carry the family name, the trading house closes its doors.');
+  } else if (newState.player.politicalRank === 3 && !newState.hasWon) {
     outcome = 'win';
     newState = { ...newState, hasWon: true };
-  } else if (netWorth <= 0 || calendar.turn >= calendar.maxTurns) {
+  } else if (netWorth <= 0) {
     outcome = 'lose';
+    loseReason = 'bankruptcy';
+  } else if (calendar.turn >= calendar.maxTurns) {
+    outcome = 'lose';
+    loseReason = 'out-of-turns';
   }
 
-  return { state: newState, summary: { events, outcome } };
+  return { state: newState, summary: { events, outcome, loseReason } };
 }
 
 export function executeBuy(
@@ -197,9 +344,10 @@ export function executeBuy(
   const ship = state.fleet.ships.find(s => s.id === shipId);
   if (!ship || !isInPort(ship) || ship.position !== cityId) return state;
   if (cargoSpace(ship) < quantity) return state;
+  if (isEmbargoed(state.cityEffects, cityId, goodId)) return state;
 
   const market = state.market[cityId][goodId];
-  const price = currentPrice(market);
+  const price = Math.round(currentPrice(market) * traitPurchasePriceFactor(state.player.traits));
   const totalCost = price * quantity;
   if (state.player.cash < totalCost) return state;
 
@@ -223,6 +371,7 @@ export function executeSell(
   if (!ship || !isInPort(ship) || ship.position !== cityId) return state;
   const currentQty = ship.cargo[goodId] ?? 0;
   if (currentQty < quantity) return state;
+  if (isEmbargoed(state.cityEffects, cityId, goodId)) return state;
 
   const market = state.market[cityId][goodId];
   const price = currentPrice(market);
@@ -239,7 +388,7 @@ export function executeSell(
   const newPlayer = {
     ...state.player,
     cash: state.player.cash + totalRevenue,
-    reputation: gainReputation(state.player.reputation, cityId),
+    reputation: gainReputation(state.player.reputation, cityId, undefined, state.player.traits),
   };
 
   return { ...state, player: newPlayer, fleet: newFleet, market: newMarket };
@@ -355,4 +504,31 @@ export function executeSellCannon(state: GameState, shipId: string): GameState {
   const newPlayer = { ...state.player, cash: state.player.cash + cannonSellValue() };
 
   return { ...state, player: newPlayer, fleet: newFleet };
+}
+
+// Resolves a paused GameState.pendingSuccession (multiple heir-eligible
+// children at the moment of death) once the player picks one — see
+// docs/design/family-succession.md "Succession trigger".
+export function executeChooseHeir(state: GameState, childId: string): GameState {
+  const pending = state.pendingSuccession;
+  if (!pending) return state;
+  const heir = pending.candidates.find(c => c.id === childId);
+  if (!heir) return state;
+
+  return {
+    ...state,
+    pendingSuccession: null,
+    player: {
+      ...state.player,
+      name: heir.name,
+      age: heir.age,
+      gender: heir.gender,
+      health: heir.health,
+      traits: heir.traits,
+      maritalStatus: 'single',
+      partner: null,
+      children: [],
+      reputation: pending.halvedReputation,
+    },
+  };
 }

@@ -623,7 +623,19 @@ export class MapScene {
     this.detachInputHandlers();
     this.app.ticker.remove(this.tickShipAnimations);
     this.resizeObserver?.disconnect();
-    this.app.destroy(true, { children: true });
+    // PixiJS's canvas-text texture pool can throw internally while
+    // destroying Text objects it manages (observed: "Cannot read
+    // properties of undefined (reading 'push')" in
+    // TexturePoolClass.returnTexture during Container.destroy's cascade) —
+    // this only ever fires during teardown, where there's nothing left to
+    // recover, but an uncaught throw here aborts Svelte's in-flight screen
+    // transition (e.g. Port -> Game Over on a lose outcome), leaving a
+    // blank screen. The scene is being discarded either way, so swallow it.
+    try {
+      this.app.destroy(true, { children: true });
+    } catch (err) {
+      console.error('MapScene.destroy: PixiJS teardown error (ignored)', err);
+    }
   }
 
   private tickShipAnimations = (): void => {

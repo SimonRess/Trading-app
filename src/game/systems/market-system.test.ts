@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { currentPrice, resolveTrade, resolveTurnMarket, priceTrend } from './market-system.ts';
-import type { GoodMarket } from '../state/types.ts';
+import { currentPrice, resolveTrade, resolveTurnMarket, priceTrend, updateAllMarkets, isEmbargoed } from './market-system.ts';
+import type { GoodMarket, CityEffect, MarketState } from '../state/types.ts';
 
 const base: GoodMarket = { supply: 50, basePrice: 10, production: 5, consumption: 3 };
 
@@ -54,6 +54,54 @@ describe('resolveTurnMarket', () => {
   it('clamps supply at 0', () => {
     const result = resolveTurnMarket({ ...base, supply: 2, production: 0, consumption: 10 });
     expect(result.supply).toBe(0);
+  });
+});
+
+describe('resolveTurnMarket with bonuses', () => {
+  it('adds supplyBonus/demandBonus from active city effects', () => {
+    const result = resolveTurnMarket({ ...base, supply: 50, production: 5, consumption: 3 }, 20, 10);
+    expect(result.supply).toBe(62); // 50 + (5+20) - (3+10)
+  });
+});
+
+describe('updateAllMarkets with city effects', () => {
+  const market: MarketState = {
+    lubeck: { salt: { ...base } },
+  } as unknown as MarketState;
+
+  it('applies a market_boost effect only to the matching city/good', () => {
+    const effects: CityEffect[] = [{ cityId: 'lubeck', goodId: 'salt', type: 'market_boost', turnsRemaining: 2, supplyBonus: 20, demandBonus: 10 }];
+    const next = updateAllMarkets(market, effects);
+    expect(next.lubeck.salt.supply).toBe(62);
+  });
+
+  it('applies a plague effect (no goodId) to every good in that city', () => {
+    const effects: CityEffect[] = [{ cityId: 'lubeck', type: 'plague', turnsRemaining: 2, supplyBonus: -10 }];
+    const next = updateAllMarkets(market, effects);
+    expect(next.lubeck.salt.supply).toBe(42); // 50 + (5-10) - 3
+  });
+
+  it('is unaffected by an effect in a different city', () => {
+    const effects: CityEffect[] = [{ cityId: 'hamburg', goodId: 'salt', type: 'market_boost', turnsRemaining: 2, supplyBonus: 20 }];
+    const next = updateAllMarkets(market, effects);
+    expect(next.lubeck.salt.supply).toBe(52);
+  });
+});
+
+describe('isEmbargoed', () => {
+  it('is true for an active embargo on that city/good', () => {
+    const effects: CityEffect[] = [{ cityId: 'lubeck', goodId: 'salt', type: 'embargo', turnsRemaining: 1 }];
+    expect(isEmbargoed(effects, 'lubeck', 'salt')).toBe(true);
+  });
+
+  it('is false for a different good', () => {
+    const effects: CityEffect[] = [{ cityId: 'lubeck', goodId: 'salt', type: 'embargo', turnsRemaining: 1 }];
+    expect(isEmbargoed(effects, 'lubeck', 'grain')).toBe(false);
+  });
+
+  it('is false once expired', () => {
+    const effects: CityEffect[] = [{ cityId: 'lubeck', goodId: 'salt', type: 'embargo', turnsRemaining: 0 }];
+    expect(isEmbargoed(effects, 'lubeck', 'salt')).toBe(false);
   });
 });
 

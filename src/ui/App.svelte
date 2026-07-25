@@ -4,7 +4,7 @@
   import { currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoSpace, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
-  import { RANK_LABELS } from '../game/systems/political-system.ts';
+  import { RANK_LABELS, RANK_THRESHOLDS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
   import { ROUTES } from '../game/data/routes.ts';
@@ -34,12 +34,16 @@
     MAX_WAREHOUSES_PER_CITY,
     warehouseSellValue,
   } from '../game/systems/warehouse-system.ts';
+  import { PARTNER_TYPES, MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE, TRAITS } from '../game/data/family.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
+  import pkg from '../../package.json';
+  import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
 
   export let gameClient: GameClient;
+  const APP_VERSION = pkg.version;
 
   type Screen = 'new-game' | 'map' | 'port' | 'city' | 'turn-summary' | 'game-over';
 
@@ -58,6 +62,7 @@
   let showSaveMenu = false;
   let saveMsg = '';
   let showSeasonInfo = false;
+  let showChangelog = false;
   let selectedBuilding: BuildingId | undefined;
   let donationAmount = 100;
   let loanAmount = 500;
@@ -270,6 +275,27 @@
     else errorMsg = 'Cannot sell warehouse.';
   }
 
+  async function seekMarriage() {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SEEK_MARRIAGE' });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot marry right now.';
+  }
+
+  async function chooseHeir(childId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'CHOOSE_HEIR', childId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot choose that heir.';
+  }
+
+  async function hireTutor(childId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'HIRE_TUTOR', childId });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = 'Cannot hire a tutor right now.';
+  }
+
   async function takeLoan() {
     errorMsg = '';
     const amount = Number(loanAmount);
@@ -346,8 +372,15 @@
     // Winning no longer ends the session (the player can keep playing), so
     // it's surfaced through the same persistent turn-summary overlay as a
     // normal turn — only losing (bankruptcy, out of turns) is an actual
-    // session-ending 'game-over' screen.
-    screen = turnResult.summary.outcome === 'lose' ? 'game-over' : 'turn-summary';
+    // session-ending 'game-over' screen. A pending multi-heir choice has
+    // its own dedicated overlay (rendered whenever state.pendingSuccession
+    // is set, regardless of screen), so skip the normal turn-summary here
+    // to avoid stacking two overlays.
+    if (state.pendingSuccession) {
+      screen = 'port';
+    } else {
+      screen = turnResult.summary.outcome === 'lose' ? 'game-over' : 'turn-summary';
+    }
   }
 
   function continuePlaying() {
@@ -439,6 +472,11 @@
   <main class="screen port-screen">
     <header>
       <span class="title">Hanse</span>
+      <button
+        class="version-btn"
+        aria-label="Version and changelog"
+        on:click={() => { showChangelog = !showChangelog; }}
+      >v{APP_VERSION} ⓘ</button>
       <span class="hdr-info">
         {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · Turn {state.calendar.turn}/{state.calendar.maxTurns}
         <button
@@ -447,7 +485,7 @@
           on:click={() => { showSeasonInfo = !showSeasonInfo; }}
         >ⓘ</button>
       </span>
-      <span class="hdr-player">{state.player.name} · Age {state.player.age} · {MARITAL_LABEL[state.player.maritalStatus]} · {RANK_LABELS[state.player.politicalRank]}</span>
+      <span class="hdr-player">{state.player.name} · Age {state.player.age} · Health {Math.round(state.player.health)} · {MARITAL_LABEL[state.player.maritalStatus]} · {RANK_LABELS[state.player.politicalRank]}</span>
       <div class="nav-toggle">
         <button class="nav-btn" class:active={screen === 'map'} on:click={() => { screen = 'map'; }}>🗺️ Map</button>
         <button class="nav-btn" class:active={screen === 'port'} on:click={() => { screen = 'port'; }}>⚓ Port</button>
@@ -461,6 +499,13 @@
       <div class="season-info">
         Seasons run in order — <strong>Spring → Summer → Autumn → Winter</strong> — each lasting exactly 1 turn. A new year begins right after Winter. At {state.calendar.maxTurns} turns total, this game runs {state.calendar.maxTurns / 4} years.
         <button class="link-btn" on:click={() => { showSeasonInfo = false; }}>close</button>
+      </div>
+    {/if}
+
+    {#if showChangelog}
+      <div class="save-menu changelog-panel">
+        <pre class="changelog-text">{CHANGELOG_RAW}</pre>
+        <button class="link-btn" on:click={() => { showChangelog = false; }}>close</button>
       </div>
     {/if}
 
@@ -584,7 +629,9 @@
                   <tr>
                     <th>Good</th>
                     <th>Price</th>
+                    <th>Stock</th>
                     <th>Supply</th>
+                    <th>Demand</th>
                     <th>In hold</th>
                     <th colspan="2">Trade</th>
                   </tr>
@@ -595,6 +642,8 @@
                       <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                       <td>{currentPrice(cityMarket[goodId])} M</td>
                       <td>{cityMarket[goodId].supply}</td>
+                      <td>{cityMarket[goodId].production}</td>
+                      <td>{cityMarket[goodId].consumption}</td>
                       <td>{activeShip.cargo[goodId] ?? 0}</td>
                       <td>
                         {#if selectedCityId === portCity}
@@ -624,13 +673,15 @@
               </div>
             {:else}
               <table class="market-table">
-                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+                <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Stock</th><th>Supply</th><th>Demand</th></tr></thead>
                 <tbody>
                   {#each GOOD_IDS as goodId}
                     <tr>
                       <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                       <td>{currentPrice(cityMarket[goodId])} M</td>
                       <td>{cityMarket[goodId].supply}</td>
+                      <td>{cityMarket[goodId].production}</td>
+                      <td>{cityMarket[goodId].consumption}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -856,6 +907,111 @@
               <p class="error">{errorMsg}</p>
             {/if}
 
+          {:else if selectedBuilding === 'town-hall'}
+            {@const nextThreshold = RANK_THRESHOLDS.find(t => t.rank === state.player.politicalRank + 1)}
+            <h2>Town Hall</h2>
+            <p class="order-note">
+              Current rank: <strong>{RANK_LABELS[state.player.politicalRank]}</strong>
+            </p>
+            {#if nextThreshold}
+              <p class="order-note muted">Next: {nextThreshold.label}</p>
+              <div class="church-progress">
+                <div class="church-progress-bar">
+                  <div class="church-progress-fill" style="width: {Math.min(100, (netWorth / nextThreshold.netWorth) * 100)}%"></div>
+                </div>
+                <span class="church-progress-label">{netWorth} / {nextThreshold.netWorth} Mark</span>
+              </div>
+              <div class="church-progress">
+                <div class="church-progress-bar">
+                  <div class="church-progress-fill" style="width: {Math.min(100, (state.player.reputation.lubeck / nextThreshold.lubeckReputation) * 100)}%"></div>
+                </div>
+                <span class="church-progress-label">{state.player.reputation.lubeck} / {nextThreshold.lubeckReputation} reputation in Lübeck</span>
+              </div>
+            {:else}
+              <p class="order-note">You have reached the highest rank: Mayor of Lübeck.</p>
+            {/if}
+
+            <h3 class="counting-house-subhead">City Status — {CITIES[selectedCityId].name}</h3>
+            <div class="city-select">
+              {#each CITY_IDS as cId}
+                <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+              {/each}
+            </div>
+            <p class="order-note muted">Inhabitants: {CITIES[selectedCityId].population.toLocaleString()}</p>
+            {@const activeEffects = state.cityEffects.filter(e => e.cityId === selectedCityId)}
+            {#if activeEffects.length === 0}
+              <p class="order-note muted">No active effects.</p>
+            {:else}
+              <ul class="effect-list">
+                {#each activeEffects as effect}
+                  <li>
+                    {#if effect.type === 'embargo'}
+                      ⚖️ Embargo on {effect.goodId ? GOOD_NAMES[effect.goodId] : ''} ({effect.turnsRemaining} turn{effect.turnsRemaining === 1 ? '' : 's'} left)
+                    {:else if effect.type === 'plague'}
+                      ☠️ Plague ({effect.turnsRemaining} turn{effect.turnsRemaining === 1 ? '' : 's'} left)
+                    {:else}
+                      📈 Trade boom in {effect.goodId ? GOOD_NAMES[effect.goodId] : ''} ({effect.turnsRemaining} turn{effect.turnsRemaining === 1 ? '' : 's'} left)
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+
+          {:else if selectedBuilding === 'merchants-house'}
+            <h2>Merchant's House</h2>
+            <p class="order-note">
+              {state.player.name} · Age {state.player.age} · Health {Math.round(state.player.health)} · {MARITAL_LABEL[state.player.maritalStatus]}
+              {#if state.player.traits.length > 0}
+                · Traits: {state.player.traits.map(t => TRAITS[t].label).join(', ')}
+              {/if}
+            </p>
+
+            {#if state.player.maritalStatus === 'married' && state.player.partner}
+              <p class="order-note muted">Married to {state.player.partner.title} (age {state.player.partner.age}).</p>
+            {:else if state.player.age >= MIN_MARRIAGE_AGE}
+              <div class="qty-row">
+                <span class="shipyard-info">Seek marriage to {PARTNER_TYPES[0]?.title} for {PARTNER_TYPES[0]?.buyoutCost} Mark.</span>
+                <button
+                  class="shipyard-btn"
+                  on:click={seekMarriage}
+                  disabled={state.player.cash < (PARTNER_TYPES[0]?.buyoutCost ?? 0)}
+                >Seek Marriage</button>
+              </div>
+            {:else}
+              <p class="order-note muted">Too young to marry (minimum age {MIN_MARRIAGE_AGE}).</p>
+            {/if}
+
+            <h3 class="counting-house-subhead">Children</h3>
+            {#if state.player.children.length === 0}
+              <p class="order-note muted">No children yet.</p>
+            {:else}
+              <div class="fleet-list">
+                {#each state.player.children as child (child.id)}
+                  <div class="ship-card static">
+                    <strong>{child.name}</strong>
+                    <span class="tag">Age {child.age}</span>
+                    <span class="tag">Health {Math.round(child.health)}/100</span>
+                    {#if child.traits.length > 0}
+                      <span class="tag">{child.traits.map(t => TRAITS[t].label).join(', ')}</span>
+                    {/if}
+                    {#if child.age < HEIR_MIN_AGE}
+                      <button
+                        class="shipyard-btn"
+                        on:click={() => hireTutor(child.id)}
+                        disabled={child.tutoredThisYear || child.traits.length >= 2 || state.player.cash < HIRE_TUTOR_COST}
+                      >{child.tutoredThisYear ? 'Tutored' : `Hire Tutor (${HIRE_TUTOR_COST} Mark)`}</button>
+                    {:else}
+                      <span class="tag">Heir-eligible</span>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            {#if errorMsg}
+              <p class="error">{errorMsg}</p>
+            {/if}
+
           {:else}
             <h2>{BUILDING_LABELS[selectedBuilding]}</h2>
             <p>Coming soon — this building isn't wired to any actions yet.</p>
@@ -922,7 +1078,9 @@
               <tr>
                 <th>Good</th>
                 <th>Price</th>
+                <th>Stock</th>
                 <th>Supply</th>
+                <th>Demand</th>
                 <th>In hold</th>
                 <th colspan="2">Trade</th>
               </tr>
@@ -933,6 +1091,8 @@
                   <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
+                  <td>{cityMarket[goodId].production}</td>
+                  <td>{cityMarket[goodId].consumption}</td>
                   <td>{activeShip.cargo[goodId] ?? 0}</td>
                   <td>
                     {#if selectedCityId === portCity}
@@ -1098,13 +1258,15 @@
           </div>
 
           <table class="market-table">
-            <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Supply</th></tr></thead>
+            <thead><tr><th>Good</th><th>Price in {CITIES[selectedCityId].name}</th><th>Stock</th><th>Supply</th><th>Demand</th></tr></thead>
             <tbody>
               {#each GOOD_IDS as goodId}
                 <tr>
                   <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                   <td>{currentPrice(cityMarket[goodId])} M</td>
                   <td>{cityMarket[goodId].supply}</td>
+                  <td>{cityMarket[goodId].production}</td>
+                  <td>{cityMarket[goodId].consumption}</td>
                 </tr>
               {/each}
             </tbody>
@@ -1121,10 +1283,32 @@
     {/if}
 
     <footer>
-      <button class="end-turn-btn" on:click={endTurn} disabled={busyTurn}>
-        {busyTurn ? 'Resolving...' : 'End Turn →'}
+      <button class="end-turn-btn" on:click={endTurn} disabled={busyTurn || !!state.pendingSuccession}>
+        {state.pendingSuccession ? 'Choose an heir first' : busyTurn ? 'Resolving...' : 'End Turn →'}
       </button>
     </footer>
+
+    {#if state.pendingSuccession}
+      <div class="turn-summary-overlay">
+        <div class="turn-summary-card">
+          <h2>⚱️ {state.pendingSuccession.deceasedName} has passed away</h2>
+          <p class="order-note">At age {state.pendingSuccession.deceasedAge}, with more than one child old enough to inherit. Choose who takes up the family trade:</p>
+          <div class="fleet-list">
+            {#each state.pendingSuccession.candidates as child (child.id)}
+              <div class="ship-card static">
+                <strong>{child.name}</strong>
+                <span class="tag">Age {child.age}</span>
+                <span class="tag">Health {Math.round(child.health)}/100</span>
+                {#if child.traits.length > 0}
+                  <span class="tag">{child.traits.map(t => TRAITS[t].label).join(', ')}</span>
+                {/if}
+                <button class="shipyard-btn" on:click={() => chooseHeir(child.id)}>Choose {child.name}</button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- Rendered as an overlay on top of the persistent port/map view rather
          than a separate {#if screen === 'turn-summary'} branch (as it used
@@ -1168,8 +1352,16 @@
 
 {:else if screen === 'game-over'}
   <main class="screen center">
-    <h1 class="lose">Bankrupt</h1>
-    <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
+    {#if lastSummary?.loseReason === 'no-heir'}
+      <h1 class="lose">The Dynasty Has Ended</h1>
+      <p>{state.player.name} has passed away with no heir old enough to carry on the family trade. Final net worth: {netWorth} Mark.</p>
+    {:else if lastSummary?.loseReason === 'out-of-turns'}
+      <h1 class="lose">Time's Up</h1>
+      <p>The trading winds turned against you. Final net worth: {netWorth} Mark.</p>
+    {:else}
+      <h1 class="lose">Bankrupt</h1>
+      <p>The trading house has gone under. Final net worth: {netWorth} Mark.</p>
+    {/if}
     <button on:click={newGame}>Play Again</button>
   </main>
 {/if}
@@ -1256,6 +1448,29 @@
   }
   .info-btn:hover { background: none; color: #d4a843; }
 
+  .version-btn {
+    background: none;
+    border: none;
+    color: #9a8060;
+    padding: 0 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+  .version-btn:hover { background: none; color: #d4a843; }
+
+  .changelog-panel {
+    display: block;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .changelog-text {
+    white-space: pre-wrap;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: #c0a880;
+    margin: 0 0 0.6rem 0;
+  }
+
   .season-info {
     padding: 0.6rem 1.2rem;
     background: #1c1508;
@@ -1341,6 +1556,7 @@
     color: #e0d090;
     font-size: 1rem;
   }
+  .effect-list { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #d4a843; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
   .tag.durability-seaworthy { color: #8a7a60; }

@@ -10,6 +10,36 @@ export type PoliticalRank = 0 | 1 | 2 | 3; // citizen, guild, council, mayor
 
 export type MaritalStatus = 'single' | 'married' | 'widowed';
 
+export type Gender = 'male' | 'female';
+
+// Penny-pincher/Simpleton modify purchase prices; Charismatic/Hot-tempered
+// modify reputation gain/loss magnitude. Rolled onto children as they grow
+// (family-system.ts) and carried onto PlayerState once a child succeeds as
+// heir — see docs/design/family-succession.md.
+export type TraitId = 'penny-pincher' | 'simpleton' | 'charismatic' | 'hot-tempered';
+
+export interface Partner {
+  title: string; // e.g. "the Fisherman's Daughter" — flavor, not a proper name
+  age: number;
+  gender: Gender;
+}
+
+export interface Child {
+  id: string;
+  name: string;
+  age: number;
+  gender: Gender;
+  // Tracked from birth using the same decay formula as the player
+  // (health-system.ts) — becomes the new PlayerState.health if this child
+  // is ever chosen as heir.
+  health: number;
+  traits: TraitId[];
+  // True while a Hire Tutor action has been used for this child this year
+  // — boosts that year's trait-roll odds, then resets on the next Spring
+  // rollover. See docs/design/family-succession.md.
+  tutoredThisYear: boolean;
+}
+
 export interface RoutePosition {
   from: CityId;
   to: CityId;
@@ -20,6 +50,7 @@ export interface PlayerState {
   name: string;
   cash: number;
   age: number;
+  gender: Gender;
   maritalStatus: MaritalStatus;
   politicalRank: PoliticalRank;
   reputation: Record<CityId, number>;
@@ -29,6 +60,15 @@ export interface PlayerState {
   // amendment, see ADR-019) so an unpaid loan is a real liability, not free
   // cash.
   loan: number;
+  // 0-100. Decays every turn (health-system.ts); reaching 0 triggers
+  // succession (or, with no eligible heir, ends the session). See
+  // docs/design/family-succession.md.
+  health: number;
+  partner: Partner | null;
+  children: Child[];
+  // Inherited from whichever child became heir at succession; empty for a
+  // first-generation player. See family-system.ts.
+  traits: TraitId[];
 }
 
 export interface Ship {
@@ -116,13 +156,47 @@ export interface GameState {
   // MAX_WAREHOUSES_PER_CITY — see docs/design/warehouses.md,
   // warehouse-system.ts.
   warehouses: Partial<Record<CityId, number>>;
+  // Temporary per-city/per-good effects from random events (market boom,
+  // plague, embargo) — see docs/design/event-table.md and
+  // src/game/systems/event-system.ts's applyCityEffects.
+  cityEffects: CityEffect[];
+  // Set when the player dies (health 0) with more than one heir-eligible
+  // child — resolveTurn pauses succession rather than auto-picking, and
+  // the game stays paused (no further turns) until CHOOSE_HEIR resolves
+  // it. null the rest of the time, including when there's exactly one (or
+  // zero) eligible heir, which still resolve automatically. See
+  // docs/design/family-succession.md.
+  pendingSuccession: PendingSuccession | null;
+}
+
+export interface PendingSuccession {
+  candidates: Child[];
+  halvedReputation: Record<CityId, number>;
+  deceasedName: string;
+  deceasedAge: number;
+}
+
+export type CityEffectType = 'embargo' | 'plague' | 'market_boost';
+
+export interface CityEffect {
+  cityId: CityId;
+  goodId?: GoodId; // absent = applies city-wide (plague); present = one good (embargo, market_boost)
+  type: CityEffectType;
+  turnsRemaining: number;
+  supplyBonus?: number; // market_boost only
+  demandBonus?: number; // market_boost only
 }
 
 export type GameOutcome = 'win' | 'lose' | null;
 
+// Distinguishes why a 'lose' outcome fired, so the UI can show a different
+// game-over screen for each — see docs/design/family-succession.md.
+export type LoseReason = 'bankruptcy' | 'no-heir' | 'out-of-turns' | null;
+
 export interface TurnSummary {
   events: string[];
   outcome: GameOutcome;
+  loseReason: LoseReason;
 }
 
 export interface TurnResult {

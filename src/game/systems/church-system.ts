@@ -37,7 +37,7 @@ export function donateChurch(state: GameState, cityId: CityId, amount: number): 
     player: {
       ...state.player,
       cash: state.player.cash - effectiveAmount,
-      reputation: gainReputation(state.player.reputation, cityId, reputationGain),
+      reputation: gainReputation(state.player.reputation, cityId, reputationGain, state.player.traits),
     },
     cities: {
       ...state.cities,
