@@ -20,6 +20,11 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-25
+
+### Fixed
+- **Bulk-buy/sell button price stayed frozen after repeated trades** — the total-cost text only re-rendered when the quantity input changed, not when a purchase moved the market price, because Svelte couldn't see the `state` read hidden inside the preview function. Same root cause as the earlier `activeShip` reactivity bug; fixed by referencing `state` directly at the call site.
+
 ## [1.0.1] - 2026-07-25
 
 ### Fixed

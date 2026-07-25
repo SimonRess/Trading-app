@@ -125,11 +125,26 @@
   // preview client-side, against the current market, so the Buy/Sell
   // buttons can show the real total/avg-per-unit cost before committing,
   // not just today's single-unit spot price.
-  function buyPreview(goodId: GoodId, qty: number) {
-    return resolveTradeStepped(state.market[selectedCityId][goodId], qty, 1, traitPurchasePriceFactor(state.player.traits));
+  //
+  // gameState is taken as an explicit parameter (rather than closing over
+  // the outer `state` var, as an earlier version did) so that every call
+  // site is forced to reference `state` directly in its own template
+  // expression. Svelte's per-node dirty-check for a bare `{@const}` value's
+  // *own* interpolations (e.g. a lone `{preview.totalCost}` with nothing
+  // else in that mustache) is derived only from identifiers textually
+  // present in the `{@const}` declaration itself — it cannot see reads
+  // inside a called function's body. Without `state` visibly referenced
+  // there, Svelte only re-writes the button text when `buyQty` changes,
+  // not when a purchase changes `state.market` — so the price silently
+  // went stale after every buy/sell while the button's `title` and
+  // `disabled` attributes (which separately reference `state`/`cityMarket`
+  // directly) kept updating correctly. Same root cause as the `activeShip`
+  // reactivity bug fixed earlier in this file — see git history.
+  function buyPreview(gameState: GameState, cityId: CityId, goodId: GoodId, qty: number) {
+    return resolveTradeStepped(gameState.market[cityId][goodId], qty, 1, traitPurchasePriceFactor(gameState.player.traits));
   }
-  function sellPreview(goodId: GoodId, qty: number) {
-    return resolveTradeStepped(state.market[selectedCityId][goodId], qty, -1);
+  function sellPreview(gameState: GameState, cityId: CityId, goodId: GoodId, qty: number) {
+    return resolveTradeStepped(gameState.market[cityId][goodId], qty, -1);
   }
 
   // Friendly label for the shipyard cards — speedRatio() itself is a raw
@@ -706,7 +721,7 @@
                       <td>{activeShip.cargo[goodId] ?? 0}</td>
                       <td>
                         {#if selectedCityId === portCity}
-                          {@const preview = buyPreview(goodId, buyQty)}
+                          {@const preview = buyPreview(state, selectedCityId, goodId, buyQty)}
                           <button
                             class="trade-btn buy"
                             on:click={() => buy(goodId)}
@@ -717,7 +732,7 @@
                       </td>
                       <td>
                         {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
-                          {@const preview = sellPreview(goodId, sellQty)}
+                          {@const preview = sellPreview(state, selectedCityId, goodId, sellQty)}
                           <button
                             class="trade-btn sell"
                             on:click={() => sell(goodId)}
@@ -1180,7 +1195,7 @@
                   <td>{activeShip.cargo[goodId] ?? 0}</td>
                   <td>
                     {#if selectedCityId === portCity}
-                      {@const preview = buyPreview(goodId, buyQty)}
+                      {@const preview = buyPreview(state, selectedCityId, goodId, buyQty)}
                       <button
                         class="trade-btn buy"
                         on:click={() => buy(goodId)}
@@ -1191,7 +1206,7 @@
                   </td>
                   <td>
                     {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
-                      {@const preview = sellPreview(goodId, sellQty)}
+                      {@const preview = sellPreview(state, selectedCityId, goodId, sellQty)}
                       <button
                         class="trade-btn sell"
                         on:click={() => sell(goodId)}
