@@ -20,6 +20,9 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+### Added
+- `docs/design/roadmap-next-versions.md` — sequenced feature plan for v1.2 through v2, including moving the Supply/Demand columns off the trading table onto the City info screen (v1.2).
+
 ## [1.1.0] - 2026-07-26
 
 ### Added
