@@ -20,6 +20,14 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-26
+
+### Added
+- **Settings menu with English/German language switch** — a new "⚙️ Settings" button in the header opens a panel to pick English or Deutsch. The choice persists in `localStorage` (defaulting to the browser's language on first visit) and applies immediately across the whole app. Covers every screen's static text: nav bar, all building panels, New Game screen, save menu, popovers, table headers, and shared vocabulary (seasons, goods, ship posture, ranks, traits, etc.), plus the map legend and City view's PixiJS building labels. See `docs/design/localization.md` for full scope, including what's deliberately not covered yet (the narrative turn-summary/event log text generated in `src/game/systems/*.ts`, which stays English-only pending a larger refactor to keep game logic UI-agnostic per CLAUDE.md's architecture rule).
+
+### Fixed
+- **City view showed overlapping English/German building labels after switching language** — `SceneManager.destroy()` only clears its own bookkeeping, not the PixiJS containers still attached to the world layer, so the old-language scene stayed visible under the newly rebuilt one. Fixed by explicitly clearing the world layer's children before rebuilding on a locale change.
+
 ## [1.0.2] - 2026-07-25
 
 ### Fixed

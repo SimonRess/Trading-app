@@ -24,6 +24,7 @@ Players who enjoyed the original *Hanse* or similar economic/trading sims (Patri
 - Random events: 9 events (storm, pirate raid, bumper harvest, market boom, guild festival, shipwreck salvage, city plague, diplomatic embargo, reputation scandal)
 - Save/load (localStorage auto-save + JSON export/import)
 - In-app version display and changelog viewer
+- Settings menu with English/German localization of all static UI (`docs/design/localization.md`)
 
 ## Non-Goals (confirmed decisions, not just "not done yet")
 

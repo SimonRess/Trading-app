@@ -21,7 +21,6 @@ export type BuildingId =
 
 interface BuildingDef {
   id: BuildingId;
-  label: string;
   color: number;
   position: { x: number; y: number };
   shipyardOnly?: boolean;
@@ -31,16 +30,29 @@ interface BuildingDef {
 // Questions": identical positions across cities for predictability) — only
 // presence/absence varies (Shipyard only in SHIPYARD_CITIES, per
 // isShipyardCity, matching the existing Shipyard-section gate in App.svelte).
+// Labels are supplied separately (see DEFAULT_LABELS/setLabels below) so
+// they can be localised without touching this layout table.
 const BUILDINGS: BuildingDef[] = [
-  { id: 'harbor', label: 'Harbor', color: 0x3a5a70, position: { x: 60, y: 220 } },
-  { id: 'trading-post', label: 'Trading Post', color: 0xd4a843, position: { x: 200, y: 220 } },
-  { id: 'shipyard', label: 'Shipyard', color: 0xc8a860, position: { x: 340, y: 220 }, shipyardOnly: true },
-  { id: 'church', label: 'Church', color: 0xe8dcc8, position: { x: 60, y: 100 } },
-  { id: 'counting-house', label: 'Counting House', color: 0xc09040, position: { x: 200, y: 60 } },
-  { id: 'merchants-house', label: "Merchant's House", color: 0xb08a50, position: { x: 340, y: 100 } },
-  { id: 'town-hall', label: 'Town Hall', color: 0xf0dca0, position: { x: 130, y: 150 } },
-  { id: 'warehouse-district', label: 'Warehouses', color: 0x9a8060, position: { x: 270, y: 150 } },
+  { id: 'harbor', color: 0x3a5a70, position: { x: 60, y: 220 } },
+  { id: 'trading-post', color: 0xd4a843, position: { x: 200, y: 220 } },
+  { id: 'shipyard', color: 0xc8a860, position: { x: 340, y: 220 }, shipyardOnly: true },
+  { id: 'church', color: 0xe8dcc8, position: { x: 60, y: 100 } },
+  { id: 'counting-house', color: 0xc09040, position: { x: 200, y: 60 } },
+  { id: 'merchants-house', color: 0xb08a50, position: { x: 340, y: 100 } },
+  { id: 'town-hall', color: 0xf0dca0, position: { x: 130, y: 150 } },
+  { id: 'warehouse-district', color: 0x9a8060, position: { x: 270, y: 150 } },
 ];
+
+const DEFAULT_LABELS: Record<BuildingId, string> = {
+  harbor: 'Harbor',
+  'trading-post': 'Trading Post',
+  shipyard: 'Shipyard',
+  church: 'Church',
+  'counting-house': 'Counting House',
+  'merchants-house': "Merchant's House",
+  'town-hall': 'Town Hall',
+  'warehouse-district': 'Warehouses',
+};
 
 // One shared generic building silhouette for this skeleton pass — buildings
 // are distinguished by color and label, not bespoke art (docs/design/
@@ -61,11 +73,14 @@ export interface CitySceneCallbacks {
 
 export class CityScene {
   private app: Application;
+  private worldLayer: Container | undefined;
   private sceneManager: SceneManager | undefined;
   private callbacks: CitySceneCallbacks;
   private container: HTMLElement | undefined;
   private containerSize = { width: 0, height: 0 };
   private resizeObserver: ResizeObserver | undefined;
+  private labels: Record<BuildingId, string> = DEFAULT_LABELS;
+  private currentCityId: CityId | undefined;
 
   constructor(callbacks: CitySceneCallbacks = {}) {
     this.callbacks = callbacks;
@@ -86,15 +101,34 @@ export class CityScene {
 
     container.appendChild(this.app.canvas);
 
-    const worldLayer = new Container();
-    this.app.stage.addChild(worldLayer);
-    this.sceneManager = new SceneManager(worldLayer);
+    this.worldLayer = new Container();
+    this.app.stage.addChild(this.worldLayer);
+    this.sceneManager = new SceneManager(this.worldLayer);
 
     this.resizeObserver = new ResizeObserver(() => {
       if (this.container) this.handleResize(this.container);
     });
     this.resizeObserver.observe(container);
     this.handleResize(container);
+  }
+
+  // Rebuilds every cached city scene with new building labels — cheap here
+  // since buildCityScene's own destroy() is a no-op (see the comment in
+  // that method) and PixiJS text objects are lightweight, so throwing away
+  // the SceneManager's cache and re-registering the currently-shown city is
+  // simpler and safer than mutating already-built Text objects in place.
+  setLabels(labels: Record<BuildingId, string>): void {
+    this.labels = labels;
+    if (!this.sceneManager || !this.worldLayer) return;
+    this.sceneManager.destroy();
+    // SceneManager.destroy() only clears its own bookkeeping (each scene's
+    // own destroy() here is a no-op, see buildCityScene) — the old scenes'
+    // containers are still attached to worldLayer as children, so without
+    // this they'd stay visible underneath the freshly-registered ones,
+    // rendering old- and new-language labels stacked on top of each other.
+    this.worldLayer.removeChildren();
+    this.sceneManager = new SceneManager(this.worldLayer);
+    if (this.currentCityId) this.showCity(this.currentCityId);
   }
 
   // Called whenever the displayed city changes (e.g. the player's active
@@ -105,6 +139,7 @@ export class CityScene {
   // scene-manager.ts documents.
   showCity(cityId: CityId): void {
     if (!this.sceneManager) return;
+    this.currentCityId = cityId;
     const id = `city:${cityId}`;
     if (!this.sceneManager.has(id)) {
       this.sceneManager.register(id, this.buildCityScene(cityId));
@@ -140,7 +175,7 @@ export class CityScene {
       wrapper.addChild(icon);
 
       const label = new Text({
-        text: building.label,
+        text: this.labels[building.id],
         style: { fill: LABEL_COLOR, fontSize: 12, fontFamily: 'Georgia' },
       });
       label.anchor.set(0.5, 0);
