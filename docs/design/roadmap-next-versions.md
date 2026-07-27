@@ -1,7 +1,7 @@
 # Design: Roadmap — Next Versions
 
-**Status:** Proposal (nothing here implemented yet)
-**Last updated:** 2026-07-26
+**Status:** Approved by product owner 2026-07-27 (nothing here implemented yet)
+**Last updated:** 2026-07-27
 
 A sequenced plan for the next few releases, drawn from the existing (unordered) pools in `docs/prd.md` §Feature Backlog and `docs/design/feature-brainstorm.md`, plus one new item requested directly: moving supply/demand off the trading screen. This doc is the ordered plan; the other two remain the larger backlog it draws from.
 
