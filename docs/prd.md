@@ -3,7 +3,9 @@
 **Status:** Living document
 **Last updated:** 2026-07-25
 
-This file didn't exist until now, despite `00_project_structure.md` describing it as Layer 1 of the doc hierarchy since the project's start — the vision lived in `10_game_mechanics.md` and the cut-down scope in `design/mvp-scope.md` instead. This file formalizes both into one place and adds the **Feature Backlog / Roadmap** section that's been missing: a single list of everything scoped but not yet built, gathered from `10_game_mechanics.md`, `mvp-scope.md`'s out-of-scope table, ADR-005 (art), ADR-007 (multiplayer), and player feedback across the shipped releases.
+This file didn't exist until now, despite `00_project_structure.md` describing it as Layer 1 of the doc hierarchy since the project's start — the vision lived in `10_game_mechanics.md` and the cut-down scope in `design/mvp-scope.md` instead. This file formalizes both into one place.
+
+Planned-but-unbuilt work is tracked in exactly one place, not here: `docs/design/roadmap-next-versions.md`. This file previously also carried a Feature Backlog section, which duplicated that roadmap and drifted out of sync with it; it was removed in favor of a single source of truth. This PRD stays scoped to what's genuinely slow-changing — vision, audience, shipped scope, and non-goals.
 
 ## Vision
 
@@ -39,45 +41,10 @@ Players who enjoyed the original *Hanse* or similar economic/trading sims (Patri
 
 ---
 
-## Feature Backlog / Roadmap
-
-Organized by category. Nothing here has a committed version number — this is the pool to pull from, prioritized loosely within each category (top = likely more valuable/urgent).
-
-### Gameplay depth
-
-1. **Combat loot realism** — victory loot is a fixed random-goods pool, not a simulated enemy fleet with its own cargo/routes/ships/weapons. (ADR-010 Open Questions)
-2. **Ability to initiate combat** — pirate encounters are always pirate-triggered; no way to hunt pirates for loot/reputation.
-3. **Stores & agents in cities** — permanent inventory per city, managed by a hired agent with a loyalty/skill rating affecting unsupervised performance. (Original vision, `10_game_mechanics.md` §3; targeted v1.1, never built.)
-4. **Expeditions & city discovery** — send a child as an "Explorer" on a multi-turn expedition with a success chance based on stats/supplies; success adds a new city to the map. (Original vision §6; targeted v2, never built.)
-5. **Full grid-tactical combat** — the original's cannon-placement mini-game, as an optional upgrade over the current posture-based system. (ADR-010, deferred not rejected.)
-6. **Ransoming captured pirates / handing them to city authorities** for reputation gain. (Original vision §5.)
-7. **Fixed-term loans with real consequences for default** (reputation damage, asset seizure) — current loans are simpler: no term, no penalty beyond compounding interest. (Original vision §8.)
-8. **More random events**: city fire (damages a store — depends on #3), war between cities (blocks routes), rival merchant NPC (undercuts prices in a city), guild disputes (forced to pick a side). (Original vision §9.)
-9. **Second (and further) marriage partner types** — only the Fisherman's Daughter exists today.
-10. **Per-city warehouse income/price variance** — flat 15 Mark/turn everywhere currently.
-11. **End-of-game scoring** — a summary score (wealth, cities with stores, reputation, generations played, discoveries) shown at game end, beyond the current binary win/lose screens. (Original vision §10.)
-
-### Graphics & audio
-
-12. **Real pixel-art sprite sheets**, replacing the current procedurally-generated placeholder graphics (`drawPixelSprite`). (ADR-005 — committed direction, no artist pipeline yet; needs a new `design/asset-pipeline.md`.)
-13. **Illustrated key scenes** — city arrivals, NPC portrait dialogs, story events — for high-impact emotional moments, per ADR-005's two-tier art plan. Currently nothing illustrated exists.
-14. **NPC portrait dialogs** for trade negotiation, marriage, and events — currently all text/button-driven. (Targeted v1.1, never built.)
-15. **Audio / music** — currently silent. (Targeted v1.1, never built.)
-
-### Multiplayer
-
-16. **Hotseat multiplayer** (ADR-007, targeted v2) — pass-and-play, no server. Not started.
-17. **`GameState.player` singleton → `players[]` array migration** — a prerequisite ADR-007 called for from day one specifically so hotseat wouldn't need a later rewrite; the actual code never did this, so hotseat now needs a state-shape migration first, more work than originally planned. Should happen *before* hotseat work starts, not during.
-
-### Balance & polish
-
-18. **Balance/threshold tuning pass** — nearly every system shipped so far (events, political rank, family/succession, church, warehouses, crew, banking, insurance, combat, market pricing) is still first-pass numbers, not validated by simulation or extended playtesting.
-
----
-
 ## Related
 
-- `docs/10_game_mechanics.md` — full original vision (this PRD's Core Feature List and most of the Backlog above are drawn from it)
+- `docs/design/roadmap-next-versions.md` — **the single source of truth for planned/unbuilt work**, sequenced by target version
+- `docs/00_project_structure.md` §4b — the ordered, dated log of what's *already shipped* (with the roadmap doc picking up where it leaves off)
+- `docs/10_game_mechanics.md` — full original vision (this PRD's Core Feature List is drawn from it; so is most of the roadmap's content)
 - `docs/design/mvp-scope.md` — the MVP cut-down and its out-of-scope table
-- `docs/00_project_structure.md` §4b — the *ordered, in-progress* implementation plan (ADR-018's city-view rollout and beyond); this PRD's backlog is the larger, unordered pool that plan draws from
 - ADR-005 (art style), ADR-007 (multiplayer), ADR-010 (combat)

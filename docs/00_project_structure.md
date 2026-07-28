@@ -361,15 +361,7 @@ Per ADR-018: the graphical city view's skeleton is a prerequisite that ships bef
 17. ✅ **Settings menu + English/German localization** (`design/localization.md`) — new `src/ui/i18n.ts` (`Locale` store, EN/DE dictionaries), Settings nav panel, and every static UI string across all screens localized, including PixiJS canvas labels (`CityScene.setLabels`/`MapScene.setLegendLabels`). Deliberately excludes the narrative turn-summary/event log text generated in `src/game/systems/*.ts` — documented as a follow-up rather than attempted here, per this doc's Hard Rule 1.
    *(order within this list is otherwise not yet prioritized)*
 
-For the next several versions beyond this list, see `docs/design/roadmap-next-versions.md` — a sequenced plan drawn from the Open backlog below and `docs/prd.md`'s larger Feature Backlog.
-
-### Open backlog (not yet started)
-
-- **Combat loot realism** — victory loot is still a fixed random-goods pool, not a simulated enemy fleet with its own cargo/routes/ships/weapons. Explicitly deferred during ADR-010's implementation, not rejected — flagged as an Open Question in `ship-stats.md` "Combat".
-- **No way to initiate combat** — pirate encounters are always pirate-triggered; there's no way to hunt pirates for loot/reputation yet.
-- **Balance/threshold tuning pass** — nearly every system shipped so far (events, political rank, family/succession, church, warehouses, crew, banking, insurance, combat, market pricing) is still first-pass numbers, not validated by simulation or extended playtesting.
-- **Second marriage partner type** — only the Fisherman's Daughter exists; `family-succession.md` anticipated more variety.
-- **Per-city warehouse income/price variance** — flat 15 Mark/turn everywhere; flagged as an open question in `warehouses.md`.
+This list only covers what's already shipped (✅). Everything not yet started — the former "Open backlog" here, plus the PRD's former Feature Backlog — now lives in exactly one place: **`docs/design/roadmap-next-versions.md`**, sequenced by target version. Update that file, not this one, when scoping or reprioritizing unbuilt work; update this list only as items actually ship.
 
 ---
 

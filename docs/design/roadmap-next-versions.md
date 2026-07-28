@@ -3,7 +3,9 @@
 **Status:** Approved by product owner 2026-07-27 (nothing here implemented yet)
 **Last updated:** 2026-07-27
 
-A sequenced plan for the next few releases, drawn from the existing (unordered) pools in `docs/prd.md` §Feature Backlog and `docs/design/feature-brainstorm.md`, plus one new item requested directly: moving supply/demand off the trading screen. This doc is the ordered plan; the other two remain the larger backlog it draws from.
+**This is the single source of truth for planned-but-unbuilt work.** It was assembled from `docs/prd.md`'s former Feature Backlog section and `docs/00_project_structure.md`'s former "Open backlog" subsection, plus `docs/design/feature-brainstorm.md`'s findings and one new item requested directly (moving supply/demand off the trading screen). Both source sections were removed once their content landed here, since maintaining the same items in multiple places let them drift out of sync with each other. `feature-brainstorm.md` remains a separate supporting doc (deeper rationale for the v1.2/v1.3 UX items) rather than being folded in, since it's a narrower playtest-findings writeup, not itself a backlog.
+
+When scope changes — a new idea, a reprioritization, an item shipping — edit **only this file**. `docs/00_project_structure.md` §4b then gets a new ✅ line once something actually ships; `docs/prd.md` only changes if the shipped feature alters vision/scope/non-goals.
 
 ---
 
@@ -30,6 +32,7 @@ Player-facing history/feedback features. Mostly UI-layer, reading existing state
 7. **Price history / trend sparkline per good** — client-side only, remembers last ~10 turns of `GoodMarket` snapshots in the UI layer (feature-brainstorm #3).
 8. **Achievements / milestones log** — detected from existing state transitions, shown alongside the Chronicle (feature-brainstorm #4).
 9. **Saved/repeating trade routes** — auto-fill next turn's buy/sail/sell orders until cancelled (feature-brainstorm #2). Larger than 6-8: touches action dispatch, needs its own design doc before starting.
+9b. **Second (and further) marriage partner types** — only the Fisherman's Daughter exists today; `family-succession.md` anticipated more variety.
 
 ## v1.4 — Gameplay depth: stores & agents
 
@@ -67,7 +70,7 @@ Larger, previously-scoped-for-v2 items, unchanged from `prd.md`:
 
 ## Related
 
-- `docs/prd.md` — Feature Backlog / Roadmap (the larger, unordered pool this plan sequences)
+- `docs/prd.md` — vision, scope, non-goals (no longer holds a backlog; points here instead)
 - `docs/design/feature-brainstorm.md` — UX/fun findings this plan's v1.2/v1.3 draw from
 - `docs/design/localization.md` — the i18n scope boundary v1.5 closes
-- `docs/00_project_structure.md` §4b — the project's ordered implementation-plan section, should be updated to reference this doc
+- `docs/00_project_structure.md` §4b — the ordered, dated log of what's already *shipped*; picks up where this doc's items get built
