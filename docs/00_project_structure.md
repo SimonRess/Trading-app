@@ -367,6 +367,7 @@ This list only covers what's already shipped (✅). Everything not yet started �
 
 ## 5. Contribution Workflow
 
+0. **New idea, not yet committed to a version?** → Add it to `docs/design/roadmap-next-versions.md` first. Don't skip straight to a design doc or ADR until it's actually being built in a specific version.
 1. **New feature or system?** → Write or update the design doc first (`docs/design/`).
 2. **New architectural choice?** → Write an ADR (`docs/decisions/`). Do this before writing code.
 3. **Reversing a decision?** → Write a new superseding ADR; do not edit the old one.
@@ -379,6 +380,7 @@ The planning files must always describe the app as it actually is. Whenever a ch
 
 | What changed | Update |
 |--------------|--------|
+| A new feature idea (not yet building it) | Add it to `docs/design/roadmap-next-versions.md` |
 | Any behaviour/data/infra change | Add a `CHANGELOG.md` entry (Added / Changed / Fixed / Removed) |
 | A design decision with real trade-offs | Write or supersede an **ADR**, and link it from the changelog entry |
 | How a system works | Update the matching `docs/design/*.md` (and its "Implementation Status" note if the code diverges from the ideal spec) |
