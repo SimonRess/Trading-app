@@ -1,7 +1,7 @@
 # Design: Roadmap — Next Versions
 
 **Status:** Approved by product owner 2026-07-27 (nothing here implemented yet)
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-28
 
 **This is the single source of truth for planned-but-unbuilt work.** It was assembled from `docs/prd.md`'s former Feature Backlog section and `docs/00_project_structure.md`'s former "Open backlog" subsection, plus `docs/design/feature-brainstorm.md`'s findings and one new item requested directly (moving supply/demand off the trading screen). Both source sections were removed once their content landed here, since maintaining the same items in multiple places let them drift out of sync with each other. `feature-brainstorm.md` remains a separate supporting doc (deeper rationale for the v1.2/v1.3 UX items) rather than being folded in, since it's a narrower playtest-findings writeup, not itself a backlog.
 
@@ -18,7 +18,7 @@ Low-risk, high-value UI work. No new game mechanics, so no `src/game/` changes a
    - City info screen (the building panel already showing city-level stats — reputation, warehouse, etc.) gains a small per-good Supply/Demand table, one row per good, read-only.
    - No `GameState` or `game/` changes — this is purely `App.svelte` markup reshuffling plus new `i18n.ts` keys if the city-info table needs its own header labels (colSupply/colDemand already exist and can be reused).
    - Update `docs/design/city-view.md` and `docs/design/market-formula.md` if either documents the current table layout.
-   - Challenge: the City-view and List-view are two separately-maintained markup blocks (a recurring source of duplicate-edit bugs this session, e.g. the i18n pass and the earlier bulk-price fix both had to touch both). Consider extracting a shared `TradeTable.svelte` / `CityInfoPanel.svelte` component as part of this change to stop that duplication at the source — worth scoping explicitly since it's a good opportunity, not just a nice-to-have.
+   - Required, not optional: extract a shared `TradeTable.svelte` component (and, more broadly, split `src/ui/App.svelte`'s 1,953 lines into `src/ui/screens/` + `src/ui/panels/` + `src/ui/shared/`) as part of doing this change, not as separate later cleanup. The City-view and List-view are two separately-maintained markup blocks, a recurring source of duplicate-edit bugs this session (the i18n pass and the bulk-price fix both had to touch both by hand) and a real agent-reliability risk on top of the human-maintainability one — large single-file diffs are harder to review and easier to half-edit. See `docs/audits/2026-07-28-architecture-and-claude-code-review.md` finding #1.
 2. **Header turn counter** — show "Turn N" instead of "Turn N/999999" (feature-brainstorm #1).
 3. **Distinct ship vs. city map icons** (feature-brainstorm #2).
 4. **Drop redundant qty-1 total on Buy/Sell buttons** (feature-brainstorm #3).
@@ -63,7 +63,7 @@ Larger, previously-scoped-for-v2 items, unchanged from `prd.md`:
 
 ## Open challenges to watch across this whole plan
 
-- **City-view/List-view markup duplication** — two independently-edited copies of most panels has caused missed-edit bugs twice this session (i18n pass, bulk-price fix). Worth fixing structurally (shared components) during v1.2's trading-table rework rather than continuing to pay the tax on every future UI change.
+- **City-view/List-view markup duplication** — two independently-edited copies of most panels has caused missed-edit bugs twice this session (i18n pass, bulk-price fix). Now scoped into v1.2 item 1 (shared `TradeTable.svelte` + `App.svelte` split), not just flagged.
 - **Save-schema versioning** — v1.3's Chronicle field is the first `GameState` shape change since localization shipped; confirm `docs/design/save-file-schema.md` (referenced in CLAUDE.md, not yet created) exists before it lands, or create it then.
 - **Game-logic/UI message boundary** — v1.5's narrative-string refactor is the same architectural seam CLAUDE.md's Hard Rule 1 protects; do it once, properly (message keys + params), rather than as an incremental patch, since it touches every system file.
 - **Effort sizing** — v1.4 (stores & agents) and v2 (expeditions, hotseat) are the two biggest single items in this whole plan; each should get its own ADR/design doc and be split into sub-tasks before implementation starts, per `00_project_structure.md`'s planning workflow.

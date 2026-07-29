@@ -25,6 +25,8 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ### Changed
 - Consolidated backlog tracking into a single file. `docs/prd.md`'s Feature Backlog and `docs/00_project_structure.md` §4b's "Open backlog" both duplicated `roadmap-next-versions.md` and had already drifted out of sync; both sections were removed in favor of that one file. `prd.md` now stays scoped to vision/audience/scope/non-goals; §4b stays scoped to the dated log of what's shipped.
+- `docs/00_project_structure.md` §5's Contribution Workflow gained an explicit first step: a new, not-yet-committed idea goes into `roadmap-next-versions.md` before any ADR or design doc gets written — closes the exact ambiguity that caused the backlog drift above.
+- v1.2's roadmap item now explicitly requires splitting `src/ui/App.svelte` (1,953 lines) into `screens/`/`panels/`/`shared/` components as part of the Supply/Demand rework, not as separate later cleanup — per the architecture audit's finding that the City-view/List-view markup duplication is a recurring source of missed-edit bugs.
 
 ## [1.1.0] - 2026-07-26
 
