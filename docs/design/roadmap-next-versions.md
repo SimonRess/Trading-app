@@ -23,6 +23,8 @@ Low-risk, high-value UI work. No new game mechanics, so no `src/game/` changes a
 3. **Distinct ship vs. city map icons** (feature-brainstorm #2).
 4. **Drop redundant qty-1 total on Buy/Sell buttons** (feature-brainstorm #3).
 5. **"Sell all" quick action** next to Sell when in port (feature-brainstorm, small UI polish).
+5a. **Decide a test policy for `src/ui/`/`src/render/`** (audit #3) — this version is the natural moment: item 1 creates the first real batch of new, independently-testable UI components (`TradeTable.svelte` etc.), so decide then whether they get component tests or stay manually-verified, rather than leaving the policy unstated.
+5b. **Enforce `/check-conventions` before merging** (audit #9) — run it against v1.2's diff specifically, since the `App.svelte` split is the biggest architecture-boundary-sensitive change on the roadmap; a good first real test of making the command a required step rather than an easily-forgotten one.
 
 ## v1.3 — Dynasty Chronicle + market memory
 
@@ -42,6 +44,7 @@ The single biggest "targeted v1.1, never built" gap from the original vision (`p
 11. **Per-city warehouse income/price variance**, since it's closely related storage/economy surface area (`prd.md` #10).
 12. **Combat loot realism** — simulated enemy fleet instead of a fixed loot pool (`prd.md` #1), natural follow-on now that combat (v1.0) has shipped and stabilized.
 13. **Ability to initiate combat** — hunt pirates for loot/reputation (`prd.md` #2).
+13a. **Use a dedicated `Explore`/`Plan` subagent pass before scoping the ADR** (audit #10) — this is the first roadmap item big enough to justify it: a new core system (permanent per-city inventory + hired-agent skill/loyalty simulation) benefits from a focused reconnaissance pass that doesn't consume the main session's context before the real design work starts.
 
 ## v1.5 — Localization completion + balance pass
 
@@ -55,11 +58,22 @@ Larger, previously-scoped-for-v2 items, unchanged from `prd.md`:
 16. **Expeditions & city discovery** (`prd.md` #4)
 17. **Real pixel-art sprite sheets** (`prd.md` #12, ADR-005) — needs an asset pipeline doc first
 18. **Illustrated key scenes / NPC portrait dialogs** (`prd.md` #13-14)
-19. **Audio/music** (`prd.md` #15)
+19. **Audio/music** (`prd.md` #15) — `howler` is already a `package.json` dependency, pre-installed for this item; resolve audit #4 here by either finally using it or removing it if a different approach is chosen once this is actually scoped.
 20. **`players[]` array migration**, done *before* hotseat starts (`prd.md` #17)
-21. **Hotseat multiplayer** (`prd.md` #16, ADR-007)
+21. **Hotseat multiplayer** (`prd.md` #16, ADR-007) — same subagent-reconnaissance argument as v1.4's item 13a (audit #10) applies here too; the second-biggest single item on this roadmap.
 
 ---
+
+## Engineering/process items (not version-bound)
+
+From `docs/audits/2026-07-28-architecture-and-claude-code-review.md`. These aren't player-facing features so they don't get a version number — they're small, independent of game content, and safe to do whenever, rather than waiting on a release. Listed here (not left only in the audit file) so they're tracked in the same single place as everything else, per this doc's own point about backlog drift.
+
+- **Fix `CLAUDE.md`'s architecture diagram** (audit #2) — it documents Svelte stores in `src/game/state/` that don't exist; the real state lives in `LocalGameClient`. Doc-only fix.
+- **Add a `build` step to `ci.yml`** (audit #6) — currently only `deploy.yml` runs `npm run build`, so a build-only failure can pass CI and only surface at deploy time on `main`.
+- **Delete the 8 already-merged stale `claude/*` branches** (audit #5), local and remote.
+- **Pick one canonical project name** (audit #7) and use it consistently across `package.json`, `index.html`, and doc headers.
+- **Add `eslint` to the `PostToolUse` typecheck hook** in `.claude/settings.json` (audit #12), so lint violations (including the architecture-boundary `no-restricted-imports` rule) are caught at edit-time, not just at the end of a task.
+- **Add a `/ship` command** (audit #11) capturing the repeated check-suite → docs → commit → push → deploy sequence, the same pattern as the existing `/new-adr`/`/new-design` commands.
 
 ## Open challenges to watch across this whole plan
 
