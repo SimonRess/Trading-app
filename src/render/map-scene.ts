@@ -14,8 +14,13 @@ const ROUTE_ACTIVE_COLOR = 0xd4a843;
 const CITY_COLOR = 0xd4a843;
 const CITY_RING_COLOR = 0xf0dca0;
 const CITY_LABEL_COLOR = 0xe8dcc8;
-const SHIP_COLOR = 0xc8a860;
-const SHIP_SELECTED_COLOR = 0xffe08a;
+// Deliberately a different hue family from CITY_COLOR/CITY_RING_COLOR's
+// gold — city and ship markers were both gold-on-navy at a glance,
+// hard to tell apart especially with a ship docked right next to its
+// home city's icon (feature-brainstorm.md finding #2). Blue reads as
+// "vessel on water", distinct from "settlement" gold.
+const SHIP_COLOR = 0x6fa8d0;
+const SHIP_SELECTED_COLOR = 0xbfe4ff;
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3.5;
@@ -553,7 +558,11 @@ export class MapScene {
       const index = ships.indexOf(ship.id);
       const base = CITIES[ship.position].position;
       const offsetX = (index - (ships.length - 1) / 2) * 14;
-      return { x: base.x + offsetX, y: base.y - 22 };
+      // -34, not -22: the city marker's selection ring alone has a 15px
+      // radius, so a docked ship needed more clearance to read as a
+      // separate icon instead of overlapping the city's crown (see the
+      // color-distinction comment on SHIP_COLOR above for the same bug).
+      return { x: base.x + offsetX, y: base.y - 34 };
     }
 
     const pos = ship.position;

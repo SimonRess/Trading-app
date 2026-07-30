@@ -202,16 +202,22 @@
     else errorMsg = T.err.buy;
   }
 
-  async function sell(goodId: GoodId) {
+  async function sell(goodId: GoodId, qtyOverride?: number) {
     errorMsg = '';
     const ship = shipById(selectedShipId);
     const city = shipCity(ship);
     if (!city || selectedCityId !== city) return;
-    const qty = Number(sellQty);
+    const qty = qtyOverride ?? Number(sellQty);
     if (!qty || qty < 1) return;
     const result = await gameClient.sendAction({ type: 'SELL_GOOD', shipId: selectedShipId, cityId: city, goodId, quantity: qty });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.sell;
+  }
+
+  function sellAll(goodId: GoodId): void {
+    const ship = shipById(selectedShipId);
+    const held = ship?.cargo[goodId] ?? 0;
+    if (held > 0) void sell(goodId, held);
   }
 
   async function buyShip(shipType: ShipType) {
@@ -525,7 +531,7 @@
         on:click={() => { showChangelog = !showChangelog; }}
       >v{APP_VERSION} ⓘ</button>
       <span class="hdr-info">
-        {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · {T.turnLabel} {state.calendar.turn}/{state.calendar.maxTurns}
+        {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · {T.turnLabel} {state.calendar.turn}
         <button
           class="info-btn"
           aria-label={T.seasonInfoLabel}
@@ -556,7 +562,7 @@
 
     {#if showSeasonInfo}
       <div class="season-info">
-        {T.seasonInfoText(state.calendar.maxTurns)}
+        {T.seasonInfoText}
         <button class="link-btn" on:click={() => { showSeasonInfo = false; }}>{T.close.toLowerCase()}</button>
       </div>
     {/if}
@@ -702,6 +708,7 @@
                 {sellPreview}
                 on:buy={(e) => buy(e.detail)}
                 on:sell={(e) => sell(e.detail)}
+                on:sellAll={(e) => sellAll(e.detail)}
               />
               <div class="qty-row">
                 <label>{T.buyQty} <input type="number" bind:value={buyQty} min="1" max="50" /></label>
@@ -1155,6 +1162,7 @@
             {sellPreview}
             on:buy={(e) => buy(e.detail)}
             on:sell={(e) => sell(e.detail)}
+            on:sellAll={(e) => sellAll(e.detail)}
           />
 
           <div class="qty-row">

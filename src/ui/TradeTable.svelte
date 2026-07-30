@@ -26,7 +26,7 @@
   export let buyPreview: PreviewFn = noPreview;
   export let sellPreview: PreviewFn = noPreview;
 
-  const dispatch = createEventDispatcher<{ buy: GoodId; sell: GoodId }>();
+  const dispatch = createEventDispatcher<{ buy: GoodId; sell: GoodId; sellAll: GoodId }>();
 </script>
 
 <table class="market-table">
@@ -69,6 +69,10 @@
                 disabled={(ship.cargo[goodId] ?? 0) < sellQty}
                 title={sellQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
               >{T.sellBtn(sellQty, preview.totalCost)}</button>
+              <button
+                class="trade-btn sell-all"
+                on:click={() => dispatch('sellAll', goodId)}
+              >{T.sellAllBtn}</button>
             {/if}
           </td>
         {/if}
@@ -99,6 +103,14 @@
   .trade-btn.buy:hover:not(:disabled) { background: #224828; }
   .trade-btn.sell { background: #381820; border-color: #884040; color: #d89090; }
   .trade-btn.sell:hover:not(:disabled) { background: #482228; }
+  .trade-btn.sell-all {
+    background: none;
+    border-color: transparent;
+    color: #b08a50;
+    text-decoration: underline;
+    margin-left: 0.3rem;
+  }
+  .trade-btn.sell-all:hover { background: none; color: #d4a843; }
 
   @media (max-width: 700px) {
     .trade-btn { padding: 0.45rem 0.7rem; }
