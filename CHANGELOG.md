@@ -24,6 +24,10 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ### Added
 - **Dynasty Chronicle** — a persistent, read-only log of your family's succession history, shown in the Merchant's House. Seeded with a founding entry when a new game starts; gains a new entry every time succession actually resolves (single-heir, multi-heir choice, or dying without an eligible heir). See `docs/design/family-succession.md`.
+- **Price-trend sparklines** — the Town Hall's Supply/Demand table gained a fourth column showing a small trend line of each good's last 10 turns of prices, per city.
+
+### Removed
+- **`priceTrend()`** (`market-system.ts`) — implemented and tested but never actually wired into any screen; superseded by the sparkline above, which does the same job better. Removed as dead code rather than left unused.
 
 ## [1.2.0] - 2026-07-30
 

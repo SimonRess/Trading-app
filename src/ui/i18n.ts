@@ -116,6 +116,7 @@ export interface Translation {
   colDemand: string;
   colInHold: string;
   colTrade: string;
+  colPriceTrend: string;
   priceInCity: (city: string) => string;
   noShipToTrade: string;
 
@@ -355,7 +356,7 @@ const en: Translation = {
   legendShipEnRoute: 'Ship en route',
 
   colGood: 'Good', colPrice: 'Price', colStock: 'Stock', colSupply: 'Supply', colDemand: 'Demand',
-  colInHold: 'In hold', colTrade: 'Trade',
+  colInHold: 'In hold', colTrade: 'Trade', colPriceTrend: 'Price trend',
   priceInCity: (city) => `Price in ${city}`,
   noShipToTrade: "No ship currently in this port to trade with — showing prices for reference.",
 
@@ -571,7 +572,7 @@ const de: Translation = {
   legendShipEnRoute: 'Schiff unterwegs',
 
   colGood: 'Ware', colPrice: 'Preis', colStock: 'Bestand', colSupply: 'Angebot', colDemand: 'Nachfrage',
-  colInHold: 'Im Laderaum', colTrade: 'Handel',
+  colInHold: 'Im Laderaum', colTrade: 'Handel', colPriceTrend: 'Preistrend',
   priceInCity: (city) => `Preis in ${city}`,
   noShipToTrade: 'Kein Schiff in diesem Hafen zum Handeln — Preise werden nur zur Orientierung angezeigt.',
 

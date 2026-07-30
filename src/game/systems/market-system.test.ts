@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { currentPrice, resolveTrade, resolveTradeStepped, resolveTurnMarket, priceTrend, updateAllMarkets, isEmbargoed } from './market-system.ts';
+import { currentPrice, resolveTrade, resolveTradeStepped, resolveTurnMarket, updateAllMarkets, isEmbargoed } from './market-system.ts';
 import type { GoodMarket, CityEffect, MarketState } from '../state/types.ts';
 
 const base: GoodMarket = { supply: 50, basePrice: 10, production: 5, consumption: 3 };
@@ -142,19 +142,5 @@ describe('isEmbargoed', () => {
   it('is false once expired', () => {
     const effects: CityEffect[] = [{ cityId: 'lubeck', goodId: 'salt', type: 'embargo', turnsRemaining: 0 }];
     expect(isEmbargoed(effects, 'lubeck', 'salt')).toBe(false);
-  });
-});
-
-describe('priceTrend', () => {
-  it('returns ↑ when supply dropped significantly', () => {
-    expect(priceTrend({ ...base, supply: 60 }, { ...base, supply: 50 })).toBe('↑');
-  });
-
-  it('returns ↓ when supply rose significantly', () => {
-    expect(priceTrend({ ...base, supply: 50 }, { ...base, supply: 60 })).toBe('↓');
-  });
-
-  it('returns — for small changes', () => {
-    expect(priceTrend({ ...base, supply: 50 }, { ...base, supply: 53 })).toBe('—');
   });
 });

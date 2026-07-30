@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
-  import { resolveTradeStepped } from '../game/systems/market-system.ts';
+  import { resolveTradeStepped, currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
@@ -41,6 +41,7 @@
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
   import TradeTable from './TradeTable.svelte';
+  import Sparkline from './Sparkline.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
   import pkg from '../../package.json';
   import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
@@ -101,6 +102,42 @@
   const GOOD_IDS = Object.keys(GOODS) as GoodId[];
   const CITY_IDS = Object.keys(CITIES) as CityId[];
   const SHIP_TYPE_IDS = Object.keys(SHIP_TYPES) as ShipType[];
+
+  // Price-history sparkline (feature-brainstorm.md #3): client-side only,
+  // remembers the last PRICE_HISTORY_LENGTH turns' prices per city/good in
+  // the UI layer. Deliberately not GameState — "how many turns to
+  // remember for a UI trend graph" isn't something save files or game
+  // logic need to know about, and keeping it here avoids a schema bump for
+  // a display-only concern. Recorded once per resolved turn (guarded by
+  // lastHistoryTurn), not on every reactive re-render, since state also
+  // changes on every buy/sell/etc — recording those too would make the
+  // "last N turns" window actually cover far fewer real turns.
+  const PRICE_HISTORY_LENGTH = 10;
+  // Rebuilt with fresh array/object references on every recorded turn
+  // (never mutated in place) and reassigned via `priceHistory = ...` below
+  // — this project has twice been bitten by Svelte not noticing in-place
+  // mutation of a value referenced elsewhere in the template (the
+  // bulk-price and City-view label-overlap bugs, both in git history), so
+  // this follows the same immutable-update discipline CLAUDE.md requires
+  // for GameState, even though price history itself is UI-local.
+  let priceHistory: Record<CityId, Record<GoodId, number[]>> = Object.fromEntries(
+    CITY_IDS.map(cityId => [cityId, Object.fromEntries(GOOD_IDS.map(goodId => [goodId, [] as number[]]))]),
+  ) as Record<CityId, Record<GoodId, number[]>>;
+  let lastHistoryTurn = 0;
+  $: if (state.calendar.turn !== lastHistoryTurn) {
+    lastHistoryTurn = state.calendar.turn;
+    priceHistory = Object.fromEntries(
+      CITY_IDS.map(cityId => [
+        cityId,
+        Object.fromEntries(
+          GOOD_IDS.map(goodId => {
+            const next = [...priceHistory[cityId][goodId], currentPrice(state.market[cityId][goodId])];
+            return [goodId, next.length > PRICE_HISTORY_LENGTH ? next.slice(-PRICE_HISTORY_LENGTH) : next];
+          }),
+        ),
+      ]),
+    ) as Record<CityId, Record<GoodId, number[]>>;
+  }
 
   const POSTURE_IDS: Ship['posture'][] = ['aggressive', 'defensive', 'flee'];
   $: POSTURE_LABELS = T.posture;
@@ -1017,7 +1054,7 @@
             <h3 class="counting-house-subhead">{T.supplyDemandHeading}</h3>
             <table class="supply-demand-table">
               <thead>
-                <tr><th>{T.colGood}</th><th>{T.colSupply}</th><th>{T.colDemand}</th></tr>
+                <tr><th>{T.colGood}</th><th>{T.colSupply}</th><th>{T.colDemand}</th><th>{T.colPriceTrend}</th></tr>
               </thead>
               <tbody>
                 {#each GOOD_IDS as goodId}
@@ -1025,6 +1062,7 @@
                     <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                     <td>{cityMarket[goodId].production}</td>
                     <td>{cityMarket[goodId].consumption}</td>
+                    <td><Sparkline values={priceHistory[selectedCityId][goodId]} /></td>
                   </tr>
                 {/each}
               </tbody>

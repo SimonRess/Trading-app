@@ -150,6 +150,8 @@ This gives the player enough information to anticipate price movements without e
 
 **Revised (2026-07-30, v1.2):** the trading table (`TradeTable.svelte`) dropped the **Supply** and **Demand** columns again, keeping only **Stock** — five data columns before a player could act was too dense for a screen used every turn, and Supply/Demand explain a price rather than being needed to act on it. They moved to the Town Hall building panel instead, as a per-good `Good | Supply | Demand` table for the currently-selected city, alongside the panel's other city-level stats (reputation, active effects). "Stock" (still shown in the trading table) remains `GoodMarket.supply`; "Supply"/"Demand" (now Town-Hall-only) remain `production`/`consumption`. No data-model change here either.
 
+**Revised (2026-07-30, v1.3):** the single ↑/↓/— trend indicator specified above was implemented (`priceTrend()`, `market-system.ts`) and unit-tested but never actually wired into any screen — a UI gap, not a removed feature. v1.3 superseded the idea rather than finishing the wiring: the Town Hall's Supply/Demand table gained a fourth **Price trend** column showing a small sparkline of the last 10 turns' prices (`Sparkline.svelte`), a strictly richer version of the same "anticipate price movements" goal. `priceTrend()` and its tests were removed as genuinely dead code rather than left in place, since nothing calls it and the sparkline replaces its purpose entirely.
+
 ---
 
 ## Data Model

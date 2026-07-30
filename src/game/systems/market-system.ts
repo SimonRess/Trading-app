@@ -5,13 +5,6 @@ export function currentPrice(market: GoodMarket): number {
   return Math.round(market.basePrice * factor);
 }
 
-export function priceTrend(prev: GoodMarket, curr: GoodMarket): '↑' | '↓' | '—' {
-  const delta = prev.supply - curr.supply;
-  if (delta > 5) return '↑';
-  if (delta < -5) return '↓';
-  return '—';
-}
-
 export function resolveTrade(
   market: GoodMarket,
   quantityBought: number,
