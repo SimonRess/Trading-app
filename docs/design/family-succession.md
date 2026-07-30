@@ -15,6 +15,16 @@ Implemented with substantial revisions from the original draft below (kept for h
 - ✅ Inheritance carryover (fleet/cash/loan/political rank carry over; reputation halves; marital status resets to single, partner cleared) matches the original draft's table, with children *not* carried to the new generation (documented simplification — surviving siblings aren't tracked as the new player's own children).
 - ✅ Turn-summary reporting: a death-with-heir message, a death-without-heir lose message, a per-child death message, and per-child trait-gained/birth messages — all as plain `TurnSummary` events rather than a distinct overlay variant (a scope simplification from the original "third turn-summary overlay variant" idea).
 
+## Dynasty Chronicle (Implemented, v1.3 — new since the Implementation Status above)
+
+The game's own pitch is "raise a family across generations," but until v1.3 there was no way to look back at that history — succession events were reported once in the turn summary (`TurnResult.summary.events`) and then discarded on the next turn. `GameState.chronicle: string[]` is a persistent, append-only log holding a subset of those events:
+
+- Seeded with one founding entry at `NEW_GAME` (`buildStartingState`): "🏛️ {playerName} begins trading in Lübeck, Spring 1320."
+- A new entry is appended at every point succession actually resolves: the single-eligible-heir auto-succession path, the multi-candidate `executeChooseHeir` resolution, and the no-eligible-heir game-over path (`resolveTurn`, `turn-system.ts`) — reusing the exact message text already generated for the turn summary rather than a separate string, so there's only one place that wording is written.
+- Surfaced read-only in the Merchant's House building panel, most-recent-first, below the existing marriage/children sections — the natural home given it's the player's own household history, not a city service.
+- **Save schema**: additive field, no `SCHEMA_VERSION` bump — an older save simply starts with an empty chronicle on load rather than backfilling a founding entry that didn't happen (`save-system.ts`'s `parseSaveFile`, same defaulting pattern as `hasWon`/`warehouses`/etc.).
+- **Deliberately not included** (kept for a possible future pass, not because there wasn't room): rank-up announcements, random-event messages, birth/marriage messages. Scoped to succession specifically per the original feature-brainstorm ask, since that's the "generations" through-line the pitch is actually about — the other message types would make the log noisy without adding much to "look back at your dynasty's history."
+
 ## Marriage (Implemented — revised from "Non-Goal" in the original draft below)
 
 The original draft explicitly kept marriage flavor-only, deferring it as blocking future work. It's now a real mechanic, required for children/succession to function:

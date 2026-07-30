@@ -21,6 +21,14 @@ import { executeBuyWarehouse } from './warehouse-system.ts';
 import { cannonSellValue } from '../data/ships.ts';
 import type { CityEffect, Child } from '../state/types.ts';
 
+describe('buildStartingState chronicle', () => {
+  it('seeds a founding entry naming the player', () => {
+    const state = buildStartingState('TestPlayer');
+    expect(state.chronicle).toHaveLength(1);
+    expect(state.chronicle[0]).toContain('TestPlayer');
+  });
+});
+
 describe('computeNetWorth', () => {
   it('includes cash + ship value + cargo value', () => {
     const state = buildStartingState('TestPlayer');
@@ -375,6 +383,13 @@ describe('executeChooseHeir', () => {
     expect(next.player.reputation.lubeck).toBe(20); // halved from 40, snapshotted at death
   });
 
+  it('appends a chronicle entry naming the chosen heir', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'b');
+    expect(next.chronicle.at(-1)).toContain('Hans');
+    expect(next.chronicle.length).toBe(paused.chronicle.length + 1);
+  });
+
   it('can choose the other candidate too', () => {
     const paused = pendingState();
     const next = executeChooseHeir(paused, 'a');
@@ -711,14 +726,16 @@ describe('resolveTurn', () => {
     expect(next.player.maritalStatus).toBe('single');
     expect(next.player.reputation.lubeck).toBe(20); // halved from 40
     expect(summary.events.some(e => e.includes('Grete'))).toBe(true);
+    expect(next.chronicle.at(-1)).toContain('Grete');
     vi.restoreAllMocks();
   });
 
   it('loses the game when the player dies with no eligible heir', () => {
     const state = buildStartingState('TestPlayer');
     const dying = { ...state, player: { ...state.player, health: 0, children: [] } };
-    const { summary } = resolveTurn(dying, { destinations: {} });
+    const { state: next, summary } = resolveTurn(dying, { destinations: {} });
     expect(summary.outcome).toBe('lose');
+    expect(next.chronicle.at(-1)).toContain('no eligible heir');
   });
 
   it('does not select a child under the heir-eligible age', () => {

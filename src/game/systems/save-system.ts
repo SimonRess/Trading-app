@@ -149,6 +149,11 @@ function parseSaveFile(raw: string): GameState | null {
       warehouses: rawState.warehouses ?? {},
       cityEffects: rawState.cityEffects ?? [],
       pendingSuccession: rawState.pendingSuccession ?? null,
+      // chronicle was added after schema v1 shipped — additive, same
+      // defaulting pattern as the fields above. An older save predates the
+      // Dynasty Chronicle entirely, so it starts empty rather than
+      // backfilling a founding entry that didn't happen at load time.
+      chronicle: rawState.chronicle ?? [],
     };
   } catch {
     return null;

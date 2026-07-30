@@ -213,6 +213,7 @@ export interface Translation {
   tooYoungToMarry: (min: number) => string;
   childrenLabel: string;
   noChildren: string;
+  chronicleHeading: string;
   age: string;
   health: string;
   heirEligible: string;
@@ -450,6 +451,7 @@ const en: Translation = {
   tooYoungToMarry: (min) => `Too young to marry (minimum age ${String(min)}).`,
   childrenLabel: 'Children',
   noChildren: 'No children yet.',
+  chronicleHeading: 'Dynasty Chronicle',
   age: 'Age',
   health: 'Health',
   heirEligible: 'Heir-eligible',
@@ -662,6 +664,7 @@ const de: Translation = {
   tooYoungToMarry: (min) => `Zu jung zum Heiraten (Mindestalter ${String(min)}).`,
   childrenLabel: 'Kinder',
   noChildren: 'Noch keine Kinder.',
+  chronicleHeading: 'Familienchronik',
   age: 'Alter',
   health: 'Gesundheit',
   heirEligible: 'Erbberechtigt',

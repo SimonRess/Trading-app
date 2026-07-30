@@ -1081,6 +1081,13 @@
               </div>
             {/if}
 
+            <h3 class="counting-house-subhead">{T.chronicleHeading}</h3>
+            <ul class="chronicle-list">
+              {#each [...state.chronicle].reverse() as entry, i (state.chronicle.length - i)}
+                <li>{entry}</li>
+              {/each}
+            </ul>
+
             {#if errorMsg}
               <p class="error">{errorMsg}</p>
             {/if}
@@ -1641,6 +1648,20 @@
     font-size: 1rem;
   }
   .effect-list { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #d4a843; }
+  .chronicle-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.4rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #c8b090;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .chronicle-list li { border-bottom: 1px solid #2a2018; padding-bottom: 0.4rem; }
+  .chronicle-list li:last-child { border-bottom: none; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
   .tag.durability-seaworthy { color: #8a7a60; }

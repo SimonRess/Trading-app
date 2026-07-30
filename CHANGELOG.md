@@ -20,6 +20,11 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-30
+
+### Added
+- **Dynasty Chronicle** — a persistent, read-only log of your family's succession history, shown in the Merchant's House. Seeded with a founding entry when a new game starts; gains a new entry every time succession actually resolves (single-heir, multi-heir choice, or dying without an eligible heir). See `docs/design/family-succession.md`.
+
 ## [1.2.0] - 2026-07-30
 
 ### Changed

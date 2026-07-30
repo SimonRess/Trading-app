@@ -177,6 +177,11 @@ export interface GameState {
   // zero) eligible heir, which still resolve automatically. See
   // docs/design/family-succession.md.
   pendingSuccession: PendingSuccession | null;
+  // Persistent, append-only log of notable dynasty moments (founding,
+  // succession, generation count) — a subset of the transient per-turn
+  // TurnResult.summary.events, kept across turns instead of discarded.
+  // See docs/design/family-succession.md "Dynasty Chronicle".
+  chronicle: string[];
 }
 
 export interface PendingSuccession {

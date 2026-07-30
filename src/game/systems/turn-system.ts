@@ -290,7 +290,9 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
             reputation: halvedReputation,
           },
         };
-        events.push(`⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`);
+        const chronicleEntry = `⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`;
+        events.push(chronicleEntry);
+        newState = { ...newState, chronicle: [...newState.chronicle, chronicleEntry] };
       }
     }
   }
@@ -324,7 +326,9 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   } else if (newState.player.health <= 0 && !succession) {
     outcome = 'lose';
     loseReason = 'no-heir';
+    const chronicleEntry = `⚰️ ${newState.player.name} has died at age ${String(newState.player.age)} with no eligible heir. The dynasty ends here.`;
     events.push('Without an heir to carry the family name, the trading house closes its doors.');
+    newState = { ...newState, chronicle: [...newState.chronicle, chronicleEntry] };
   } else if (newState.player.politicalRank === 3 && !newState.hasWon) {
     outcome = 'win';
     newState = { ...newState, hasWon: true };
@@ -566,5 +570,9 @@ export function executeChooseHeir(state: GameState, childId: string): GameState 
       children: [],
       reputation: pending.halvedReputation,
     },
+    chronicle: [
+      ...state.chronicle,
+      `⚱️ ${pending.deceasedName} has passed away at age ${String(pending.deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`,
+    ],
   };
 }

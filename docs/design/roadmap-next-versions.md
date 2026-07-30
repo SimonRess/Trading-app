@@ -26,7 +26,7 @@ Low-risk, high-value UI work. No new game mechanics, so no `src/game/` changes a
 
 Player-facing history/feedback features. Mostly UI-layer, reading existing state rather than adding new mechanics.
 
-6. **Dynasty Chronicle** — persistent `GameState.chronicle: string[]` logging succession/notable events, surfaced as a read-only panel (feature-brainstorm #1). This *is* a `GameState` shape change (new field, needs a save-schema version bump) but no new rules.
+6. ✅ **Dynasty Chronicle** — persistent `GameState.chronicle: string[]` logging succession events, surfaced as a read-only panel in the Merchant's House (feature-brainstorm #1, `design/family-succession.md` "Dynasty Chronicle"). Seeded with a founding entry at New Game; appends at every succession resolution point (auto-succession, `executeChooseHeir`, no-heir game over). Additive save field, no schema bump (defaults to `[]`). 2 new unit tests + 2 assertions added to existing succession tests. Verified live: genesis entry renders correctly in the Merchant's House panel. Scoped to succession only for this pass, not rank-ups/events/births — see the design doc for why.
 7. **Price history / trend sparkline per good** — client-side only, remembers last ~10 turns of `GoodMarket` snapshots in the UI layer (feature-brainstorm #3).
 8. **Achievements / milestones log** — detected from existing state transitions, shown alongside the Chronicle (feature-brainstorm #4).
 9. **Saved/repeating trade routes** — auto-fill next turn's buy/sail/sell orders until cancelled (feature-brainstorm #2). Larger than 6-8: touches action dispatch, needs its own design doc before starting.
