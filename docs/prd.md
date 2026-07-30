@@ -1,4 +1,4 @@
-# Product Requirements Document — Hanse: Die Expedition
+# Product Requirements Document — Hanse – Die Expedition
 
 **Status:** Living document
 **Last updated:** 2026-07-25

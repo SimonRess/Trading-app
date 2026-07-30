@@ -1,4 +1,4 @@
-# CLAUDE.md — Hanse Trading Game
+# CLAUDE.md — Hanse – Die Expedition
 
 ## Project
 
