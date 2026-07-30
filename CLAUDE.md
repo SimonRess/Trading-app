@@ -1,4 +1,4 @@
-# CLAUDE.md — Hanse Trading Game
+# CLAUDE.md — Hanse – Die Expedition
 
 ## Project
 
@@ -19,7 +19,7 @@ Planning guide: `docs/00_project_structure.md`
 src/
 ├── game/           ← pure game logic; NO imports from ui/ or render/
 │   ├── client/     ← GameClient interface + LocalGameClient implementation
-│   ├── state/      ← domain Svelte stores (player, fleet, cities, market, calendar)
+│   ├── state/      ← GameState type definitions (player, fleet, cities, market, calendar); the live state itself is one object held inside LocalGameClient, not per-domain stores
 │   ├── systems/    ← turn resolution, market simulation, combat, events
 │   └── data/       ← static data: city definitions, goods, ship types, starting config
 ├── render/         ← PixiJS scenes (map, port views, ship animations)

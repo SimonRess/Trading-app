@@ -102,7 +102,7 @@ Profitable opening moves visible from these prices:
 | Turn limit | 40 turns |
 | Lose condition | Net worth ≤ 0 at any turn end, or turn limit reached without winning |
 
-Net worth = cash + (ship count × 400 Mark Kogge base value) + cargo value at current market prices.
+Net worth = cash + (ship count × 4,000 Mark Kogge base value) + cargo value at current market prices.
 
 ---
 

@@ -4,6 +4,7 @@
   import { CityScene, type BuildingId } from '../render/city-scene.ts';
 
   export let cityId: CityId;
+  export let labels: Record<BuildingId, string>;
 
   const dispatch = createEventDispatcher<{ selectBuilding: BuildingId }>();
 
@@ -17,6 +18,7 @@
     });
     scene.mount(container).then(() => {
       ready = true;
+      scene?.setLabels(labels);
       scene?.showCity(cityId);
     });
   });
@@ -27,6 +29,9 @@
 
   $: if (ready && scene) {
     scene.showCity(cityId);
+  }
+  $: if (ready && scene) {
+    scene.setLabels(labels);
   }
 </script>
 

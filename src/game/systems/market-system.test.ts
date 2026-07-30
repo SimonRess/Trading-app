@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { currentPrice, resolveTrade, resolveTurnMarket, priceTrend, updateAllMarkets, isEmbargoed } from './market-system.ts';
+import { currentPrice, resolveTrade, resolveTradeStepped, resolveTurnMarket, priceTrend, updateAllMarkets, isEmbargoed } from './market-system.ts';
 import type { GoodMarket, CityEffect, MarketState } from '../state/types.ts';
 
 const base: GoodMarket = { supply: 50, basePrice: 10, production: 5, consumption: 3 };
@@ -37,6 +37,46 @@ describe('resolveTrade', () => {
     const market = { ...base, supply: 60 };
     resolveTrade(market, 20);
     expect(market.supply).toBe(60);
+  });
+});
+
+describe('resolveTradeStepped', () => {
+  it('matches a single flat-price purchase for quantity 1', () => {
+    const result = resolveTradeStepped({ ...base, supply: 50 }, 1, 1);
+    expect(result.totalCost).toBe(currentPrice({ ...base, supply: 50 }));
+    expect(result.market.supply).toBe(49);
+  });
+
+  it('a large buy costs more per unit than the flat spot price, as supply falls', () => {
+    const result = resolveTradeStepped({ ...base, supply: 50 }, 20, 1);
+    const flatCost = currentPrice({ ...base, supply: 50 }) * 20;
+    expect(result.totalCost).toBeGreaterThan(flatCost);
+    expect(result.market.supply).toBe(30);
+  });
+
+  it('a large sell earns less per unit than the flat spot price, as supply rises', () => {
+    const result = resolveTradeStepped({ ...base, supply: 50 }, 20, -1);
+    const flatRevenue = currentPrice({ ...base, supply: 50 }) * 20;
+    expect(result.totalCost).toBeLessThan(flatRevenue);
+    expect(result.market.supply).toBe(70);
+  });
+
+  it('applies a flat unit-price factor (e.g. a trait discount) to every step', () => {
+    const full = resolveTradeStepped({ ...base, supply: 50 }, 10, 1, 1);
+    const discounted = resolveTradeStepped({ ...base, supply: 50 }, 10, 1, 0.95);
+    expect(discounted.totalCost).toBeLessThan(full.totalCost);
+  });
+
+  it('reports the average unit price paid', () => {
+    const result = resolveTradeStepped({ ...base, supply: 50 }, 20, 1);
+    expect(result.avgUnitPrice).toBeCloseTo(result.totalCost / 20);
+  });
+
+  it('quantity 0 costs nothing and leaves the market unchanged', () => {
+    const result = resolveTradeStepped({ ...base, supply: 50 }, 0, 1);
+    expect(result.totalCost).toBe(0);
+    expect(result.avgUnitPrice).toBe(0);
+    expect(result.market.supply).toBe(50);
   });
 });
 

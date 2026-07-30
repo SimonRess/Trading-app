@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { averageShipRisk, stormDamageForShip, pickPirateTarget, applyEvent } from './event-system.ts';
 import { buildInitialRiskState } from './risk-system.ts';
 import { buildStartingState } from '../data/starting-config.ts';
@@ -14,6 +14,8 @@ const shipInTransit = (overrides?: Partial<Ship>): Ship => ({
   crew: 8,
   cannons: 0,
   insured: false,
+  repairCooldown: 0,
+  posture: 'defensive',
   ...overrides,
 });
 
@@ -184,6 +186,40 @@ describe('applyEvent shipwreck_salvage', () => {
     const totalBefore = Object.values(before).reduce((s, v) => s + v, 0);
     const totalAfter = Object.values(after).reduce((s, v) => s + v, 0);
     expect(totalAfter).toBeGreaterThan(totalBefore);
+  });
+});
+
+describe('applyEvent pirate_raid', () => {
+  const inTransitState = (shipOverrides?: Partial<Ship>): GameState => {
+    const state = buildStartingState('Test');
+    return {
+      ...state,
+      fleet: { ships: [shipInTransit({ id: state.fleet.ships[0]!.id, name: state.fleet.ships[0]!.name, ...shipOverrides })] },
+    };
+  };
+
+  it('reports both strengths for a non-flee outcome', () => {
+    const state = inTransitState({ cannons: 6, crew: 8, posture: 'aggressive', cargo: { salt: 20 } });
+    const result = applyEvent('pirate_raid', state);
+    expect(result.messages[0]).toMatch(/Your strength: \d+ vs\. their strength: \d+/);
+  });
+
+  it('flee outcome loses cargo but reports no strength comparison', () => {
+    const state = inTransitState({ posture: 'flee', cargo: { salt: 20 } });
+    const result = applyEvent('pirate_raid', state);
+    expect(result.messages[0]).not.toMatch(/strength/);
+    expect(result.messages[0]).toContain('fled');
+    const totalAfter = Object.values(result.fleet.ships[0]!.cargo).reduce((s, v) => s + v, 0);
+    expect(totalAfter).toBeLessThan(20);
+  });
+
+  it('an outmatched, unarmed ship can be sunk and removed from the fleet', () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.999).mockReturnValue(0);
+    const state = inTransitState({ cannons: 0, crew: 0, durability: 10, posture: 'defensive' });
+    const result = applyEvent('pirate_raid', state);
+    expect(result.fleet.ships).toHaveLength(0);
+    expect(result.messages[0]).toContain('sunk');
+    vi.restoreAllMocks();
   });
 });
 

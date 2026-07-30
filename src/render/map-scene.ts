@@ -155,6 +155,10 @@ export class MapScene {
   private zoom = MIN_ZOOM;
   private pan = { x: 0, y: 0 };
 
+  // English default; App.svelte calls setLegendLabels() with the current
+  // locale's text right after mount and whenever the language changes.
+  private legendLabels: [string, string, string] = ['Calm route', 'Dangerous route', 'Ship en route'];
+
   private shipMarkers = new Map<string, ShipMarker>();
   private lastState: GameState | undefined;
   private isVisible = true;
@@ -243,6 +247,12 @@ export class MapScene {
   // in handleResize would otherwise leave un-set) is never left stale.
   refreshLayout(): void {
     if (this.container) this.handleResize(this.container);
+  }
+
+  setLegendLabels(labels: [string, string, string]): void {
+    if (labels[0] === this.legendLabels[0] && labels[1] === this.legendLabels[1] && labels[2] === this.legendLabels[2]) return;
+    this.legendLabels = labels;
+    this.drawLegend();
   }
 
   // Ship-move tweens run on wall-clock time (performance.now()), independent
@@ -418,9 +428,9 @@ export class MapScene {
 
     const rowGap = 16;
     const swatches: Array<{ label: string; color: number; y: number }> = [
-      { label: 'Calm route', color: ROUTE_COLOR, y: 0 },
-      { label: 'Dangerous route', color: ROUTE_DANGER_COLOR, y: rowGap },
-      { label: 'Ship en route', color: ROUTE_ACTIVE_COLOR, y: rowGap * 2 },
+      { label: this.legendLabels[0], color: ROUTE_COLOR, y: 0 },
+      { label: this.legendLabels[1], color: ROUTE_DANGER_COLOR, y: rowGap },
+      { label: this.legendLabels[2], color: ROUTE_ACTIVE_COLOR, y: rowGap * 2 },
     ];
 
     for (const swatch of swatches) {
@@ -517,13 +527,20 @@ export class MapScene {
       // "above average" half of that range onto the calm->danger gradient.
       const dangerT = (danger - 1.0) / (RISK_FACTOR_MAX - 1.0);
       const dangerColor = lerpColor(ROUTE_COLOR, ROUTE_DANGER_COLOR, dangerT);
+      // An active (ship en route) line used to fully replace the danger
+      // tint with plain gold, which hid exactly the case a player most
+      // needs to see: a ship currently sailing a route that's genuinely
+      // dangerous right now. Blend the two instead so a dangerous+active
+      // route reads as a red-tinged gold rather than losing the danger
+      // signal entirely.
+      const routeColor = isActive ? lerpColor(dangerColor, ROUTE_ACTIVE_COLOR, 0.5) : dangerColor;
 
       const line = new Graphics()
         .moveTo(from.x, from.y)
         .lineTo(to.x, to.y)
         .stroke({
           width: isActive ? 4 : 2.5,
-          color: isActive ? ROUTE_ACTIVE_COLOR : dangerColor,
+          color: routeColor,
           alpha: isActive ? 0.95 : 0.8,
         });
       this.routeLayer.addChild(line);

@@ -1,7 +1,7 @@
 # ADR-010: Combat Mechanic
 
 **Date:** 2026-07-14  
-**Status:** Accepted  
+**Status:** Implemented (2026-07-25)  
 **Deciders:** Simon
 
 ## Context
@@ -61,9 +61,19 @@ The original's grid placement is engaging but requires a dedicated UI screen wit
 🔒  Ships need a `crew` count field for the crew bonus calculation — must be added to `Ship` in `types.ts` before v2  
 🔒  Route danger ratings must be defined in the route data (`routes.ts`) before combat can be triggered correctly  
 
+## Implementation Notes (2026-07-25)
+
+Implemented largely as designed, with two deviations from the original sketch, both per explicit player direction:
+
+- **Flee doesn't roll `player_power`/`enemy_power` at all** — it always succeeds, at a fixed 20-35% cargo cost placed between Retreat's (10-20%) and Defeat's (30-50%) ranges rather than derived from them, so the three loss bands can be tuned independently.
+- **Victory loot is drawn from a fixed random-goods pool**, not a simulated enemy ship's actual cargo — explicitly deferred, not rejected: a future pass could give pirates (and rival trading houses) private fleets with their own routes/cargo/ship types/weapons, which would make captured loot a function of what the enemy was actually carrying rather than a flat random draw.
+- **Every fought (non-flee) encounter's turn-summary message reports both sides' strength** (`"Your strength: N vs. their strength: M"`), not just the outcome — the original ADR didn't specify this, but it's needed for the outcome to feel legible rather than arbitrary.
+
+`enemy_power = rand(20,60)` is scaled by the same route-risk-vs-network-average normalisation `event-system.ts` already used for pirate-event weighting (duplicated into `combat-system.ts` rather than imported, to avoid a circular dependency — `event-system.ts` calls into `combat-system.ts`). See `docs/design/ship-stats.md` "Combat" for the full breakdown, thresholds, and implementation status.
+
 ## Links
 
 - Supersedes: —  
 - Superseded by: —  
 - Related ADRs: ADR-006 (Turn-based — combat triggers and resolves at turn boundaries), ADR-004 (Architecture — combat resolution is a pure function on GameState)  
-- Related design docs: docs/design/mvp-scope.md (combat is v2), docs/design/ship-stats.md (when created — cannon capacity affects combat power), docs/10_game_mechanics.md (original combat design description)
+- Related design docs: docs/design/ship-stats.md "Combat" (implementation), docs/design/event-table.md (pirate_raid event), docs/10_game_mechanics.md (original combat design description)

@@ -13,6 +13,8 @@ import {
   executeSellCannon,
   executeRenameShip,
   executeChooseHeir,
+  executeAuctionShip,
+  executeSetPosture,
 } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
@@ -77,6 +79,10 @@ export class LocalGameClient implements GameClient {
         this.state = executeRenameShip(this.state, action.shipId, action.name);
         return Promise.resolve(this.state);
 
+      case 'AUCTION_SHIP':
+        this.state = executeAuctionShip(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
       case 'HIRE_CREW':
         this.state = executeHireCrew(this.state, action.shipId);
         return Promise.resolve(this.state);
@@ -107,6 +113,10 @@ export class LocalGameClient implements GameClient {
 
       case 'TOGGLE_INSURANCE':
         this.state = executeToggleInsurance(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'SET_POSTURE':
+        this.state = executeSetPosture(this.state, action.shipId, action.posture);
         return Promise.resolve(this.state);
 
       case 'BUY_WAREHOUSE':

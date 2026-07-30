@@ -4,8 +4,8 @@ import { gainReputation } from './political-system.ts';
 // Placeholder numbers pending simulation/tuning — see docs/design/
 // church-donations.md "Open Questions", same caveat as every other
 // economic addition (ADR-015, political-rank.md).
-const DONATION_COST_PER_PERCENT = 50;
-const REPUTATION_COST_PER_POINT = 100;
+const DONATION_COST_PER_PERCENT = 500;
+const REPUTATION_COST_PER_POINT = 1000;
 
 // Completion advances by at most this many percentage points per city per
 // turn (advanceChurchProgress below), regardless of how much is pledged —

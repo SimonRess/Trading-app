@@ -13,6 +13,8 @@ import {
   executeBuyCannon,
   executeSellCannon,
   executeChooseHeir,
+  executeAuctionShip,
+  executeSetPosture,
 } from './turn-system.ts';
 import { executeToggleInsurance } from './insurance-system.ts';
 import { executeBuyWarehouse } from './warehouse-system.ts';
@@ -124,11 +126,12 @@ describe('executeSell', () => {
 
 describe('executeBuyShip', () => {
   it('deducts cash and adds a new ship in port', () => {
-    const state = buildStartingState('TestPlayer');
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
     const before = state.player.cash;
     const next = executeBuyShip(state, 'lubeck', 'kogge');
     expect(next.fleet.ships).toHaveLength(2);
-    expect(next.player.cash).toBe(before - 400);
+    expect(next.player.cash).toBe(before - 4000);
     const newShip = next.fleet.ships[1]!;
     expect(newShip.position).toBe('lubeck');
     expect(newShip.durability).toBe(100);
@@ -159,17 +162,18 @@ describe('executeBuyShip', () => {
 
   it('buys a Hulk at its own price and capacity', () => {
     const state = buildStartingState('TestPlayer');
-    const richState = { ...state, player: { ...state.player, cash: 1000 } };
+    const richState = { ...state, player: { ...state.player, cash: 10_000 } };
     const next = executeBuyShip(richState, 'lubeck', 'hulk');
-    expect(next.player.cash).toBe(1000 - 800);
+    expect(next.player.cash).toBe(10_000 - 8000);
     expect(next.fleet.ships[1]!.type).toBe('hulk');
   });
 
   it('buys a Schnigge at its own price', () => {
-    const state = buildStartingState('TestPlayer');
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
     const before = state.player.cash;
     const next = executeBuyShip(state, 'lubeck', 'schnigge');
-    expect(next.player.cash).toBe(before - 250);
+    expect(next.player.cash).toBe(before - 2500);
     expect(next.fleet.ships[1]!.type).toBe('schnigge');
   });
 });
@@ -215,6 +219,90 @@ describe('executeRepairShip', () => {
     };
     const next = executeRepairShip(state, shipId);
     expect(next).toBe(state);
+  });
+});
+
+describe('executeSetPosture', () => {
+  it('sets the posture on the given ship', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeSetPosture(state, shipId, 'aggressive');
+    expect(next.fleet.ships[0]!.posture).toBe('aggressive');
+  });
+
+  it('does not affect other ships', () => {
+    let state = buildStartingState('TestPlayer');
+    state = { ...state, player: { ...state.player, cash: 10_000 } };
+    state = executeBuyShip(state, 'lubeck', 'kogge');
+    const [first, second] = state.fleet.ships;
+    const next = executeSetPosture(state, first!.id, 'flee');
+    expect(next.fleet.ships.find(s => s.id === first!.id)!.posture).toBe('flee');
+    expect(next.fleet.ships.find(s => s.id === second!.id)!.posture).toBe('defensive');
+  });
+
+  it('rejects an unknown ship id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeSetPosture(state, 'no-such-ship', 'aggressive');
+    expect(next).toBe(state);
+  });
+
+  it('is a no-op if the posture is unchanged', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const next = executeSetPosture(state, shipId, 'defensive');
+    expect(next).toBe(state);
+  });
+});
+
+describe('executeAuctionShip', () => {
+  it('removes the ship and pays 80% of purchase price scaled by durability', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
+    };
+    const before = state.player.cash;
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
+    // Kogge purchase price 4000 * 0.8 * 50/100 = 1600
+    expect(next.player.cash).toBe(before + 1600);
+  });
+
+  it('pays full 80% at full durability', () => {
+    const state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    const before = state.player.cash;
+    const next = executeAuctionShip(state, shipId);
+    expect(next.player.cash).toBe(before + 3200); // 4000 * 0.8
+  });
+
+  it('rejects auctioning a ship that is in transit', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: { from: 'lubeck', to: 'hamburg', turnsRemaining: 1 } } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next).toBe(state);
+  });
+
+  it('rejects an unknown ship id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeAuctionShip(state, 'nonexistent');
+    expect(next).toBe(state);
+  });
+
+  it('is not restricted to shipyard cities', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga' as const } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
   });
 });
 
@@ -443,7 +531,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const almostDone = {
       ...state,
-      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 99, churchPledged: 100 } },
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchCompletion: 99, churchPledged: 500 } },
     };
     const { state: next, summary } = resolveTurn(almostDone, { destinations: {} });
     expect(next.cities.hamburg.churchCompletion).toBe(100);
@@ -454,7 +542,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const pledged = {
       ...state,
-      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 100 } },
+      cities: { ...state.cities, hamburg: { ...state.cities.hamburg, churchPledged: 500 } },
     };
     const { summary } = resolveTurn(pledged, { destinations: {} });
     expect(summary.events.some(e => e.includes('Church of Hamburg') && e.includes('+1%'))).toBe(true);
@@ -538,7 +626,7 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const wonButBroke = {
       ...state,
-      player: { ...state.player, cash: -1_000, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
+      player: { ...state.player, cash: -10_000, politicalRank: 3 as const, reputation: { ...state.player.reputation, lubeck: 75 } },
       hasWon: true,
     };
     const { summary } = resolveTurn(wonButBroke, { destinations: {} });

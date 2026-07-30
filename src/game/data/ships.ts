@@ -22,7 +22,7 @@ export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
     name: 'Kogge',
     cargoCapacity: 50,
     turnsPerLeg: 2,
-    purchasePrice: 400,
+    purchasePrice: 4000,
     repairCostPerPoint: 2,
     description: 'The Hanseatic workhorse. Reliable and affordable.',
   },
@@ -31,7 +31,7 @@ export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
     name: 'Hulk',
     cargoCapacity: 100,
     turnsPerLeg: 3,
-    purchasePrice: 800,
+    purchasePrice: 8000,
     repairCostPerPoint: 2,
     description: 'Large hauler. Twice the hold of a Kogge, but slower.',
   },
@@ -40,7 +40,7 @@ export const SHIP_TYPES: Record<ShipType, ShipTypeDefinition> = {
     name: 'Schnigge',
     cargoCapacity: 20,
     turnsPerLeg: 1,
-    purchasePrice: 250,
+    purchasePrice: 2500,
     repairCostPerPoint: 2,
     description: 'Fast courier. Half the travel time of a Kogge, small hold.',
   },
@@ -104,6 +104,16 @@ export function isShipyardCity(cityId: CityId): boolean {
 
 export function shipNetWorth(purchasePrice: number, durability: number): number {
   return Math.round(purchasePrice * (durability / 100));
+}
+
+// Auction proceeds are the type's purchase price scaled by both durability
+// (a beat-up ship fetches less) and a flat 80% "highest bidder" discount
+// off list price (proposed, unvalidated by simulation like every other
+// numeric first pass — see docs/design/ship-stats.md).
+export const AUCTION_SALE_FRACTION = 0.8;
+
+export function auctionSaleValue(purchasePrice: number, durability: number): number {
+  return Math.round(purchasePrice * AUCTION_SALE_FRACTION * (durability / 100));
 }
 
 export function repairCost(ship: { type: ShipType; durability: number }): number {

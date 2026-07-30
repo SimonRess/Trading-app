@@ -69,13 +69,12 @@ Notes:
 | **Seasons** | All; lower weight in Winter (pirates don't like storms either) |
 | **Eligibility** | At least one player ship is currently in transit |
 | **Base weight** | Spring: 2 · Summer: 3 · Autumn: 2 · Winter: 1 (scaled by route risk — see below) |
-| **Effect** | The targeted ship loses **15% of its total cargo** (rounded down, per good proportionally) |
-| **Player message** | "🏴‍☠️ Pirates intercepted the [ship name]! Part of the cargo was seized." |
+| **Effect** | Full combat resolution (ADR-010, implemented 2026-07-25 — see `docs/design/ship-stats.md` "Combat"): the ship's cannons/crew/posture determine Victory (loot), Retreat or Defeat (cargo/durability loss), or Flee (guaranteed escape, fixed cargo cost) |
+| **Player message** | Reports both sides' strength for a fought encounter, e.g. "⚔️ Pirates intercepted the [ship name]! Your strength: 45 vs. their strength: 38. Victory! Captured 12 Salt." |
 
 Notes:
 - Target ship is chosen by **weighted random** among ships in transit, weighted by each ship's route pirate-risk (`route.pirateRisk[season] × routeRiskModifier`) — a ship on a dangerous route is more likely to be the one targeted, not picked uniformly
-- Cargo loss is proportional across all goods in the hold (e.g. 20 last salt + 10 last grain → lose 3 salt + 1 grain)
-- In MVP the player cannot fight back (combat is v2); pirate raid is always a partial loss
+- Previously (through v1.x) a pirate raid was always a flat, unconditional 15% cargo loss regardless of cannons/crew — cannons "did nothing" against pirates until combat resolution landed. See `ship-stats.md` "Combat" for the full outcome breakdown and formula.
 
 ---
 

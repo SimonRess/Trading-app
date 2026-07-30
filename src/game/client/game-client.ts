@@ -1,4 +1,4 @@
-import type { GameState, TurnResult, CityId, GoodId, ShipType } from '../state/types.ts';
+import type { GameState, TurnResult, CityId, GoodId, ShipType, Ship } from '../state/types.ts';
 
 export type GameAction =
   | { type: 'NEW_GAME'; playerName: string }
@@ -8,6 +8,7 @@ export type GameAction =
   | { type: 'SET_DESTINATION'; shipId: string; destination: CityId }
   | { type: 'BUY_SHIP'; cityId: CityId; shipType: ShipType }
   | { type: 'REPAIR_SHIP'; shipId: string }
+  | { type: 'AUCTION_SHIP'; shipId: string }
   | { type: 'RENAME_SHIP'; shipId: string; name: string }
   | { type: 'HIRE_CREW'; shipId: string }
   | { type: 'RELEASE_CREW'; shipId: string }
@@ -17,6 +18,7 @@ export type GameAction =
   | { type: 'BUY_CANNON'; shipId: string }
   | { type: 'SELL_CANNON'; shipId: string }
   | { type: 'TOGGLE_INSURANCE'; shipId: string }
+  | { type: 'SET_POSTURE'; shipId: string; posture: Ship['posture'] }
   | { type: 'BUY_WAREHOUSE'; cityId: CityId }
   | { type: 'SELL_WAREHOUSE'; cityId: CityId }
   | { type: 'SEEK_MARRIAGE' }

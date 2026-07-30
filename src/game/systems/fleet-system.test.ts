@@ -6,9 +6,10 @@ import {
   setDestination,
   advanceShips,
   applyStormDamage,
-  applyPirateRaid,
+  applyCombatOutcome,
   cargoSpace,
 } from './fleet-system.ts';
+import type { CombatResult } from './combat-system.ts';
 
 const koggeInPort = (overrides?: Partial<Ship>): Ship => ({
   id: 'ship-1',
@@ -20,6 +21,8 @@ const koggeInPort = (overrides?: Partial<Ship>): Ship => ({
   crew: 8,
   cannons: 0,
   insured: false,
+  repairCooldown: 0,
+  posture: 'defensive',
   ...overrides,
 });
 
@@ -170,20 +173,50 @@ describe('applyStormDamage', () => {
   });
 });
 
-describe('applyPirateRaid', () => {
-  it('takes 15% of cargo proportionally from the given target', () => {
+describe('applyCombatOutcome', () => {
+  const noopResult: CombatResult = { outcome: 'retreat', playerPower: 20, enemyPower: 30, durabilityLoss: 0, cargoLossFraction: 0, loot: {} };
+
+  it('removes the ship if durabilityLoss brings it to 0 or below', () => {
+    const ship = koggeInTransit({ durability: 20, cargo: { salt: 10 } });
+    const result: CombatResult = { ...noopResult, outcome: 'defeat', durabilityLoss: 25 };
+    const { fleet: next, sunk, shipName } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    expect(sunk).toBe(true);
+    expect(shipName).toBe('Wulf');
+    expect(next.ships).toHaveLength(0);
+  });
+
+  it('applies cargoLossFraction proportionally, floored per good', () => {
     const ship = koggeInTransit({ cargo: { salt: 20, grain: 10 } });
-    const { fleet: next, raidedShipName } = applyPirateRaid({ ships: [ship] }, ship.id);
-    expect(raidedShipName).toBe('Wulf');
+    const result: CombatResult = { ...noopResult, cargoLossFraction: 0.15 };
+    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    expect(sunk).toBe(false);
     const remaining = next.ships[0]!.cargo;
     expect(remaining['salt']).toBe(17); // 20 - floor(20*0.15) = 20-3
     expect(remaining['grain']).toBe(9); // 10 - floor(10*0.15) = 10-1
   });
 
-  it('returns null if the target id does not exist in the fleet', () => {
+  it('adds victory loot, capped by remaining cargo space', () => {
+    const ship = koggeInTransit({ cargo: {} }); // 50 capacity, empty
+    const result: CombatResult = { ...noopResult, outcome: 'victory', loot: { salt: 10, grain: 45 } };
+    const { fleet: next } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    const cargo = next.ships[0]!.cargo;
+    expect(cargo['salt']).toBe(10);
+    expect(cargo['grain']).toBe(40); // capped: 50 capacity - 10 already granted = 40 space left
+  });
+
+  it('reduces durability without removing the ship when it survives', () => {
+    const ship = koggeInTransit({ durability: 100 });
+    const result: CombatResult = { ...noopResult, outcome: 'defeat', durabilityLoss: 30 };
+    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    expect(sunk).toBe(false);
+    expect(next.ships[0]!.durability).toBe(70);
+  });
+
+  it('returns unchanged if the target id does not exist in the fleet', () => {
     const fleet: FleetState = { ships: [koggeInPort()] };
-    const { raidedShipName } = applyPirateRaid(fleet, 'no-such-ship');
-    expect(raidedShipName).toBeNull();
+    const { shipName, sunk } = applyCombatOutcome(fleet, 'no-such-ship', noopResult);
+    expect(shipName).toBeNull();
+    expect(sunk).toBe(false);
   });
 });
 

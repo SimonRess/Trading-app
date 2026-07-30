@@ -83,15 +83,25 @@ export interface Ship {
   // way a Damaged hull does — see docs/design/crew-management.md.
   crew: number;
   // 0 to the type's max (see ships.ts CANNON_MAX). Each cannon consumes 2
-  // cargo capacity (fleet-system.ts's cargoCapacity). No combat exists yet
-  // (ADR-010) — a cannon is purely a cargo-for-a-resellable-asset trade
-  // until combat resolution lands. See docs/design/ship-stats.md.
+  // cargo capacity (fleet-system.ts's cargoCapacity), and contributes to
+  // this ship's power in a pirate encounter — see combat-system.ts,
+  // docs/design/combat.md.
   cannons: number;
+  // Pre-battle posture (ADR-010): aggressive/defensive feed into this
+  // ship's combat power against a pirate encounter; flee always escapes
+  // (no power roll) at a fixed cargo cost instead. Set anytime, not
+  // shipyard-restricted, same as insurance. See combat-system.ts.
+  posture: 'aggressive' | 'defensive' | 'flee';
   // Opt-in per-ship insurance, toggled anytime (not shipyard-restricted).
   // While true, costs INSURANCE_PREMIUM_PER_TURN each turn and pays out
   // INSURANCE_PAYOUT_RATE of any storm damage/pirate cargo loss that turn
   // — see docs/design/insurance.md, insurance-system.ts.
   insured: boolean;
+  // Turns left before this ship can depart again, set to 1 by
+  // executeRepairShip and decremented once per turn in resolveTurn — a
+  // repair takes a turn in dock, not an instant fix. 0 the rest of the
+  // time. See docs/design/ship-stats.md.
+  repairCooldown: number;
 }
 
 export interface FleetState {

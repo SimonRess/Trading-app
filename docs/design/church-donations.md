@@ -57,7 +57,7 @@ Each of the 5 cities starts with a church under construction, at a different com
 
 ## Open Questions
 
-- Donation-to-completion and donation-to-reputation rates (50 Mark/1%, 100 Mark/reputation point) are still first-pass numbers, not simulation-tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
+- Donation-to-completion and donation-to-reputation rates (500 Mark/1%, 1,000 Mark/reputation point — raised ×10 from the original 50/100 Mark, 2026-07-25, per player feedback that both church donations and ship prices were too cheap) are still first-pass numbers, not simulation-tuned — same caution flagged in every other system doc so far (ADR-015, `political-rank.md`).
 - Should church completion be visible on the Map view (e.g. a small progress ring on each city icon), or only in the City view's Church building? Leaning City-view-only for now, consistent with the "at-a-glance building state" Open Question already flagged in `city-view.md`.
 - Multiple players donating to the same church only matters once multiplayer exists (v3, ADR-007) — no design needed now, but worth a one-line note in ADR-007's future revision when that work starts.
 

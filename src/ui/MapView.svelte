@@ -7,6 +7,7 @@
   export let selectedShipId: string;
   export let selectedCityId: CityId | undefined;
   export let visible = true;
+  export let legendLabels: [string, string, string];
 
   const dispatch = createEventDispatcher<{ selectCity: CityId; selectShip: string }>();
 
@@ -21,6 +22,7 @@
     });
     scene.mount(container).then(() => {
       ready = true;
+      scene?.setLegendLabels(legendLabels);
       scene?.update(state, { selectedShipId, selectedCityId });
     });
   });
@@ -31,6 +33,10 @@
 
   $: if (ready && scene) {
     scene.update(state, { selectedShipId, selectedCityId });
+  }
+
+  $: if (ready && scene) {
+    scene.setLegendLabels(legendLabels);
   }
 
   // See map-scene.ts's refreshLayout() — a deliberate, redundant catch-all

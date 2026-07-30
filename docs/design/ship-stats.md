@@ -17,7 +17,7 @@ The Kogge is the Hanseatic workhorse: reliable, widely available, and affordable
 |------|-------|------|----------|
 | **Cargo capacity** | 50 last | 100 last | 20 last |
 | **Speed** | Baseline (1×) | 1.5× slower | 2× faster |
-| **Purchase price** | 400 Mark | 800 Mark | 250 Mark |
+| **Purchase price** | 4,000 Mark | 8,000 Mark | 2,500 Mark |
 | **Repair cost** | 2 Mark/durability point | 2 Mark/durability point | 2 Mark/durability point |
 
 Shared across all types:
@@ -66,57 +66,62 @@ Ships contribute to the player's net worth for win/lose evaluation:
 ship_value = purchase_price × (durability / 100)
 ```
 
-A fully intact Kogge is worth 400 Mark. A critical Kogge (25 durability) is worth 100 Mark.
+A fully intact Kogge is worth 4,000 Mark. A critical Kogge (25 durability) is worth 1,000 Mark. (Prices raised ×10 from the original 400/800/250 Mark — 2026-07-25, per player feedback that ship prices were too low relative to trading income.)
 
 Ship value is one of the three components of total net worth (cash + ship value + cargo value). Cargo is valued at each good's fixed base price. See **ADR-014** and `mvp-scope.md` for the full net-worth definition.
 
 ---
 
-## v2 Combat Additions
+## Combat (Implemented, 2026-07-25 — see ADR-010 and combat-system.ts)
 
-When ADR-010 is implemented, the following fields are added to `Ship`:
+`Ship` carries `crew`, `cannons`, and `posture: 'aggressive' | 'defensive' | 'flee'`. The `cargo` capacity available for goods = `50 - (cannons × 2)` (Kogge; scaled per type).
 
-```typescript
-crew: number;         // sailor count; affects combat power
-cannons: number;      // each cannon uses 2 last of cargo capacity
-posture: 'aggressive' | 'defensive' | 'flee';
-```
-
-The `cargo` capacity available for goods = `50 - (cannons × 2)`. This is why `cannons` must be tracked on the ship even before combat is implemented — it affects the cargo capacity calculation.
-
-### Buying & Selling Cannons (Implemented, v2 — pulled forward ahead of full combat)
+### Buying & Selling Cannons
 
 **Status:** Implemented (first pass — thresholds not yet tuned).
 
-Full combat resolution (ADR-010's posture/power-roll flow) is a larger, separate implementation effort, but the **cannon-purchasing half** of ADR-010's pre-battle preparation phase can land independently and earlier — the same "implement the buildable/tradeable part ahead of the mechanic that consumes it" pattern already used for Hulk/Schnigge (bought forward from v1.1 into the MVP pass) and ship buying/repair generally. A ship can carry cannons, at the cost of cargo space, before combat itself exists to use them — they'd simply do nothing yet, same as `politicalRank`/`reputation` sat unused in the state shape for a long stretch before `political-rank.md` gave them a purpose.
+- Available at shipyard cities only (`SHIPYARD_CITIES`), a "Weapons" control alongside Buy/Repair/Crew in the Shipyard section: buy/sell cannons one at a time for the selected ship, each purchase costing a flat price (150 Mark) and immediately reducing that ship's usable cargo capacity by 2 last.
+- Selling refunds 60% of the purchase price and immediately frees the cargo space back up.
+- **Guardrail:** buying a cannon that would push currently-held cargo over the new, smaller limit is rejected, same pattern as `executeBuy` rejecting a purchase that exceeds `cargoSpace`.
+- ✅ `Ship.cannons` (additive save-file field). `CANNON_MAX`: Kogge 6, Hulk 8, Schnigge 3.
+- ✅ `executeBuyCannon`/`executeSellCannon` (`turn-system.ts`), `BUY_CANNON`/`SELL_CANNON` actions.
+- ✅ `cannonSellValue()` = 60% of `CANNON_PRICE`, rounded; counted in `computeNetWorth` (ADR-020).
+- ✅ Every "Cargo N/M" readout shows the cannon-reduced capacity and, when the ship carries cannons, "(N used by cannons)".
 
-- Available at shipyard cities only (`SHIPYARD_CITIES`), a "Weapons" control alongside Buy/Repair/Crew in the Shipyard section: buy/sell cannons one at a time for the selected ship, each purchase costing a flat price (proposed: 150 Mark) and immediately reducing that ship's usable cargo capacity by 2 last (`cargoSpace` — already the single function everything else reads for capacity checks, per `fleet-system.ts` — needs to subtract `cannons × 2`, the same formula ADR-010 already specifies).
-- Selling refunds a fraction of the purchase price (proposed: 60%, same one-way-friction spirit as warehouse resale and crew severance) and immediately frees the cargo space back up.
-- **Guardrail:** selling cannons (or buying more) must respect currently-held cargo — a ship loaded near its current capacity cannot buy a cannon that would push held cargo over the new, smaller limit. Buying should be rejected (same pattern as `executeBuy` already rejecting a purchase that exceeds `cargoSpace`) rather than silently overflowing.
-- No posture, no combat power calculation, no enemy encounters in this pass — cannons are purely a cargo-for-a-number-that-does-nothing-yet trade until full combat (ADR-010's actual resolution flow) is implemented on top.
+### Pre-Battle Posture and Pirate Encounters
 
-**Implementation Status (as of 2026-07-23):**
-- ✅ `Ship.cannons` (additive save-file field, no schema bump — defaults to 0 for older saves). `CANNON_MAX` implemented as proposed: Kogge 6, Hulk 8, Schnigge 3.
-- ✅ `executeBuyCannon`/`executeSellCannon` (`turn-system.ts`) and the `BUY_CANNON`/`SELL_CANNON` actions, gated on `isShipyardCity` exactly like repair/crew. Buying is rejected if held cargo wouldn't fit the smaller hold after the purchase.
-- ✅ `fleet-system.ts`'s `cargoCapacity` subtracts `cannons × 2` — the single function everything else reads for capacity, so the reduced hold is automatically reflected in `cargoSpace`, the cargo display, and buy-quantity checks.
-- ✅ `cannonSellValue()` = 60% of `CANNON_PRICE` (150 Mark), rounded.
-- ✅ Shipyard building (both City view and List view) shows a Cannons readout with +1/-1 controls next to Repair/Crew.
-- ✅ Every "Cargo N/M" readout (Harbor building's fleet list and the List view's fleet panel) now reads the cannon-reduced `cargoCapacity(ship)` and, when the ship carries cannons, appends "(N used by cannons)" — previously these showed the raw, un-reduced type capacity, so a cannon's cargo cost wasn't visible anywhere outside the Shipyard panel itself (reported by a player as missing from the Cargo status).
-- ✅ Cannon resale value counted in `computeNetWorth` — see ADR-020.
-- ✅ Unit tests: `ships.test.ts` (`cannonSellValue`, `CANNON_MAX`), `turn-system.test.ts` (`executeBuyCannon`/`executeSellCannon` cash/cap/shipyard-gating/cargo-fit rejections), `fleet-system.test.ts` (`cargoSpace` reduced by cannons).
-- ✅ Verified live: buying a cannon on the starting Kogge deducted 150 Mark and reduced cargo capacity from 50 to 48.
-- ⏳ Still no posture, combat power calculation, or enemy encounters — cannons remain a cargo-for-a-resellable-asset trade until full combat (ADR-010's resolution flow) is implemented on top.
+**Status:** Implemented (ADR-010's power-roll flow; first pass, not simulation-tuned).
+
+Posture is set anytime, anywhere (not shipyard-restricted, same as insurance's toggle) via a 3-button selector in the Shipyard section — Aggressive / Defensive / Flee. When a `pirate_raid` event targets a ship (`event-system.ts`, `pickPirateTarget`), `combat-system.ts`'s `resolveCombat` decides the outcome:
+
+- **Aggressive/Defensive:** `player_power = cannons×10 + crew×2 + posture_modifier` (aggressive +15, defensive +0) is compared against `enemy_power = rand(20,60)` scaled by the route's pirate-risk-vs-network-average factor (same normalisation `event-system.ts` already used for pirate-event weighting, duplicated in `combat-system.ts` to avoid a circular import). `diff = player_power - enemy_power + rand(-10,10)`:
+  - `diff > 15` → **Victory** — captures loot: 1-2 random goods (fixed pool, not a simulated enemy cargo hold — see Open Questions) at 5-15 units each, capped by remaining cargo space.
+  - `diff < -15` → **Defeat** — 20-40 durability lost, 30-50% of cargo seized. If durability reaches 0, the ship is **sunk**: removed from the fleet with all remaining cargo, same fate as a storm wreck.
+  - Otherwise → **Retreat** — no durability loss, 10-20% of cargo lost.
+- **Flee:** always escapes — no power roll at all — but isn't free: 20-35% of cargo is lost jettisoning to outrun pursuit, deliberately set between Retreat's and Defeat's cargo-loss ranges (explicit player direction, 2026-07-25) rather than derived from them, so tuning one doesn't silently shift the other two.
+- The turn-summary message for a fought (non-flee) encounter always reports both sides' strength — `"Your strength: N vs. their strength: M"` — so the player can see why they won or lost, not just the outcome (explicit player direction, 2026-07-25).
+- Insurance needs no changes: `computeInsurancePayouts` already diffs ship state generically before/after any event, so a combat-damaged insured ship is covered automatically, same as storm damage.
+
+**Implementation Status:**
+- ✅ `Ship.posture` (additive save-file field, defaults `'defensive'`). `SET_POSTURE { shipId, posture }` action, `executeSetPosture` (`turn-system.ts`).
+- ✅ `combat-system.ts`: `resolveCombat`, `playerCombatPower`, pure and independently unit-tested (statistical sanity checks: an unarmed ship never wins, a well-armed aggressive ship usually does).
+- ✅ `fleet-system.ts`'s `applyCombatOutcome` applies a resolved `CombatResult` to the fleet (cargo loss, loot grant capped by space, durability loss, removal on sinking) — replaces the old flat, unconditional `applyPirateRaid` (deleted; it ignored cannons/crew/posture entirely).
+- ✅ Shipyard section (both City and List views) shows the posture selector with a one-line description of what each option does.
+- ✅ Unit tests: `combat-system.test.ts`, `fleet-system.test.ts` (`applyCombatOutcome`), `event-system.test.ts` (`applyEvent('pirate_raid')` integration — strength reporting, flee cargo loss, sinking).
+- ✅ Verified live: posture selector updates immediately; no console errors across normal play.
 
 **Open Questions:**
-- Cannon price (150 Mark) and resale fraction (60%) are still placeholder numbers, unvalidated by simulation — same caveat as every other numeric proposal in this doc set.
+- Loot is drawn from a fixed random-goods pool rather than a simulated enemy fleet with its own cargo/route/ship-type — a later pass could give pirates (and rival trading houses) actual private fleets whose composition determines what's capturable, per explicit player direction that this is deferred, not rejected.
+- Cannon price (150 Mark), resale fraction (60%), and every combat-power/threshold/loss constant are first-pass numbers, unvalidated by simulation — same caveat as every other numeric proposal in this doc set.
+- No way to *initiate* combat (hunt pirates) yet — encounters are always pirate-triggered.
 
 ---
 
 ## Data Model
 
 ```typescript
-// Already in src/game/state/types.ts — Ship interface
-// Additions needed before v2:
+// src/game/state/types.ts — Ship interface (abridged; also carries insured,
+// repairCooldown — see the file itself for the full, currently-accurate shape)
 interface Ship {
   id: string;
   name: string;
@@ -124,10 +129,9 @@ interface Ship {
   durability: number;       // 0–100
   position: CityId | RoutePosition;
   cargo: Partial<Record<GoodId, number>>;
-  // v2 additions:
-  // crew: number;
-  // cannons: number;
-  // posture: CombatPosture;
+  crew: number;
+  cannons: number;
+  posture: 'aggressive' | 'defensive' | 'flee';
 }
 
 interface ShipTypeDefinition {
@@ -173,13 +177,22 @@ export const MAX_SHIPS = 3;
 Both actions are only available while a ship is **in port at a shipyard city** (`SHIPYARD_CITIES`), shown as a "Shipyard" section in the port view.
 
 - **Buy ship** — the Shipyard section shows a card per ship type (capacity, price, speed relative to the Kogge — "standard speed" / "1.5x slower" / "2x faster", derived from `speedRatio()` — and a one-line description) with its own Buy button, each independently disabled if the fleet is at `MAX_SHIPS` (3, shared across all types) or the player can't afford that specific type. Spawns a new ship of the chosen type at full durability and empty cargo in the current port.
-- **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark (same rate for every type). There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs.
+- **Repair ship** — repairs the *selected* ship to full (100) durability for `(100 - durability) × repairCostPerPoint` Mark (same rate for every type). There is no partial-repair control in the MVP UI — it is full-repair-or-nothing, which keeps the interaction to a single button and avoids needing a repair-quantity input alongside the existing buy/sell quantity inputs. A repaired ship also sits in dock for **1 turn** before it can depart again (`Ship.repairCooldown`, ticked down once per turn in `resolveTurn`) — a repair takes a turn, not an instant fix. (2026-07-25, per player feedback.)
 
 This resolves the two open questions below: repair (and purchase) are restricted to the three designated shipyard cities, not all five, and the MVP does include a manual shipyard UI rather than automatic charge-on-visit — automatic repair was rejected because it would silently spend the player's cash without an explicit decision point.
 
 ## Renaming Ships (Implemented, v1.1)
 
 Ships get a name from a small fixed list at creation (`nextShipName` in `ships.ts`); the player can now change it afterward. Implemented as proposed: a text input next to each ship in the Shipyard building (both City view and List view), free (no cash cost — flavor, not an economic decision) and unrestricted (any non-empty string up to 30 characters, no uniqueness requirement across the fleet — two ships can share a name). `executeRenameShip` (`turn-system.ts`) and the `RENAME_SHIP { shipId, name }` action set `Ship.name` directly, trimming whitespace and rejecting a blank or unchanged name; no other state changes. Unlike the doc's original "fleet panel, currently-selected ship" sketch, the control lives in the Shipyard section per-ship (matching the "Ready to extend as crew/cannons/renaming land" note left when the Shipyard building first shipped) and is **not** restricted to shipyard cities — renaming doesn't need a dry-dock, so it's available on any ship regardless of position, same reasoning as insurance's anytime-toggle. Verified live: renaming a ship updates its name immediately across the UI.
+
+## Auctioning Ships (Implemented, 2026-07-25)
+
+A player asked for a way to sell an unwanted ship rather than only ever buying/repairing. Each ship in the Shipyard section (both City view and List view) has an **Auction** button, available at any port (not restricted to shipyard cities — this is a sale, not a build/repair action, same reasoning as renaming). Clicking it immediately sells the ship to "the highest bidder" for `purchasePrice × 80% × (durability / 100)` (`auctionSaleValue()` in `ships.ts`) — a fully seaworthy Kogge nets 3,200 Mark, a critical one (25 durability) nets 800. The ship (and any cargo still aboard it) leaves the fleet immediately; cash is credited immediately. A popup confirms the sale with the in-game date (season + year) and the price paid.
+
+This is a first-pass, single-step implementation: there's no real waiting period or competing-bidder simulation yet — "the highest bidder" is flavor text for an instant, deterministic sale. A later pass could spread this over a few turns (mirroring the church-donation throttle) if that turns out to matter for balance; not done here since the request was explicitly framed as a placeholder ("for now, at this date just popup with the message").
+
+- ✅ `executeAuctionShip` (`turn-system.ts`) and the `AUCTION_SHIP { shipId }` action — rejects if the ship isn't in port (can't auction a ship at sea), no other restrictions (fleet size, cargo, or shipyard-city gating).
+- ✅ Verified live: Shipyard readout showed "Auction this ship... for 3200 Mark" for a full-durability Kogge (4,000 base × 80%); clicking Auction removed the ship, credited 3,200 Mark, and the popup read "Wulf von Lübeck was sold to the highest bidder for 3200 Mark."
 
 ## Implementation Status (as of 2026-07-18)
 
@@ -191,7 +204,7 @@ Ships get a name from a small fixed list at creation (`nextShipName` in `ships.t
 
 ## Related
 
-- ADR-010 (Combat — cannon capacity interacts with cargo; crew field needed before v2)
+- ADR-010 (Combat — implemented 2026-07-25, see "Combat" section above)
 - ADR-015 (Per-route & session event risk — durability thresholds and storm-risk consumption)
 - ADR-018 (Feature delivery sequencing — cannons ship with the Shipyard building, gated on the city-view skeleton)
 - docs/design/city-graph.md (storm/pirate risk per route; Kogge-calibrated `route.turns`)
