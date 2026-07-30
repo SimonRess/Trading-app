@@ -36,6 +36,15 @@
             "command": "cd /home/user/Trading-app && [ -f tsconfig.json ] && npm run typecheck 2>&1 | tail -8 || true"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/Trading-app && [ -f .eslintrc.json ] && npm run lint 2>&1 | tail -20 || true"
+          }
+        ]
       }
     ]
   }
