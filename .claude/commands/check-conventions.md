@@ -5,7 +5,7 @@ Check for violations of:
 2. **State mutation** — are state objects mutated in place instead of returning new state?
 3. **TypeScript** — any use of `any` type?
 4. **Exports** — any `export default`?
-5. **File naming** — are new files in kebab-case?
+5. **File naming** — are new `.ts` files kebab-case, and new `.svelte` files PascalCase?
 6. **Comments** — are there comments that explain WHAT code does rather than WHY?
 7. **Test coverage** — do new game logic files in src/game/ have a co-located .test.ts file?
 8. **Doc conventions** — do any new docs/ files follow the templates in docs/00_project_structure.md?

@@ -148,6 +148,8 @@ This gives the player enough information to anticipate price movements without e
 
 **Revised (2026-07-24):** the trading table now shows **Stock**, **Supply**, and **Demand** as three separate columns, not just a single "Supply" figure — a player asked whether stock already accounted for supply and demand (it does: `Stock(T2) = Stock(T1) + Supply(T1) - Demand(T1)`, `resolveTurnMarket()` below), and the UI wasn't actually showing that breakdown. "Stock" is the existing `GoodMarket.supply` field (0–100, what the price formula reads); "Supply" and "Demand" are the existing `production`/`consumption` flow-rate fields, exposed under clearer names matching `event-table.md`'s Market Boom description. No data-model change — this is a UI-only fix, reading fields that already existed.
 
+**Revised (2026-07-30, v1.2):** the trading table (`TradeTable.svelte`) dropped the **Supply** and **Demand** columns again, keeping only **Stock** — five data columns before a player could act was too dense for a screen used every turn, and Supply/Demand explain a price rather than being needed to act on it. They moved to the Town Hall building panel instead, as a per-good `Good | Supply | Demand` table for the currently-selected city, alongside the panel's other city-level stats (reputation, active effects). "Stock" (still shown in the trading table) remains `GoodMarket.supply`; "Supply"/"Demand" (now Town-Hall-only) remain `production`/`consumption`. No data-model change here either.
+
 ---
 
 ## Data Model

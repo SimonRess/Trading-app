@@ -33,12 +33,12 @@ Proposed building set, each mapping to functions that already exist in the port 
 | Building | Functions bound to it | Source |
 |---|---|---|
 | **⚓ Harbor / Docks** | Fleet overview, ship selection, "Set Destination" (sailing orders) | Existing (`Fleet` panel + "Set Destination" section) |
-| **🏛️ Trading Post (Kontor)** | Buy/sell goods at current market prices | Existing (goods table) |
+| **🏛️ Trading Post (Kontor)** | Buy/sell goods at current market prices (Good/Price/Stock/Buy/Sell — Supply/Demand moved to Town Hall, v1.2) | Existing (goods table) + `market-formula.md` "Revised (2026-07-30, v1.2)" |
 | **🔨 Shipyard** | Buy ships, repair ships, rename ships, crew hire/release, cannon buy/sell | Existing (Shipyard section) + `ship-stats.md` "Renaming Ships" + `crew-management.md` + `ship-stats.md` "Buying & Selling Cannons" — all four are ship-centric actions, so they share one building rather than each getting its own |
 | **⛪ Church** | Donate toward the city's church completion %, view completion progress | `church-donations.md` |
 | **🏦 Counting House (Bank)** | Take/repay a loan, buy/cancel insurance | `banking-loans.md` + `insurance.md` — grouped because both are "cash-for-risk-position" financial products, distinct from the Shipyard's physical-ship actions |
 | **🏠 Merchant's House** | Player info (name/age/marital status — currently header-only), family/succession status; the household's own interior *scene* (not just a panel) showing each child as a clickable figure, each opening its own child sub-page (growth progress, trait rolls so far, hire-a-teacher control) | `family-succession.md` — the one building tied to the player's own household rather than a city service, and the concrete example driving the multi-level "Scene Navigation Model" below |
-| **🏛️ Town Hall (Rathaus)** | Political rank progress, reputation-per-city readout | `political-rank.md`'s proposed-but-undecided progress indicator (its own Open Questions flagged not knowing where this UI should live — this answers that) |
+| **🏛️ Town Hall (Rathaus)** | Political rank progress, reputation-per-city readout, per-good Supply/Demand table for the selected city (v1.2) | `political-rank.md`'s proposed-but-undecided progress indicator (its own Open Questions flagged not knowing where this UI should live — this answers that) + `market-formula.md` "Revised (2026-07-30, v1.2)" |
 | **📦 Warehouse District** | Buy/sell warehouses, view passive income rate | `warehouses.md` |
 
 Eight buildings total — deliberately not more; every current/proposed v1.1/v2 economic feature above already has a home, and a ninth building shouldn't be added speculatively before a ninth function exists that needs one.

@@ -20,6 +20,19 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-30
+
+### Changed
+- **Trading table is slimmer** — dropped the Supply and Demand columns, keeping `Good | Price | Stock | Buy | Sell`. Supply/Demand moved to the Town Hall building panel as a per-good, read-only table for the currently-selected city.
+- **Extracted a shared `TradeTable.svelte` component**, replacing 4 separately-maintained copies of the trading table across City-view and List-view — closes the duplicate-edit bug pattern that hit both the localization pass and the bulk-price fix.
+- **Header shows "Turn N"**, not "Turn N/999999" — also rewrote the season-info popup, which still said the game "runs 249999.75 years," to correctly explain there's no turn limit.
+- **Ship map markers are now blue**, distinct from cities' gold, and sit further from a docked ship's home-city icon (34px, was 22px) — the two used to visually merge into one blob.
+- **Buy/Sell buttons drop the redundant total at qty 1** — show plain "Buy"/"Sell", only adding `(total M)` once bulk pricing (qty > 1) makes it diverge from the adjacent Price column.
+- Documented a test policy for `src/ui/`/`src/render/` in `CLAUDE.md` (no component-test infra exists yet; reactivity-sensitive changes must be manually verified live) and clarified the file-naming rule to explicitly allow PascalCase for `.svelte` components, matching the codebase's existing convention.
+
+### Added
+- **"Sell all" quick action** next to Sell, when a ship is in port holding that good.
+
 ## [1.1.1] - 2026-07-30
 
 ### Added

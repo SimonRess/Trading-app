@@ -63,7 +63,7 @@ export interface Translation {
   settingsLanguageGerman: string;
 
   // Season info popover
-  seasonInfoText: (maxTurns: number) => string;
+  seasonInfoText: string;
 
   // Save menu
   exportSave: string;
@@ -124,6 +124,7 @@ export interface Translation {
   sellQty: string;
   buyBtn: (qty: number, total: number) => string;
   sellBtn: (qty: number, total: number) => string;
+  sellAllBtn: string;
   tradePreviewTitle: (avg: string, spot: number) => string;
 
   // Destination / sailing
@@ -197,6 +198,7 @@ export interface Translation {
   reputation: (n: number) => string;
   reputationInCity: (city: string) => string;
   noActiveEffects: string;
+  supplyDemandHeading: string;
   effectEmbargo: (good: string, turns: number) => string;
   effectPlague: (turns: number) => string;
   effectBoom: (good: string, turns: number) => string;
@@ -305,8 +307,8 @@ const en: Translation = {
   settingsLanguageEnglish: 'English',
   settingsLanguageGerman: 'Deutsch',
 
-  seasonInfoText: (maxTurns) =>
-    `Seasons run in order — Spring → Summer → Autumn → Winter — each lasting exactly 1 turn. A new year begins right after Winter. At ${String(maxTurns)} turns total, this game runs ${String(maxTurns / 4)} years.`,
+  seasonInfoText:
+    'Seasons run in order — Spring → Summer → Autumn → Winter — each lasting exactly 1 turn. A new year begins right after Winter. There is no turn limit: the game runs until you die without an eligible heir, go bankrupt, or become Mayor of Lübeck.',
 
   exportSave: 'Export Save (.json)',
   importSave: 'Import Save',
@@ -357,8 +359,12 @@ const en: Translation = {
   noShipToTrade: "No ship currently in this port to trade with — showing prices for reference.",
 
   buyQty: 'Buy qty', sellQty: 'Sell qty',
-  buyBtn: (qty, total) => `Buy ${String(qty)} (${String(total)} M)`,
-  sellBtn: (qty, total) => `Sell ${String(qty)} (${String(total)} M)`,
+  // At qty 1 the parenthetical total just repeats the adjacent Price
+  // column, so drop it — only worth showing once bulk pricing (qty > 1)
+  // makes the total diverge from the spot price (feature-brainstorm #3).
+  buyBtn: (qty, total) => (qty > 1 ? `Buy ${String(qty)} (${String(total)} M)` : 'Buy'),
+  sellBtn: (qty, total) => (qty > 1 ? `Sell ${String(qty)} (${String(total)} M)` : 'Sell'),
+  sellAllBtn: 'Sell all',
   tradePreviewTitle: (avg, spot) => `avg ${avg} M/unit (spot ${String(spot)} M)`,
 
   setDestination: 'Set Destination',
@@ -430,6 +436,7 @@ const en: Translation = {
   reputation: (n) => `Reputation: ${String(n)}`,
   reputationInCity: (city) => `reputation in ${city}`,
   noActiveEffects: 'No active effects.',
+  supplyDemandHeading: 'Supply & Demand',
   effectEmbargo: (good, turns) => `⚖️ Embargo on ${good} (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
   effectPlague: (turns) => `☠️ Plague (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
   effectBoom: (good, turns) => `📈 Trade boom in ${good} (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
@@ -515,8 +522,8 @@ const de: Translation = {
   settingsLanguageEnglish: 'English',
   settingsLanguageGerman: 'Deutsch',
 
-  seasonInfoText: (maxTurns) =>
-    `Die Jahreszeiten folgen der Reihe nach — Frühling → Sommer → Herbst → Winter — jede dauert genau 1 Runde. Nach dem Winter beginnt ein neues Jahr. Bei insgesamt ${String(maxTurns)} Runden dauert dieses Spiel ${String(maxTurns / 4)} Jahre.`,
+  seasonInfoText:
+    'Die Jahreszeiten folgen der Reihe nach — Frühling → Sommer → Herbst → Winter — jede dauert genau 1 Runde. Nach dem Winter beginnt ein neues Jahr. Es gibt kein Rundenlimit: Das Spiel läuft, bis Ihr ohne geeigneten Erben sterbt, bankrott geht oder Bürgermeister von Lübeck werdet.',
 
   exportSave: 'Speicherstand exportieren (.json)',
   importSave: 'Speicherstand importieren',
@@ -567,8 +574,9 @@ const de: Translation = {
   noShipToTrade: 'Kein Schiff in diesem Hafen zum Handeln — Preise werden nur zur Orientierung angezeigt.',
 
   buyQty: 'Kaufmenge', sellQty: 'Verkaufsmenge',
-  buyBtn: (qty, total) => `Kaufen ${String(qty)} (${String(total)} M)`,
-  sellBtn: (qty, total) => `Verkaufen ${String(qty)} (${String(total)} M)`,
+  buyBtn: (qty, total) => (qty > 1 ? `Kaufen ${String(qty)} (${String(total)} M)` : 'Kaufen'),
+  sellBtn: (qty, total) => (qty > 1 ? `Verkaufen ${String(qty)} (${String(total)} M)` : 'Verkaufen'),
+  sellAllBtn: 'Alles verkaufen',
   tradePreviewTitle: (avg, spot) => `Ø ${avg} M/Einheit (aktuell ${String(spot)} M)`,
 
   setDestination: 'Ziel festlegen',
@@ -640,6 +648,7 @@ const de: Translation = {
   reputation: (n) => `Ansehen: ${String(n)}`,
   reputationInCity: (city) => `Ansehen in ${city}`,
   noActiveEffects: 'Keine aktiven Effekte.',
+  supplyDemandHeading: 'Angebot & Nachfrage',
   effectEmbargo: (good, turns) => `⚖️ Embargo auf ${good} (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,
   effectPlague: (turns) => `☠️ Pest (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,
   effectBoom: (good, turns) => `📈 Handelsboom bei ${good} (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,

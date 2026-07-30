@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
-  import { currentPrice, resolveTradeStepped } from '../game/systems/market-system.ts';
-  import { isInPort, isInTransit, cargoSpace, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
+  import { resolveTradeStepped } from '../game/systems/market-system.ts';
+  import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
@@ -40,6 +40,7 @@
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
+  import TradeTable from './TradeTable.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
   import pkg from '../../package.json';
   import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
@@ -201,16 +202,22 @@
     else errorMsg = T.err.buy;
   }
 
-  async function sell(goodId: GoodId) {
+  async function sell(goodId: GoodId, qtyOverride?: number) {
     errorMsg = '';
     const ship = shipById(selectedShipId);
     const city = shipCity(ship);
     if (!city || selectedCityId !== city) return;
-    const qty = Number(sellQty);
+    const qty = qtyOverride ?? Number(sellQty);
     if (!qty || qty < 1) return;
     const result = await gameClient.sendAction({ type: 'SELL_GOOD', shipId: selectedShipId, cityId: city, goodId, quantity: qty });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.sell;
+  }
+
+  function sellAll(goodId: GoodId): void {
+    const ship = shipById(selectedShipId);
+    const held = ship?.cargo[goodId] ?? 0;
+    if (held > 0) void sell(goodId, held);
   }
 
   async function buyShip(shipType: ShipType) {
@@ -524,7 +531,7 @@
         on:click={() => { showChangelog = !showChangelog; }}
       >v{APP_VERSION} ⓘ</button>
       <span class="hdr-info">
-        {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · {T.turnLabel} {state.calendar.turn}/{state.calendar.maxTurns}
+        {SEASON_LABEL[state.calendar.season]} {state.calendar.year} · {T.turnLabel} {state.calendar.turn}
         <button
           class="info-btn"
           aria-label={T.seasonInfoLabel}
@@ -555,7 +562,7 @@
 
     {#if showSeasonInfo}
       <div class="season-info">
-        {T.seasonInfoText(state.calendar.maxTurns)}
+        {T.seasonInfoText}
         <button class="link-btn" on:click={() => { showSeasonInfo = false; }}>{T.close.toLowerCase()}</button>
       </div>
     {/if}
@@ -685,72 +692,39 @@
             </div>
 
             {#if activeShip && portCity}
-              <table class="market-table">
-                <thead>
-                  <tr>
-                    <th>{T.colGood}</th>
-                    <th>{T.colPrice}</th>
-                    <th>{T.colStock}</th>
-                    <th>{T.colSupply}</th>
-                    <th>{T.colDemand}</th>
-                    <th>{T.colInHold}</th>
-                    <th colspan="2">{T.colTrade}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each GOOD_IDS as goodId}
-                    <tr>
-                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
-                      <td>{currentPrice(cityMarket[goodId])} M</td>
-                      <td>{cityMarket[goodId].supply}</td>
-                      <td>{cityMarket[goodId].production}</td>
-                      <td>{cityMarket[goodId].consumption}</td>
-                      <td>{activeShip.cargo[goodId] ?? 0}</td>
-                      <td>
-                        {#if selectedCityId === portCity}
-                          {@const preview = buyPreview(state, selectedCityId, goodId, buyQty)}
-                          <button
-                            class="trade-btn buy"
-                            on:click={() => buy(goodId)}
-                            disabled={cargoSpace(activeShip) < buyQty || state.player.cash < preview.totalCost}
-                            title={buyQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
-                          >{T.buyBtn(buyQty, preview.totalCost)}</button>
-                        {/if}
-                      </td>
-                      <td>
-                        {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
-                          {@const preview = sellPreview(state, selectedCityId, goodId, sellQty)}
-                          <button
-                            class="trade-btn sell"
-                            on:click={() => sell(goodId)}
-                            disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
-                            title={sellQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
-                          >{T.sellBtn(sellQty, preview.totalCost)}</button>
-                        {/if}
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
+              <TradeTable
+                {T}
+                goodIds={GOOD_IDS}
+                goodNames={GOOD_NAMES}
+                {cityMarket}
+                {state}
+                {selectedCityId}
+                {portCity}
+                priceHeader={T.colPrice}
+                ship={activeShip}
+                {buyQty}
+                {sellQty}
+                {buyPreview}
+                {sellPreview}
+                on:buy={(e) => buy(e.detail)}
+                on:sell={(e) => sell(e.detail)}
+                on:sellAll={(e) => sellAll(e.detail)}
+              />
               <div class="qty-row">
                 <label>{T.buyQty} <input type="number" bind:value={buyQty} min="1" max="50" /></label>
                 <label>{T.sellQty} <input type="number" bind:value={sellQty} min="1" max="50" /></label>
               </div>
             {:else}
-              <table class="market-table">
-                <thead><tr><th>{T.colGood}</th><th>{T.priceInCity(CITIES[selectedCityId].name)}</th><th>{T.colStock}</th><th>{T.colSupply}</th><th>{T.colDemand}</th></tr></thead>
-                <tbody>
-                  {#each GOOD_IDS as goodId}
-                    <tr>
-                      <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
-                      <td>{currentPrice(cityMarket[goodId])} M</td>
-                      <td>{cityMarket[goodId].supply}</td>
-                      <td>{cityMarket[goodId].production}</td>
-                      <td>{cityMarket[goodId].consumption}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
+              <TradeTable
+                {T}
+                goodIds={GOOD_IDS}
+                goodNames={GOOD_NAMES}
+                {cityMarket}
+                {state}
+                {selectedCityId}
+                {portCity}
+                priceHeader={T.priceInCity(CITIES[selectedCityId].name)}
+              />
               <p class="order-note muted">{T.noShipToTrade}</p>
             {/if}
 
@@ -1040,6 +1014,22 @@
               </ul>
             {/if}
 
+            <h3 class="counting-house-subhead">{T.supplyDemandHeading}</h3>
+            <table class="supply-demand-table">
+              <thead>
+                <tr><th>{T.colGood}</th><th>{T.colSupply}</th><th>{T.colDemand}</th></tr>
+              </thead>
+              <tbody>
+                {#each GOOD_IDS as goodId}
+                  <tr>
+                    <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                    <td>{cityMarket[goodId].production}</td>
+                    <td>{cityMarket[goodId].consumption}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+
           {:else if selectedBuilding === 'merchants-house'}
             <h2>{T.merchantsHouse}</h2>
             <p class="order-note">
@@ -1156,53 +1146,24 @@
             {/each}
           </div>
 
-          <table class="market-table">
-            <thead>
-              <tr>
-                <th>{T.colGood}</th>
-                <th>{T.colPrice}</th>
-                <th>{T.colStock}</th>
-                <th>{T.colSupply}</th>
-                <th>{T.colDemand}</th>
-                <th>{T.colInHold}</th>
-                <th colspan="2">{T.colTrade}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each GOOD_IDS as goodId}
-                <tr>
-                  <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
-                  <td>{currentPrice(cityMarket[goodId])} M</td>
-                  <td>{cityMarket[goodId].supply}</td>
-                  <td>{cityMarket[goodId].production}</td>
-                  <td>{cityMarket[goodId].consumption}</td>
-                  <td>{activeShip.cargo[goodId] ?? 0}</td>
-                  <td>
-                    {#if selectedCityId === portCity}
-                      {@const preview = buyPreview(state, selectedCityId, goodId, buyQty)}
-                      <button
-                        class="trade-btn buy"
-                        on:click={() => buy(goodId)}
-                        disabled={cargoSpace(activeShip) < buyQty || state.player.cash < preview.totalCost}
-                        title={buyQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
-                      >{T.buyBtn(buyQty, preview.totalCost)}</button>
-                    {/if}
-                  </td>
-                  <td>
-                    {#if selectedCityId === portCity && (activeShip.cargo[goodId] ?? 0) > 0}
-                      {@const preview = sellPreview(state, selectedCityId, goodId, sellQty)}
-                      <button
-                        class="trade-btn sell"
-                        on:click={() => sell(goodId)}
-                        disabled={(activeShip.cargo[goodId] ?? 0) < sellQty}
-                        title={sellQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
-                      >{T.sellBtn(sellQty, preview.totalCost)}</button>
-                    {/if}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+          <TradeTable
+            {T}
+            goodIds={GOOD_IDS}
+            goodNames={GOOD_NAMES}
+            {cityMarket}
+            {state}
+            {selectedCityId}
+            {portCity}
+            priceHeader={T.colPrice}
+            ship={activeShip}
+            {buyQty}
+            {sellQty}
+            {buyPreview}
+            {sellPreview}
+            on:buy={(e) => buy(e.detail)}
+            on:sell={(e) => sell(e.detail)}
+            on:sellAll={(e) => sellAll(e.detail)}
+          />
 
           <div class="qty-row">
             <label>{T.buyQty} <input type="number" bind:value={buyQty} min="1" max="50" /></label>
@@ -1363,20 +1324,16 @@
             {/each}
           </div>
 
-          <table class="market-table">
-            <thead><tr><th>{T.colGood}</th><th>{T.priceInCity(CITIES[selectedCityId].name)}</th><th>{T.colStock}</th><th>{T.colSupply}</th><th>{T.colDemand}</th></tr></thead>
-            <tbody>
-              {#each GOOD_IDS as goodId}
-                <tr>
-                  <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
-                  <td>{currentPrice(cityMarket[goodId])} M</td>
-                  <td>{cityMarket[goodId].supply}</td>
-                  <td>{cityMarket[goodId].production}</td>
-                  <td>{cityMarket[goodId].consumption}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+          <TradeTable
+            {T}
+            goodIds={GOOD_IDS}
+            goodNames={GOOD_NAMES}
+            {cityMarket}
+            {state}
+            {selectedCityId}
+            {portCity}
+            priceHeader={T.priceInCity(CITIES[selectedCityId].name)}
+          />
         {:else}
           <p>{T.noShipSelected}</p>
         {/if}
@@ -1701,28 +1658,6 @@
   }
   .city-btn.active { background: #3a2810; border-color: #c09040; color: #f0dca0; }
 
-  .market-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-    margin-bottom: 0.8rem;
-  }
-  .market-table th {
-    text-align: left;
-    padding: 0.3rem 0.5rem;
-    color: #8a7a60;
-    border-bottom: 1px solid #3a2e18;
-    font-weight: normal;
-    font-size: 0.78rem;
-  }
-  .market-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #2a2018; }
-
-  .trade-btn { padding: 0.2rem 0.5rem; font-size: 0.78rem; }
-  .trade-btn.buy { background: #1a3820; border-color: #4a8840; color: #90d890; }
-  .trade-btn.buy:hover:not(:disabled) { background: #224828; }
-  .trade-btn.sell { background: #381820; border-color: #884040; color: #d89090; }
-  .trade-btn.sell:hover:not(:disabled) { background: #482228; }
-
   .qty-row {
     display: flex;
     gap: 1.5rem;
@@ -1895,6 +1830,22 @@
   .building-panel h2 { text-align: center; }
   .building-panel .fleet-list { display: flex; flex-direction: column; gap: 0.5rem; }
 
+  .supply-demand-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin-bottom: 0.8rem;
+  }
+  .supply-demand-table th {
+    text-align: left;
+    padding: 0.3rem 0.5rem;
+    color: #8a7a60;
+    border-bottom: 1px solid #3a2e18;
+    font-weight: normal;
+    font-size: 0.78rem;
+  }
+  .supply-demand-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #2a2018; }
+
   .church-progress { display: flex; align-items: center; gap: 0.8rem; margin: 0.6rem 0; }
   .church-progress-bar {
     position: relative;
@@ -1948,6 +1899,6 @@
     .qty-row { flex-wrap: wrap; row-gap: 0.5rem; }
 
     /* Slightly larger touch targets. */
-    .trade-btn, .dest-btn, .city-btn, .shipyard-btn { padding: 0.45rem 0.7rem; }
+    .dest-btn, .city-btn, .shipyard-btn { padding: 0.45rem 0.7rem; }
   }
 </style>

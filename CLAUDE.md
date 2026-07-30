@@ -49,7 +49,7 @@ UI state (active screen, open dialog) lives in a separate store and is **never**
 
 - **TypeScript strict mode** — no `any`; use `unknown` and narrow explicitly
 - **Named exports only** — no `export default` anywhere
-- **File names** — kebab-case for all files (`city-store.ts`, `market-system.ts`)
+- **File names** — kebab-case for `.ts` files (`city-store.ts`, `market-system.ts`); PascalCase for `.svelte` components (`MapView.svelte`, `TradeTable.svelte`), matching Svelte community convention and every component already in `src/ui/`
 - **Immutable state** — never mutate state objects; always return new state
 - **No comments explaining what code does** — only add a comment when the WHY is non-obvious (a hidden constraint, a workaround, a subtle invariant)
 - **No multi-line comment blocks or docstrings**
@@ -80,6 +80,24 @@ Save file = `JSON.stringify(gameState)`. Schema version field required — see `
 - Test files are co-located: `foo.ts` → `foo.test.ts`
 - Tests must not import from `src/ui/` or `src/render/`
 - Run with: `npm test`
+
+### `src/ui/`/`src/render/` test policy (decided 2026-07-30, v1.2)
+
+No automated component-test suite exists yet — `vite.config.test.ts` only
+picks up `.test.ts` files under `node`, with no jsdom/`@testing-library/svelte`
+installed. Rather than leave this unstated, the policy until that
+infrastructure is added:
+
+- Any change to reactivity-sensitive UI logic (state derived through Svelte
+  `$:`/`{@const}`/props — the exact pattern that caused both the bulk-price
+  and City-view label-overlap bugs) **must be manually verified live**
+  (dev server + Playwright or equivalent) as part of the same change, not
+  assumed correct from code review alone. Note what was verified in the
+  commit/PR description.
+- Plain presentational markup (no derived/reactive state) doesn't need this.
+- If real component-testing infrastructure is added later, shared
+  reactivity-sensitive components (`TradeTable.svelte` is the first
+  candidate) get first priority for actual automated coverage.
 
 ---
 
