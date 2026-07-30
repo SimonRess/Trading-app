@@ -30,6 +30,7 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 - Unified the project's name to "Hanse – Die Expedition" (matching `index.html`) across `CLAUDE.md` and `docs/prd.md`, which each used a different variant.
 - Added `eslint` to the existing `PostToolUse` typecheck hook (`.claude/settings.json`) so lint violations are caught at edit-time, not just at the end of a task.
 - Deleted 8 local feature branches already merged into `main` (remote copies still need deleting — this session's git access couldn't push branch deletions to `origin`).
+- Added a `SessionStart` hook (`.claude/settings.json`) that sets the git author identity to `noreply@anthropic.com` and warns if the local checkout is behind `origin` for the current branch — prevents both a commit-authorship mixup and a stale-local-checkout incident hit this session (the local working directory silently reverted to an older snapshot mid-session while `origin` stayed correct; caught late, cost time to reconcile).
 
 ### Changed
 - Consolidated backlog tracking into a single file. `docs/prd.md`'s Feature Backlog and `docs/00_project_structure.md` §4b's "Open backlog" both duplicated `roadmap-next-versions.md` and had already drifted out of sync; both sections were removed in favor of that one file. `prd.md` now stays scoped to vision/audience/scope/non-goals; §4b stays scoped to the dated log of what's shipped.

@@ -27,6 +27,16 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/Trading-app && git config user.email noreply@anthropic.com && git config user.name Claude && branch=$(git branch --show-current) && if [ -n \"$branch\" ]; then git fetch origin \"$branch\" --quiet 2>&1 | tail -3; behind=$(git log HEAD..origin/\"$branch\" --oneline 2>/dev/null | wc -l | tr -d ' '); if [ \"$behind\" != \"0\" ] && [ -n \"$behind\" ]; then echo \"WARNING: local branch '$branch' is $behind commit(s) behind origin/$branch -- this checkout is stale. Run: git fetch origin $branch && git checkout -B $branch origin/$branch (after stashing/committing any local work first).\"; fi; fi || true"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
