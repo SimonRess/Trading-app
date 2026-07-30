@@ -197,6 +197,7 @@ export interface Translation {
   reputation: (n: number) => string;
   reputationInCity: (city: string) => string;
   noActiveEffects: string;
+  supplyDemandHeading: string;
   effectEmbargo: (good: string, turns: number) => string;
   effectPlague: (turns: number) => string;
   effectBoom: (good: string, turns: number) => string;
@@ -430,6 +431,7 @@ const en: Translation = {
   reputation: (n) => `Reputation: ${String(n)}`,
   reputationInCity: (city) => `reputation in ${city}`,
   noActiveEffects: 'No active effects.',
+  supplyDemandHeading: 'Supply & Demand',
   effectEmbargo: (good, turns) => `⚖️ Embargo on ${good} (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
   effectPlague: (turns) => `☠️ Plague (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
   effectBoom: (good, turns) => `📈 Trade boom in ${good} (${String(turns)} turn${turns === 1 ? '' : 's'} left)`,
@@ -640,6 +642,7 @@ const de: Translation = {
   reputation: (n) => `Ansehen: ${String(n)}`,
   reputationInCity: (city) => `Ansehen in ${city}`,
   noActiveEffects: 'Keine aktiven Effekte.',
+  supplyDemandHeading: 'Angebot & Nachfrage',
   effectEmbargo: (good, turns) => `⚖️ Embargo auf ${good} (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,
   effectPlague: (turns) => `☠️ Pest (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,
   effectBoom: (good, turns) => `📈 Handelsboom bei ${good} (noch ${String(turns)} Runde${turns === 1 ? '' : 'n'})`,

@@ -20,6 +20,12 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-30
+
+### Changed
+- **Trading table is slimmer** — dropped the Supply and Demand columns, keeping `Good | Price | Stock | Buy | Sell`. Supply/Demand moved to the Town Hall building panel as a per-good, read-only table for the currently-selected city.
+- **Extracted a shared `TradeTable.svelte` component**, replacing 4 separately-maintained copies of the trading table across City-view and List-view — closes the duplicate-edit bug pattern that hit both the localization pass and the bulk-price fix.
+
 ## [1.1.1] - 2026-07-30
 
 ### Added
