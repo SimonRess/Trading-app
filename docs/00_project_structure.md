@@ -125,7 +125,8 @@ Trading-app/
 │   └── commands/                 ← custom slash commands (project skills)
 │       ├── new-adr.md            ← /new-adr: scaffold a new ADR file
 │       ├── new-design.md         ← /new-design: scaffold a design doc
-│       └── check-conventions.md  ← /check-conventions: lint against this guide
+│       ├── check-conventions.md  ← /check-conventions: lint against this guide
+│       └── ship.md               ← /ship: verify, document, commit, push, deploy
 └── src/
     └── ...
 ```
