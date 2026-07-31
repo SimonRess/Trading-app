@@ -165,10 +165,16 @@ export interface Translation {
   // Church
   churchOf: (city: string) => string;
   churchComplete: string;
-  churchPledgedNote: (mark: number, turns: number) => string;
+  churchPledgedNote: (mark: number, capPerTurn: number, turns: number) => string;
   churchDoneNote: string;
   donate: string;
-  churchHint: (city: string) => string;
+  // markPerPercent/markPerReputation are passed in from church-system.ts's
+  // own constants (DONATION_COST_PER_PERCENT/REPUTATION_COST_PER_POINT)
+  // rather than hardcoded here, so this text can't silently drift out of
+  // sync with the actual donation math the way it previously did with the
+  // "~N more turns" estimate (App.svelte's turnsRemaining, which had its
+  // own separately-hardcoded — and wrong — divisor).
+  churchHint: (city: string, markPerPercent: number, markPerReputation: number) => string;
 
   // Counting House
   countingHouse: string;
@@ -410,10 +416,10 @@ const en: Translation = {
 
   churchOf: (city) => `Church of ${city}`,
   churchComplete: '% complete',
-  churchPledgedNote: (mark, turns) => `${String(mark)} Mark pledged, arriving at up to 1% per turn (~${String(turns)} more turn${turns === 1 ? '' : 's'}).`,
+  churchPledgedNote: (mark, capPerTurn, turns) => `${String(mark)} Mark pledged, arriving at up to ${String(capPerTurn)}% per turn (~${String(turns)} more turn${turns === 1 ? '' : 's'}).`,
   churchDoneNote: '⛪ This church is fully built, thanks in part to your generosity.',
   donate: 'Donate',
-  churchHint: (city) => `500 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 1000 Mark ≈ 1 reputation in ${city} (right away).`,
+  churchHint: (city, markPerPercent, markPerReputation) => `${String(markPerPercent)} Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · ${String(markPerReputation)} Mark ≈ 1 reputation in ${city} (right away).`,
 
   countingHouse: 'Counting House',
   loanActive: (amount, rate) => `Outstanding loan: ${String(amount)} Mark, accruing ${String(rate)}% interest per turn.`,
@@ -632,10 +638,10 @@ const de: Translation = {
 
   churchOf: (city) => `Kirche von ${city}`,
   churchComplete: '% fertiggestellt',
-  churchPledgedNote: (mark, turns) => `${String(mark)} Mark gestiftet, es fließen bis zu 1% pro Runde ein (~noch ${String(turns)} Runde${turns === 1 ? '' : 'n'}).`,
+  churchPledgedNote: (mark, capPerTurn, turns) => `${String(mark)} Mark gestiftet, es fließen bis zu ${String(capPerTurn)}% pro Runde ein (~noch ${String(turns)} Runde${turns === 1 ? '' : 'n'}).`,
   churchDoneNote: '⛪ Diese Kirche ist vollständig erbaut, auch dank eurer Großzügigkeit.',
   donate: 'Spenden',
-  churchHint: (city) => `500 Mark ≈ 1% Baufortschritt (fließt allmählich ein, bis zu 1%/Runde) · 1000 Mark ≈ 1 Ansehen in ${city} (sofort).`,
+  churchHint: (city, markPerPercent, markPerReputation) => `${String(markPerPercent)} Mark ≈ 1% Baufortschritt (fließt allmählich ein, bis zu 1%/Runde) · ${String(markPerReputation)} Mark ≈ 1 Ansehen in ${city} (sofort).`,
 
   countingHouse: 'Kontor',
   loanActive: (amount, rate) => `Offener Kredit: ${String(amount)} Mark, verzinst sich mit ${String(rate)}% pro Runde.`,

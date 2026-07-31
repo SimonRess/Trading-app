@@ -4,6 +4,7 @@
   import { resolveTradeStepped, currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
+  import { DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT, MAX_MARK_PER_TURN, PROGRESS_CAP_PER_TURN } from '../game/systems/church-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
@@ -886,8 +887,8 @@
 
           {:else if selectedBuilding === 'church'}
             {@const church = state.cities[selectedCityId]}
-            {@const pledgedPercent = Math.min(100 - church.churchCompletion, church.churchPledged / 50)}
-            {@const turnsRemaining = Math.ceil(church.churchPledged / 50)}
+            {@const pledgedPercent = Math.min(100 - church.churchCompletion, church.churchPledged / DONATION_COST_PER_PERCENT)}
+            {@const turnsRemaining = Math.ceil(church.churchPledged / MAX_MARK_PER_TURN)}
             <h2>{T.churchOf(CITIES[selectedCityId].name)}</h2>
             <div class="city-select">
               {#each CITY_IDS as cId}
@@ -905,7 +906,7 @@
 
             {#if church.churchPledged > 0}
               <p class="order-note muted">
-                {T.churchPledgedNote(church.churchPledged, turnsRemaining)}
+                {T.churchPledgedNote(church.churchPledged, PROGRESS_CAP_PER_TURN, turnsRemaining)}
               </p>
             {/if}
 
@@ -920,7 +921,7 @@
                   disabled={!donationAmount || donationAmount < 1 || state.player.cash < donationAmount}
                 >{T.donate}</button>
               </div>
-              <p class="order-note muted">{T.churchHint(CITIES[selectedCityId].name)}</p>
+              <p class="order-note muted">{T.churchHint(CITIES[selectedCityId].name, DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT)}</p>
             {/if}
 
             {#if errorMsg}

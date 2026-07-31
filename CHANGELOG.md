@@ -30,6 +30,9 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 ### Removed
 - **`priceTrend()`** (`market-system.ts`) — implemented and tested but never actually wired into any screen; superseded by the sparkline above, which does the same job better. Removed as dead code rather than left unused.
 
+### Fixed
+- **Church "~N more turns" estimate was 10× too high, and the pledged-progress bar rendered 10× too wide** — `App.svelte` hardcoded a `/ 50` divisor left over from before the 2026-07-25 ×10 donation-rate raise, instead of importing `church-system.ts`'s actual `DONATION_COST_PER_PERCENT` (500). A 1,000 Mark pledge showed "~20 more turns" instead of ~2. Fixed by exporting the rate constants and having the UI compute off them directly, so a future rate change can't silently desync the display again. See `docs/design/church-donations.md`.
+
 ## [1.2.0] - 2026-07-30
 
 ### Changed

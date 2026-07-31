@@ -3,14 +3,21 @@ import { gainReputation } from './political-system.ts';
 
 // Placeholder numbers pending simulation/tuning — see docs/design/
 // church-donations.md "Open Questions", same caveat as every other
-// economic addition (ADR-015, political-rank.md).
-const DONATION_COST_PER_PERCENT = 500;
-const REPUTATION_COST_PER_POINT = 1000;
+// economic addition (ADR-015, political-rank.md). Exported so the UI
+// (App.svelte's "~N more turns" estimate) computes off the same numbers
+// instead of a separately hardcoded one — a mismatch here previously
+// showed "~20 more turns" for a pledge that actually finishes in 2.
+export const DONATION_COST_PER_PERCENT = 500;
+export const REPUTATION_COST_PER_POINT = 1000;
 
 // Completion advances by at most this many percentage points per city per
 // turn (advanceChurchProgress below), regardless of how much is pledged —
 // a large donation is felt gradually over several turns, not instantly.
-const PROGRESS_CAP_PER_TURN = 1;
+export const PROGRESS_CAP_PER_TURN = 1;
+
+// Mark consumed per turn at the cap above — the number the UI needs to
+// estimate "how many more turns" for a given pledge.
+export const MAX_MARK_PER_TURN = PROGRESS_CAP_PER_TURN * DONATION_COST_PER_PERCENT;
 
 // Donating pledges cash toward a city's church immediately (cash leaves the
 // player's hand and reputation is earned right away — the gift was real),
@@ -74,8 +81,7 @@ export function advanceChurchProgress(cities: CitiesState): ChurchProgressResult
     const city = cities[cityId];
     if (city.churchPledged <= 0) continue;
 
-    const maxMarkThisTurn = PROGRESS_CAP_PER_TURN * DONATION_COST_PER_PERCENT;
-    const consumed = Math.min(city.churchPledged, maxMarkThisTurn);
+    const consumed = Math.min(city.churchPledged, MAX_MARK_PER_TURN);
     const wasComplete = city.churchCompletion >= 100;
     const nextCompletion = Math.min(100, city.churchCompletion + consumed / DONATION_COST_PER_PERCENT);
     const gained = nextCompletion - city.churchCompletion;
