@@ -194,6 +194,12 @@ This is a first-pass, single-step implementation: there's no real waiting period
 - ✅ `executeAuctionShip` (`turn-system.ts`) and the `AUCTION_SHIP { shipId }` action — rejects if the ship isn't in port (can't auction a ship at sea), no other restrictions (fleet size, cargo, or shipyard-city gating).
 - ✅ Verified live: Shipyard readout showed "Auction this ship... for 3200 Mark" for a full-durability Kogge (4,000 base × 80%); clicking Auction removed the ship, credited 3,200 Mark, and the popup read "Wulf von Lübeck was sold to the highest bidder for 3200 Mark."
 
+### Revised (2026-07-31): fixed a stranded-ship soft-lock
+
+The claim above — "available at any port, not restricted to shipyard cities" — was true of `executeAuctionShip` itself but not of the UI: the only Auction button lived inside the Shipyard building panel, which `city-scene.ts` only renders at shipyard cities at all (`SHIPYARD_CITIES`). A ship reaching `critical`/`wrecked` durability (`canDepart()` returns false) while docked at Riga or Malmö — the two non-shipyard cities — had no available action whatsoever: can't depart (durability), can't repair (`executeRepairShip` requires a shipyard city, correctly), and couldn't reach the Auction button either (UI gap, not intended). A genuine permanent soft-lock for that ship, reported by a player.
+
+Fixed by surfacing the existing Auction action directly in the Harbor building's "can't depart" message (both City view and List view), specifically when `!isShipyardCity(portCity)` — i.e. exactly the stuck case, without changing `canDepart` or `executeRepairShip`'s shipyard restriction, both of which are deliberate. The Shipyard panel's own Auction button (available at shipyard cities, for any ship regardless of durability) is unchanged. Verified live: imported a save with a critical-durability ship at Riga, confirmed the rescue Auction button appeared with the correct sale price, clicked it, and confirmed the ship left the fleet and cash was credited.
+
 ## Implementation Status (as of 2026-07-18)
 
 - ✅ Buy ship (all three types), repair ship, shipyard-city restriction, `MAX_SHIPS` cap — implemented (`src/game/data/ships.ts`, `executeBuyShip`/`executeRepairShip` in `turn-system.ts`; `BUY_SHIP` `GameAction` now carries a `shipType` field)

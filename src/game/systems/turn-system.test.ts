@@ -21,6 +21,14 @@ import { executeBuyWarehouse } from './warehouse-system.ts';
 import { cannonSellValue } from '../data/ships.ts';
 import type { CityEffect, Child } from '../state/types.ts';
 
+describe('buildStartingState chronicle', () => {
+  it('seeds a founding entry naming the player', () => {
+    const state = buildStartingState('TestPlayer');
+    expect(state.chronicle).toHaveLength(1);
+    expect(state.chronicle[0]).toContain('TestPlayer');
+  });
+});
+
 describe('computeNetWorth', () => {
   it('includes cash + ship value + cargo value', () => {
     const state = buildStartingState('TestPlayer');
@@ -277,6 +285,24 @@ describe('executeAuctionShip', () => {
     expect(next.player.cash).toBe(before + 3200); // 4000 * 0.8
   });
 
+  it('works for a critical-durability ship docked at a non-shipyard city', () => {
+    // The scenario the Harbor panel's rescue action (App.svelte) exists
+    // for: canDepart() blocks sailing and executeRepairShip() requires a
+    // shipyard city, so auctioning is the only way out of a stuck ship.
+    // Confirms executeAuctionShip has no shipyard restriction (unlike
+    // executeRepairShip) -- its own comment already says "available from
+    // any port".
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga', durability: 5 } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
+    expect(next.player.cash).toBeGreaterThan(state.player.cash);
+  });
+
   it('rejects auctioning a ship that is in transit', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
@@ -373,6 +399,13 @@ describe('executeChooseHeir', () => {
     expect(next.player.health).toBeCloseTo(70 - 12 / 40);
     expect(next.player.traits).toEqual([]);
     expect(next.player.reputation.lubeck).toBe(20); // halved from 40, snapshotted at death
+  });
+
+  it('appends a chronicle entry naming the chosen heir', () => {
+    const paused = pendingState();
+    const next = executeChooseHeir(paused, 'b');
+    expect(next.chronicle.at(-1)).toContain('Hans');
+    expect(next.chronicle.length).toBe(paused.chronicle.length + 1);
   });
 
   it('can choose the other candidate too', () => {
@@ -525,6 +558,21 @@ describe('resolveTurn', () => {
     const turnBefore = state.calendar.turn;
     resolveTurn(state, { destinations: {} });
     expect(state.calendar.turn).toBe(turnBefore);
+  });
+
+  it('unlocks and announces an achievement when a milestone is crossed', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 1200 } };
+    const { state: next, summary } = resolveTurn(rich, { destinations: {} });
+    expect(next.achievements).toContain('net-worth-1000');
+    expect(summary.events.some(e => e.includes('Milestone'))).toBe(true);
+  });
+
+  it('does not re-announce an achievement already unlocked', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 1200 }, achievements: ['net-worth-1000' as const] };
+    const { summary } = resolveTurn(rich, { destinations: {} });
+    expect(summary.events.some(e => e.includes('Milestone'))).toBe(false);
   });
 
   it('advances pledged church funds by at most 1% and announces completion', () => {
@@ -711,14 +759,16 @@ describe('resolveTurn', () => {
     expect(next.player.maritalStatus).toBe('single');
     expect(next.player.reputation.lubeck).toBe(20); // halved from 40
     expect(summary.events.some(e => e.includes('Grete'))).toBe(true);
+    expect(next.chronicle.at(-1)).toContain('Grete');
     vi.restoreAllMocks();
   });
 
   it('loses the game when the player dies with no eligible heir', () => {
     const state = buildStartingState('TestPlayer');
     const dying = { ...state, player: { ...state.player, health: 0, children: [] } };
-    const { summary } = resolveTurn(dying, { destinations: {} });
+    const { state: next, summary } = resolveTurn(dying, { destinations: {} });
     expect(summary.outcome).toBe('lose');
+    expect(next.chronicle.at(-1)).toContain('no eligible heir');
   });
 
   it('does not select a child under the heir-eligible age', () => {

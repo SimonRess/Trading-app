@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
-  import { resolveTradeStepped } from '../game/systems/market-system.ts';
+  import { resolveTradeStepped, currentPrice } from '../game/systems/market-system.ts';
   import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
+  import { DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT, MAX_MARK_PER_TURN, PROGRESS_CAP_PER_TURN } from '../game/systems/church-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
   import { CITIES } from '../game/data/cities.ts';
   import { GOODS } from '../game/data/goods.ts';
@@ -41,6 +42,7 @@
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
   import TradeTable from './TradeTable.svelte';
+  import Sparkline from './Sparkline.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
   import pkg from '../../package.json';
   import CHANGELOG_RAW from '../../CHANGELOG.md?raw';
@@ -97,10 +99,47 @@
   $: SEASON_LABEL = T.season;
   $: RANK_LABELS = T.rank;
   $: TRAIT_LABELS = T.trait;
+  $: ACHIEVEMENT_LABELS = T.achievement;
 
   const GOOD_IDS = Object.keys(GOODS) as GoodId[];
   const CITY_IDS = Object.keys(CITIES) as CityId[];
   const SHIP_TYPE_IDS = Object.keys(SHIP_TYPES) as ShipType[];
+
+  // Price-history sparkline (feature-brainstorm.md #3): client-side only,
+  // remembers the last PRICE_HISTORY_LENGTH turns' prices per city/good in
+  // the UI layer. Deliberately not GameState — "how many turns to
+  // remember for a UI trend graph" isn't something save files or game
+  // logic need to know about, and keeping it here avoids a schema bump for
+  // a display-only concern. Recorded once per resolved turn (guarded by
+  // lastHistoryTurn), not on every reactive re-render, since state also
+  // changes on every buy/sell/etc — recording those too would make the
+  // "last N turns" window actually cover far fewer real turns.
+  const PRICE_HISTORY_LENGTH = 10;
+  // Rebuilt with fresh array/object references on every recorded turn
+  // (never mutated in place) and reassigned via `priceHistory = ...` below
+  // — this project has twice been bitten by Svelte not noticing in-place
+  // mutation of a value referenced elsewhere in the template (the
+  // bulk-price and City-view label-overlap bugs, both in git history), so
+  // this follows the same immutable-update discipline CLAUDE.md requires
+  // for GameState, even though price history itself is UI-local.
+  let priceHistory: Record<CityId, Record<GoodId, number[]>> = Object.fromEntries(
+    CITY_IDS.map(cityId => [cityId, Object.fromEntries(GOOD_IDS.map(goodId => [goodId, [] as number[]]))]),
+  ) as Record<CityId, Record<GoodId, number[]>>;
+  let lastHistoryTurn = 0;
+  $: if (state.calendar.turn !== lastHistoryTurn) {
+    lastHistoryTurn = state.calendar.turn;
+    priceHistory = Object.fromEntries(
+      CITY_IDS.map(cityId => [
+        cityId,
+        Object.fromEntries(
+          GOOD_IDS.map(goodId => {
+            const next = [...priceHistory[cityId][goodId], currentPrice(state.market[cityId][goodId])];
+            return [goodId, next.length > PRICE_HISTORY_LENGTH ? next.slice(-PRICE_HISTORY_LENGTH) : next];
+          }),
+        ),
+      ]),
+    ) as Record<CityId, Record<GoodId, number[]>>;
+  }
 
   const POSTURE_IDS: Ship['posture'][] = ['aggressive', 'defensive', 'flee'];
   $: POSTURE_LABELS = T.posture;
@@ -654,6 +693,25 @@
                   <p class="order-note critical">
                     {T.criticalDamageNote(activeShip.name, activeShip.durability)}
                   </p>
+                  {#if !isShipyardCity(portCity)}
+                    <!-- A critical/wrecked ship can't depart (canDepart) and
+                         can't be repaired away from a shipyard city
+                         (executeRepairShip) — without this, it would be
+                         permanently stranded with no available action at
+                         all. Auctioning was already implemented to work
+                         from any port (executeAuctionShip's own comment
+                         says so), but the only UI entry point was buried
+                         inside the Shipyard building panel, which doesn't
+                         even exist at a non-shipyard city. Surfacing it
+                         here, specifically for this stuck case, closes
+                         that soft-lock without changing canDepart or
+                         executeRepairShip's shipyard restriction, both of
+                         which are deliberate (ship-stats.md). -->
+                    <p class="order-note muted">
+                      {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
+                    </p>
+                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                  {/if}
                 {:else if activeShip.repairCooldown > 0}
                   <p class="order-note critical">
                     {T.repairCooldownNote(activeShip.name)}
@@ -848,8 +906,8 @@
 
           {:else if selectedBuilding === 'church'}
             {@const church = state.cities[selectedCityId]}
-            {@const pledgedPercent = Math.min(100 - church.churchCompletion, church.churchPledged / 50)}
-            {@const turnsRemaining = Math.ceil(church.churchPledged / 50)}
+            {@const pledgedPercent = Math.min(100 - church.churchCompletion, church.churchPledged / DONATION_COST_PER_PERCENT)}
+            {@const turnsRemaining = Math.ceil(church.churchPledged / MAX_MARK_PER_TURN)}
             <h2>{T.churchOf(CITIES[selectedCityId].name)}</h2>
             <div class="city-select">
               {#each CITY_IDS as cId}
@@ -867,7 +925,7 @@
 
             {#if church.churchPledged > 0}
               <p class="order-note muted">
-                {T.churchPledgedNote(church.churchPledged, turnsRemaining)}
+                {T.churchPledgedNote(church.churchPledged, PROGRESS_CAP_PER_TURN, turnsRemaining)}
               </p>
             {/if}
 
@@ -882,7 +940,7 @@
                   disabled={!donationAmount || donationAmount < 1 || state.player.cash < donationAmount}
                 >{T.donate}</button>
               </div>
-              <p class="order-note muted">{T.churchHint(CITIES[selectedCityId].name)}</p>
+              <p class="order-note muted">{T.churchHint(CITIES[selectedCityId].name, DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT)}</p>
             {/if}
 
             {#if errorMsg}
@@ -1017,7 +1075,7 @@
             <h3 class="counting-house-subhead">{T.supplyDemandHeading}</h3>
             <table class="supply-demand-table">
               <thead>
-                <tr><th>{T.colGood}</th><th>{T.colSupply}</th><th>{T.colDemand}</th></tr>
+                <tr><th>{T.colGood}</th><th>{T.colSupply}</th><th>{T.colDemand}</th><th>{T.colPriceTrend}</th></tr>
               </thead>
               <tbody>
                 {#each GOOD_IDS as goodId}
@@ -1025,6 +1083,7 @@
                     <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                     <td>{cityMarket[goodId].production}</td>
                     <td>{cityMarket[goodId].consumption}</td>
+                    <td><Sparkline values={priceHistory[selectedCityId][goodId]} /></td>
                   </tr>
                 {/each}
               </tbody>
@@ -1080,6 +1139,24 @@
                 {/each}
               </div>
             {/if}
+
+            <h3 class="counting-house-subhead">{T.achievementsHeading}</h3>
+            {#if state.achievements.length === 0}
+              <p class="order-note muted">{T.noAchievements}</p>
+            {:else}
+              <div class="achievement-badges">
+                {#each state.achievements as id (id)}
+                  <span class="achievement-badge">🏆 {ACHIEVEMENT_LABELS[id]}</span>
+                {/each}
+              </div>
+            {/if}
+
+            <h3 class="counting-house-subhead">{T.chronicleHeading}</h3>
+            <ul class="chronicle-list">
+              {#each [...state.chronicle].reverse() as entry, i (state.chronicle.length - i)}
+                <li>{entry}</li>
+              {/each}
+            </ul>
 
             {#if errorMsg}
               <p class="error">{errorMsg}</p>
@@ -1176,6 +1253,12 @@
               <p class="order-note critical">
                 {T.criticalDamageNote(activeShip.name, activeShip.durability)}
               </p>
+              {#if portCity && !isShipyardCity(portCity)}
+                <p class="order-note muted">
+                  {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
+                </p>
+                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+              {/if}
             {:else if activeShip.repairCooldown > 0}
               <p class="order-note critical">
                 {T.repairCooldownNote(activeShip.name)}
@@ -1641,6 +1724,29 @@
     font-size: 1rem;
   }
   .effect-list { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #d4a843; }
+  .achievement-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
+  .achievement-badge {
+    background: #241c10;
+    border: 1px solid #4a3a20;
+    color: #f0dca0;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+  .chronicle-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.4rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #c8b090;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .chronicle-list li { border-bottom: 1px solid #2a2018; padding-bottom: 0.4rem; }
+  .chronicle-list li:last-child { border-bottom: none; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
   .tag.order { color: #d4a843; }
   .tag.durability-seaworthy { color: #8a7a60; }

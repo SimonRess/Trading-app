@@ -1,7 +1,7 @@
 # Design: Roadmap — Next Versions
 
 **Status:** Approved by product owner 2026-07-27 (nothing here implemented yet)
-**Last updated:** 2026-07-28
+**Last updated:** 2026-07-31
 
 **This is the single source of truth for planned-but-unbuilt work.** It was assembled from `docs/prd.md`'s former Feature Backlog section and `docs/00_project_structure.md`'s former "Open backlog" subsection, plus `docs/design/feature-brainstorm.md`'s findings and one new item requested directly (moving supply/demand off the trading screen). Both source sections were removed once their content landed here, since maintaining the same items in multiple places let them drift out of sync with each other. `feature-brainstorm.md` remains a separate supporting doc (deeper rationale for the v1.2/v1.3 UX items) rather than being folded in, since it's a narrower playtest-findings writeup, not itself a backlog.
 
@@ -26,9 +26,9 @@ Low-risk, high-value UI work. No new game mechanics, so no `src/game/` changes a
 
 Player-facing history/feedback features. Mostly UI-layer, reading existing state rather than adding new mechanics.
 
-6. **Dynasty Chronicle** — persistent `GameState.chronicle: string[]` logging succession/notable events, surfaced as a read-only panel (feature-brainstorm #1). This *is* a `GameState` shape change (new field, needs a save-schema version bump) but no new rules.
-7. **Price history / trend sparkline per good** — client-side only, remembers last ~10 turns of `GoodMarket` snapshots in the UI layer (feature-brainstorm #3).
-8. **Achievements / milestones log** — detected from existing state transitions, shown alongside the Chronicle (feature-brainstorm #4).
+6. ✅ **Dynasty Chronicle** — persistent `GameState.chronicle: string[]` logging succession events, surfaced as a read-only panel in the Merchant's House (feature-brainstorm #1, `design/family-succession.md` "Dynasty Chronicle"). Seeded with a founding entry at New Game; appends at every succession resolution point (auto-succession, `executeChooseHeir`, no-heir game over). Additive save field, no schema bump (defaults to `[]`). 2 new unit tests + 2 assertions added to existing succession tests. Verified live: genesis entry renders correctly in the Merchant's House panel. Scoped to succession only for this pass, not rank-ups/events/births — see the design doc for why.
+7. ✅ **Price history / trend sparkline per good** — client-side only (feature-brainstorm #3). New `src/ui/Sparkline.svelte` (pure presentational, no game-logic imports) plotting a small inline SVG line; `App.svelte` tracks the last 10 turns' `currentPrice` per city/good in a UI-local `priceHistory` buffer (not `GameState` — no schema impact), rebuilt immutably each recorded turn rather than mutated in place, given this project's history of Svelte missing in-place-mutation updates (the bulk-price and label-overlap bugs). Shown as a 4th column on the Town Hall's Supply/Demand table. Verified live: 5 distinct trend lines render after several End Turns, and switching the Town Hall's city selector shows genuinely different per-city histories.
+8. ✅ **Achievements / milestones log** — new `GameState.achievements: AchievementId[]` (`design/family-succession.md` "Achievements", feature-brainstorm #4), shown as badges above the Chronicle in the Merchant's House. 5 milestones (net worth ×2, first ship lost, first Mayor, second generation), evaluated by a pure `evaluateAchievements()` called from both `resolveTurn` and `executeChooseHeir`. Unlike the Chronicle, stores stable ids (not English text), so badges are properly localized via `i18n.ts`. "Survived a pirate Victory" (a brainstorm example) was dropped — not reliably diffable from top-level `GameState` without threading a new signal through `event-system.ts`. 11 new unit tests. Verified live: milestone fires in the turn summary and the badge appears afterward.
 9. **Saved/repeating trade routes** — auto-fill next turn's buy/sail/sell orders until cancelled (feature-brainstorm #2). Larger than 6-8: touches action dispatch, needs its own design doc before starting.
 9b. **Second (and further) marriage partner types** — only the Fisherman's Daughter exists today; `family-succession.md` anticipated more variety.
 

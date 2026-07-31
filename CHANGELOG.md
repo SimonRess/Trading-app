@@ -20,6 +20,20 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-30
+
+### Added
+- **Dynasty Chronicle** — a persistent, read-only log of your family's succession history, shown in the Merchant's House. Seeded with a founding entry when a new game starts; gains a new entry every time succession actually resolves (single-heir, multi-heir choice, or dying without an eligible heir). See `docs/design/family-succession.md`.
+- **Price-trend sparklines** — the Town Hall's Supply/Demand table gained a fourth column showing a small trend line of each good's last 10 turns of prices, per city.
+- **Achievements** — badges for 5 milestones (first 1,000/10,000 Mark net worth, first ship lost, first Mayor of Lübeck, reaching a second generation), shown in the Merchant's House above the Dynasty Chronicle.
+
+### Removed
+- **`priceTrend()`** (`market-system.ts`) — implemented and tested but never actually wired into any screen; superseded by the sparkline above, which does the same job better. Removed as dead code rather than left unused.
+
+### Fixed
+- **Church "~N more turns" estimate was 10× too high, and the pledged-progress bar rendered 10× too wide** — `App.svelte` hardcoded a `/ 50` divisor left over from before the 2026-07-25 ×10 donation-rate raise, instead of importing `church-system.ts`'s actual `DONATION_COST_PER_PERCENT` (500). A 1,000 Mark pledge showed "~20 more turns" instead of ~2. Fixed by exporting the rate constants and having the UI compute off them directly, so a future rate change can't silently desync the display again. See `docs/design/church-donations.md`.
+- **A critically-damaged ship docked at a non-shipyard city (Riga or Malmö) could get permanently stuck** — it couldn't depart, couldn't be repaired away from a shipyard (both by design), and couldn't be auctioned either, even though auctioning was always meant to work from any port — the only Auction button lived inside the Shipyard building panel, which doesn't exist at those two cities. Fixed by surfacing a rescue Auction action directly in the Harbor panel's "can't depart" message when docked somewhere without a shipyard. See `docs/design/ship-stats.md`.
+
 ## [1.2.0] - 2026-07-30
 
 ### Changed

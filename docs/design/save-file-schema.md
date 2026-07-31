@@ -58,6 +58,8 @@ interface PersistedGameState {
   warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
   cityEffects: CityEffect[];  // active plague/embargo/market-boost effects, added post-v1; additive, no schema bump — save-system.ts defaults to [] if absent
   pendingSuccession: PendingSuccession | null;  // set when the player died with 2+ heir-eligible children, awaiting a CHOOSE_HEIR action; added post-v1; additive, no schema bump — save-system.ts defaults to null if absent
+  chronicle: string[];  // persistent Dynasty Chronicle log (family-succession.md), added v1.3; additive, no schema bump — save-system.ts defaults to [] if absent (an older save simply starts with no history rather than backfilling a founding entry)
+  achievements: AchievementId[];  // unlocked milestones (family-succession.md "Achievements"), added v1.3; additive, no schema bump — save-system.ts defaults to [] if absent
   // ui state is deliberately excluded
 }
 

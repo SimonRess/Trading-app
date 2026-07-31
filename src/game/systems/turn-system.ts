@@ -28,6 +28,7 @@ import { advanceChurchProgress } from './church-system.ts';
 import { accrueLoanInterest } from './banking-system.ts';
 import { accrueInsurancePremiums, computeInsurancePayouts } from './insurance-system.ts';
 import { accrueWarehouseIncome, warehouseSellValue } from './warehouse-system.ts';
+import { evaluateAchievements, achievementMessage } from './achievement-system.ts';
 import { applyHealthDecay } from './health-system.ts';
 import { growChildren, attemptBirth, traitPurchasePriceFactor } from './family-system.ts';
 import { HEIR_MIN_AGE } from '../data/family.ts';
@@ -290,7 +291,9 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
             reputation: halvedReputation,
           },
         };
-        events.push(`⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`);
+        const chronicleEntry = `⚱️ ${deceasedName} has passed away at age ${String(deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`;
+        events.push(chronicleEntry);
+        newState = { ...newState, chronicle: [...newState.chronicle, chronicleEntry] };
       }
     }
   }
@@ -324,7 +327,9 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   } else if (newState.player.health <= 0 && !succession) {
     outcome = 'lose';
     loseReason = 'no-heir';
+    const chronicleEntry = `⚰️ ${newState.player.name} has died at age ${String(newState.player.age)} with no eligible heir. The dynasty ends here.`;
     events.push('Without an heir to carry the family name, the trading house closes its doors.');
+    newState = { ...newState, chronicle: [...newState.chronicle, chronicleEntry] };
   } else if (newState.player.politicalRank === 3 && !newState.hasWon) {
     outcome = 'win';
     newState = { ...newState, hasWon: true };
@@ -334,6 +339,15 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   } else if (calendar.turn >= calendar.maxTurns) {
     outcome = 'lose';
     loseReason = 'out-of-turns';
+  }
+
+  // Step 8: Achievements — evaluated last, against the fully-resolved
+  // newState (net worth/rank/chronicle all settled above). See
+  // achievement-system.ts.
+  const newAchievements = evaluateAchievements(state, newState, netWorth);
+  if (newAchievements.length > 0) {
+    newState = { ...newState, achievements: [...newState.achievements, ...newAchievements] };
+    for (const id of newAchievements) events.push(achievementMessage(id));
   }
 
   return { state: newState, summary: { events, outcome, loseReason } };
@@ -551,7 +565,7 @@ export function executeChooseHeir(state: GameState, childId: string): GameState 
   const heir = pending.candidates.find(c => c.id === childId);
   if (!heir) return state;
 
-  return {
+  const resolved: GameState = {
     ...state,
     pendingSuccession: null,
     player: {
@@ -566,5 +580,19 @@ export function executeChooseHeir(state: GameState, childId: string): GameState 
       children: [],
       reputation: pending.halvedReputation,
     },
+    chronicle: [
+      ...state.chronicle,
+      `⚱️ ${pending.deceasedName} has passed away at age ${String(pending.deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`,
+    ],
   };
+
+  // Silent (no TurnSummary channel exists on this action's return type) —
+  // an unlock here (realistically only 'second-generation', since net
+  // worth/rank milestones would already have fired in the resolveTurn call
+  // that set pendingSuccession) shows up next time the player opens the
+  // achievements panel rather than as an announcement.
+  const newAchievements = evaluateAchievements(state, resolved, computeNetWorth(resolved));
+  return newAchievements.length > 0
+    ? { ...resolved, achievements: [...resolved.achievements, ...newAchievements] }
+    : resolved;
 }

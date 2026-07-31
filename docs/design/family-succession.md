@@ -15,6 +15,27 @@ Implemented with substantial revisions from the original draft below (kept for h
 - ✅ Inheritance carryover (fleet/cash/loan/political rank carry over; reputation halves; marital status resets to single, partner cleared) matches the original draft's table, with children *not* carried to the new generation (documented simplification — surviving siblings aren't tracked as the new player's own children).
 - ✅ Turn-summary reporting: a death-with-heir message, a death-without-heir lose message, a per-child death message, and per-child trait-gained/birth messages — all as plain `TurnSummary` events rather than a distinct overlay variant (a scope simplification from the original "third turn-summary overlay variant" idea).
 
+## Dynasty Chronicle (Implemented, v1.3 — new since the Implementation Status above)
+
+The game's own pitch is "raise a family across generations," but until v1.3 there was no way to look back at that history — succession events were reported once in the turn summary (`TurnResult.summary.events`) and then discarded on the next turn. `GameState.chronicle: string[]` is a persistent, append-only log holding a subset of those events:
+
+- Seeded with one founding entry at `NEW_GAME` (`buildStartingState`): "🏛️ {playerName} begins trading in Lübeck, Spring 1320."
+- A new entry is appended at every point succession actually resolves: the single-eligible-heir auto-succession path, the multi-candidate `executeChooseHeir` resolution, and the no-eligible-heir game-over path (`resolveTurn`, `turn-system.ts`) — reusing the exact message text already generated for the turn summary rather than a separate string, so there's only one place that wording is written.
+- Surfaced read-only in the Merchant's House building panel, most-recent-first, below the existing marriage/children sections — the natural home given it's the player's own household history, not a city service.
+- **Save schema**: additive field, no `SCHEMA_VERSION` bump — an older save simply starts with an empty chronicle on load rather than backfilling a founding entry that didn't happen (`save-system.ts`'s `parseSaveFile`, same defaulting pattern as `hasWon`/`warehouses`/etc.).
+- **Deliberately not included** (kept for a possible future pass, not because there wasn't room): rank-up announcements, random-event messages, birth/marriage messages. Scoped to succession specifically per the original feature-brainstorm ask, since that's the "generations" through-line the pitch is actually about — the other message types would make the log noisy without adding much to "look back at your dynasty's history."
+
+## Achievements (Implemented, v1.3 — shipped alongside the Dynasty Chronicle)
+
+feature-brainstorm.md's #4: "detect and record notable moments already implicit in existing state transitions... into a simple list shown alongside the Dynasty Chronicle." New `GameState.achievements: AchievementId[]` (`src/game/systems/achievement-system.ts`):
+
+- **Unlike the Chronicle, achievements store stable ids, not baked-in English text** — a fixed, small, enumerable set (`AchievementId` in `state/types.ts`), so the UI can map each to a localized label (`i18n.ts`'s `T.achievement`) rather than accepting the Chronicle's English-only limitation. The one-time turn-summary *announcement* text (`achievementMessage()`) is still English-only, matching every other game-logic message per `docs/design/localization.md`'s scope boundary — only the persistent, re-displayed badge label is localized.
+- **`evaluateAchievements(prev, next, netWorth)`** is a pure function comparing before/after `GameState`, called from both `resolveTurn` (after net worth/rank/chronicle are all settled, so it sees the fully-resolved turn) and `executeChooseHeir` (silently — that action has no `TurnSummary` channel to announce through, so an achievement unlocked there just appears next time the panel is opened).
+- **Five milestones shipped**, chosen for being cleanly diffable from top-level `GameState` alone, without threading new signals through `event-system.ts`: `net-worth-1000`, `net-worth-10000`, `first-ship-lost` (fleet size decreased — catches storm wrecks and pirate sinkings alike, not pirate-specific), `first-mayor` (political rank reaches 3), `second-generation` (the Chronicle contains a successful-succession entry — reusing the Chronicle as the generation signal instead of adding a separate counter).
+- **Not shipped**: "survived a pirate Victory" (a feature-brainstorm example) — considered, dropped. Combat-loot cargo gains aren't reliably distinguishable from ordinary trading cargo gains at the `GameState`-diff level used here; wiring it properly would mean threading a signal through `event-system.ts`'s `EventResult`, out of scope for this pass.
+- Surfaced as badges in the Merchant's House, above the Chronicle.
+- **Save schema**: additive field, no bump — an older save simply has no unlocked achievements on load. Net-worth milestones will naturally re-unlock the next time their threshold is crossed; `first-ship-lost`/`second-generation` tied to a past event won't retroactively backfill (same accepted gap shape as the Chronicle's own founding-entry limitation).
+
 ## Marriage (Implemented — revised from "Non-Goal" in the original draft below)
 
 The original draft explicitly kept marriage flavor-only, deferring it as blocking future work. It's now a real mechanic, required for children/succession to function:

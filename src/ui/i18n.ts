@@ -15,7 +15,7 @@
 // follow-up rather than attempted half-heartedly here (see CLAUDE.md's
 // architecture rule: src/game/ must not know about the UI/locale).
 import { writable } from 'svelte/store';
-import type { GoodId, Ship, PoliticalRank, TraitId } from '../game/state/types.ts';
+import type { GoodId, Ship, PoliticalRank, TraitId, AchievementId } from '../game/state/types.ts';
 import type { BuildingId } from '../render/city-scene.ts';
 
 export type Locale = 'en' | 'de';
@@ -116,6 +116,7 @@ export interface Translation {
   colDemand: string;
   colInHold: string;
   colTrade: string;
+  colPriceTrend: string;
   priceInCity: (city: string) => string;
   noShipToTrade: string;
 
@@ -164,10 +165,16 @@ export interface Translation {
   // Church
   churchOf: (city: string) => string;
   churchComplete: string;
-  churchPledgedNote: (mark: number, turns: number) => string;
+  churchPledgedNote: (mark: number, capPerTurn: number, turns: number) => string;
   churchDoneNote: string;
   donate: string;
-  churchHint: (city: string) => string;
+  // markPerPercent/markPerReputation are passed in from church-system.ts's
+  // own constants (DONATION_COST_PER_PERCENT/REPUTATION_COST_PER_POINT)
+  // rather than hardcoded here, so this text can't silently drift out of
+  // sync with the actual donation math the way it previously did with the
+  // "~N more turns" estimate (App.svelte's turnsRemaining, which had its
+  // own separately-hardcoded — and wrong — divisor).
+  churchHint: (city: string, markPerPercent: number, markPerReputation: number) => string;
 
   // Counting House
   countingHouse: string;
@@ -213,6 +220,10 @@ export interface Translation {
   tooYoungToMarry: (min: number) => string;
   childrenLabel: string;
   noChildren: string;
+  chronicleHeading: string;
+  achievementsHeading: string;
+  noAchievements: string;
+  achievement: Record<AchievementId, string>;
   age: string;
   health: string;
   heirEligible: string;
@@ -354,7 +365,7 @@ const en: Translation = {
   legendShipEnRoute: 'Ship en route',
 
   colGood: 'Good', colPrice: 'Price', colStock: 'Stock', colSupply: 'Supply', colDemand: 'Demand',
-  colInHold: 'In hold', colTrade: 'Trade',
+  colInHold: 'In hold', colTrade: 'Trade', colPriceTrend: 'Price trend',
   priceInCity: (city) => `Price in ${city}`,
   noShipToTrade: "No ship currently in this port to trade with — showing prices for reference.",
 
@@ -405,10 +416,10 @@ const en: Translation = {
 
   churchOf: (city) => `Church of ${city}`,
   churchComplete: '% complete',
-  churchPledgedNote: (mark, turns) => `${String(mark)} Mark pledged, arriving at up to 1% per turn (~${String(turns)} more turn${turns === 1 ? '' : 's'}).`,
+  churchPledgedNote: (mark, capPerTurn, turns) => `${String(mark)} Mark pledged, arriving at up to ${String(capPerTurn)}% per turn (~${String(turns)} more turn${turns === 1 ? '' : 's'}).`,
   churchDoneNote: '⛪ This church is fully built, thanks in part to your generosity.',
   donate: 'Donate',
-  churchHint: (city) => `500 Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · 1000 Mark ≈ 1 reputation in ${city} (right away).`,
+  churchHint: (city, markPerPercent, markPerReputation) => `${String(markPerPercent)} Mark ≈ 1% completion (arrives gradually, up to 1%/turn) · ${String(markPerReputation)} Mark ≈ 1 reputation in ${city} (right away).`,
 
   countingHouse: 'Counting House',
   loanActive: (amount, rate) => `Outstanding loan: ${String(amount)} Mark, accruing ${String(rate)}% interest per turn.`,
@@ -450,6 +461,16 @@ const en: Translation = {
   tooYoungToMarry: (min) => `Too young to marry (minimum age ${String(min)}).`,
   childrenLabel: 'Children',
   noChildren: 'No children yet.',
+  chronicleHeading: 'Dynasty Chronicle',
+  achievementsHeading: 'Achievements',
+  noAchievements: 'No milestones reached yet.',
+  achievement: {
+    'net-worth-1000': 'First 1,000 Mark',
+    'net-worth-10000': 'First 10,000 Mark',
+    'first-ship-lost': 'Lost at Sea',
+    'first-mayor': 'Mayor of Lübeck',
+    'second-generation': 'A New Generation',
+  },
   age: 'Age',
   health: 'Health',
   heirEligible: 'Heir-eligible',
@@ -569,7 +590,7 @@ const de: Translation = {
   legendShipEnRoute: 'Schiff unterwegs',
 
   colGood: 'Ware', colPrice: 'Preis', colStock: 'Bestand', colSupply: 'Angebot', colDemand: 'Nachfrage',
-  colInHold: 'Im Laderaum', colTrade: 'Handel',
+  colInHold: 'Im Laderaum', colTrade: 'Handel', colPriceTrend: 'Preistrend',
   priceInCity: (city) => `Preis in ${city}`,
   noShipToTrade: 'Kein Schiff in diesem Hafen zum Handeln — Preise werden nur zur Orientierung angezeigt.',
 
@@ -617,10 +638,10 @@ const de: Translation = {
 
   churchOf: (city) => `Kirche von ${city}`,
   churchComplete: '% fertiggestellt',
-  churchPledgedNote: (mark, turns) => `${String(mark)} Mark gestiftet, es fließen bis zu 1% pro Runde ein (~noch ${String(turns)} Runde${turns === 1 ? '' : 'n'}).`,
+  churchPledgedNote: (mark, capPerTurn, turns) => `${String(mark)} Mark gestiftet, es fließen bis zu ${String(capPerTurn)}% pro Runde ein (~noch ${String(turns)} Runde${turns === 1 ? '' : 'n'}).`,
   churchDoneNote: '⛪ Diese Kirche ist vollständig erbaut, auch dank eurer Großzügigkeit.',
   donate: 'Spenden',
-  churchHint: (city) => `500 Mark ≈ 1% Baufortschritt (fließt allmählich ein, bis zu 1%/Runde) · 1000 Mark ≈ 1 Ansehen in ${city} (sofort).`,
+  churchHint: (city, markPerPercent, markPerReputation) => `${String(markPerPercent)} Mark ≈ 1% Baufortschritt (fließt allmählich ein, bis zu 1%/Runde) · ${String(markPerReputation)} Mark ≈ 1 Ansehen in ${city} (sofort).`,
 
   countingHouse: 'Kontor',
   loanActive: (amount, rate) => `Offener Kredit: ${String(amount)} Mark, verzinst sich mit ${String(rate)}% pro Runde.`,
@@ -662,6 +683,16 @@ const de: Translation = {
   tooYoungToMarry: (min) => `Zu jung zum Heiraten (Mindestalter ${String(min)}).`,
   childrenLabel: 'Kinder',
   noChildren: 'Noch keine Kinder.',
+  chronicleHeading: 'Familienchronik',
+  achievementsHeading: 'Erfolge',
+  noAchievements: 'Noch keine Meilensteine erreicht.',
+  achievement: {
+    'net-worth-1000': 'Erste 1.000 Mark',
+    'net-worth-10000': 'Erste 10.000 Mark',
+    'first-ship-lost': 'Auf See verloren',
+    'first-mayor': 'Bürgermeister von Lübeck',
+    'second-generation': 'Eine neue Generation',
+  },
   age: 'Alter',
   health: 'Gesundheit',
   heirEligible: 'Erbberechtigt',
