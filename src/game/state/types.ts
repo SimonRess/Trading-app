@@ -182,7 +182,20 @@ export interface GameState {
   // TurnResult.summary.events, kept across turns instead of discarded.
   // See docs/design/family-succession.md "Dynasty Chronicle".
   chronicle: string[];
+  // Milestones unlocked so far, in unlock order — see
+  // achievement-system.ts's evaluateAchievements. Additive save field.
+  achievements: AchievementId[];
 }
+
+// A fixed, small, enumerable set — unlike chronicle's freeform narrative
+// strings, achievement ids are stable identifiers the UI maps to localized
+// labels (i18n.ts), not baked-in English text.
+export type AchievementId =
+  | 'net-worth-1000'
+  | 'net-worth-10000'
+  | 'first-ship-lost'
+  | 'first-mayor'
+  | 'second-generation';
 
 export interface PendingSuccession {
   candidates: Child[];

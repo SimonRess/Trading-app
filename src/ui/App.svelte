@@ -98,6 +98,7 @@
   $: SEASON_LABEL = T.season;
   $: RANK_LABELS = T.rank;
   $: TRAIT_LABELS = T.trait;
+  $: ACHIEVEMENT_LABELS = T.achievement;
 
   const GOOD_IDS = Object.keys(GOODS) as GoodId[];
   const CITY_IDS = Object.keys(CITIES) as CityId[];
@@ -1119,6 +1120,17 @@
               </div>
             {/if}
 
+            <h3 class="counting-house-subhead">{T.achievementsHeading}</h3>
+            {#if state.achievements.length === 0}
+              <p class="order-note muted">{T.noAchievements}</p>
+            {:else}
+              <div class="achievement-badges">
+                {#each state.achievements as id (id)}
+                  <span class="achievement-badge">🏆 {ACHIEVEMENT_LABELS[id]}</span>
+                {/each}
+              </div>
+            {/if}
+
             <h3 class="counting-house-subhead">{T.chronicleHeading}</h3>
             <ul class="chronicle-list">
               {#each [...state.chronicle].reverse() as entry, i (state.chronicle.length - i)}
@@ -1686,6 +1698,15 @@
     font-size: 1rem;
   }
   .effect-list { list-style: none; padding: 0; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #d4a843; }
+  .achievement-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
+  .achievement-badge {
+    background: #241c10;
+    border: 1px solid #4a3a20;
+    color: #f0dca0;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
   .chronicle-list {
     list-style: none;
     padding: 0;

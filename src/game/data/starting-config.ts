@@ -69,5 +69,6 @@ export function buildStartingState(playerName: string): GameState {
     cityEffects: [],
     pendingSuccession: null,
     chronicle: [`🏛️ ${playerName} begins trading in Lübeck, Spring 1320.`],
+    achievements: [],
   };
 }

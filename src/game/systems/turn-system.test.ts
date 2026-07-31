@@ -542,6 +542,21 @@ describe('resolveTurn', () => {
     expect(state.calendar.turn).toBe(turnBefore);
   });
 
+  it('unlocks and announces an achievement when a milestone is crossed', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 1200 } };
+    const { state: next, summary } = resolveTurn(rich, { destinations: {} });
+    expect(next.achievements).toContain('net-worth-1000');
+    expect(summary.events.some(e => e.includes('Milestone'))).toBe(true);
+  });
+
+  it('does not re-announce an achievement already unlocked', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 1200 }, achievements: ['net-worth-1000' as const] };
+    const { summary } = resolveTurn(rich, { destinations: {} });
+    expect(summary.events.some(e => e.includes('Milestone'))).toBe(false);
+  });
+
   it('advances pledged church funds by at most 1% and announces completion', () => {
     const state = buildStartingState('TestPlayer');
     const almostDone = {

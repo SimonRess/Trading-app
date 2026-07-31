@@ -15,7 +15,7 @@
 // follow-up rather than attempted half-heartedly here (see CLAUDE.md's
 // architecture rule: src/game/ must not know about the UI/locale).
 import { writable } from 'svelte/store';
-import type { GoodId, Ship, PoliticalRank, TraitId } from '../game/state/types.ts';
+import type { GoodId, Ship, PoliticalRank, TraitId, AchievementId } from '../game/state/types.ts';
 import type { BuildingId } from '../render/city-scene.ts';
 
 export type Locale = 'en' | 'de';
@@ -215,6 +215,9 @@ export interface Translation {
   childrenLabel: string;
   noChildren: string;
   chronicleHeading: string;
+  achievementsHeading: string;
+  noAchievements: string;
+  achievement: Record<AchievementId, string>;
   age: string;
   health: string;
   heirEligible: string;
@@ -453,6 +456,15 @@ const en: Translation = {
   childrenLabel: 'Children',
   noChildren: 'No children yet.',
   chronicleHeading: 'Dynasty Chronicle',
+  achievementsHeading: 'Achievements',
+  noAchievements: 'No milestones reached yet.',
+  achievement: {
+    'net-worth-1000': 'First 1,000 Mark',
+    'net-worth-10000': 'First 10,000 Mark',
+    'first-ship-lost': 'Lost at Sea',
+    'first-mayor': 'Mayor of Lübeck',
+    'second-generation': 'A New Generation',
+  },
   age: 'Age',
   health: 'Health',
   heirEligible: 'Heir-eligible',
@@ -666,6 +678,15 @@ const de: Translation = {
   childrenLabel: 'Kinder',
   noChildren: 'Noch keine Kinder.',
   chronicleHeading: 'Familienchronik',
+  achievementsHeading: 'Erfolge',
+  noAchievements: 'Noch keine Meilensteine erreicht.',
+  achievement: {
+    'net-worth-1000': 'Erste 1.000 Mark',
+    'net-worth-10000': 'Erste 10.000 Mark',
+    'first-ship-lost': 'Auf See verloren',
+    'first-mayor': 'Bürgermeister von Lübeck',
+    'second-generation': 'Eine neue Generation',
+  },
   age: 'Alter',
   health: 'Gesundheit',
   heirEligible: 'Erbberechtigt',

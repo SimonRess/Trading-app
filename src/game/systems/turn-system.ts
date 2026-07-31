@@ -28,6 +28,7 @@ import { advanceChurchProgress } from './church-system.ts';
 import { accrueLoanInterest } from './banking-system.ts';
 import { accrueInsurancePremiums, computeInsurancePayouts } from './insurance-system.ts';
 import { accrueWarehouseIncome, warehouseSellValue } from './warehouse-system.ts';
+import { evaluateAchievements, achievementMessage } from './achievement-system.ts';
 import { applyHealthDecay } from './health-system.ts';
 import { growChildren, attemptBirth, traitPurchasePriceFactor } from './family-system.ts';
 import { HEIR_MIN_AGE } from '../data/family.ts';
@@ -340,6 +341,15 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
     loseReason = 'out-of-turns';
   }
 
+  // Step 8: Achievements — evaluated last, against the fully-resolved
+  // newState (net worth/rank/chronicle all settled above). See
+  // achievement-system.ts.
+  const newAchievements = evaluateAchievements(state, newState, netWorth);
+  if (newAchievements.length > 0) {
+    newState = { ...newState, achievements: [...newState.achievements, ...newAchievements] };
+    for (const id of newAchievements) events.push(achievementMessage(id));
+  }
+
   return { state: newState, summary: { events, outcome, loseReason } };
 }
 
@@ -555,7 +565,7 @@ export function executeChooseHeir(state: GameState, childId: string): GameState 
   const heir = pending.candidates.find(c => c.id === childId);
   if (!heir) return state;
 
-  return {
+  const resolved: GameState = {
     ...state,
     pendingSuccession: null,
     player: {
@@ -575,4 +585,14 @@ export function executeChooseHeir(state: GameState, childId: string): GameState 
       `⚱️ ${pending.deceasedName} has passed away at age ${String(pending.deceasedAge)}. Their heir, ${heir.name}, takes up the family trade.`,
     ],
   };
+
+  // Silent (no TurnSummary channel exists on this action's return type) —
+  // an unlock here (realistically only 'second-generation', since net
+  // worth/rank milestones would already have fired in the resolveTurn call
+  // that set pendingSuccession) shows up next time the player opens the
+  // achievements panel rather than as an announcement.
+  const newAchievements = evaluateAchievements(state, resolved, computeNetWorth(resolved));
+  return newAchievements.length > 0
+    ? { ...resolved, achievements: [...resolved.achievements, ...newAchievements] }
+    : resolved;
 }
