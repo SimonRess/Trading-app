@@ -32,6 +32,7 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ### Fixed
 - **Church "~N more turns" estimate was 10× too high, and the pledged-progress bar rendered 10× too wide** — `App.svelte` hardcoded a `/ 50` divisor left over from before the 2026-07-25 ×10 donation-rate raise, instead of importing `church-system.ts`'s actual `DONATION_COST_PER_PERCENT` (500). A 1,000 Mark pledge showed "~20 more turns" instead of ~2. Fixed by exporting the rate constants and having the UI compute off them directly, so a future rate change can't silently desync the display again. See `docs/design/church-donations.md`.
+- **A critically-damaged ship docked at a non-shipyard city (Riga or Malmö) could get permanently stuck** — it couldn't depart, couldn't be repaired away from a shipyard (both by design), and couldn't be auctioned either, even though auctioning was always meant to work from any port — the only Auction button lived inside the Shipyard building panel, which doesn't exist at those two cities. Fixed by surfacing a rescue Auction action directly in the Harbor panel's "can't depart" message when docked somewhere without a shipyard. See `docs/design/ship-stats.md`.
 
 ## [1.2.0] - 2026-07-30
 

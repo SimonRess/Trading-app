@@ -285,6 +285,24 @@ describe('executeAuctionShip', () => {
     expect(next.player.cash).toBe(before + 3200); // 4000 * 0.8
   });
 
+  it('works for a critical-durability ship docked at a non-shipyard city', () => {
+    // The scenario the Harbor panel's rescue action (App.svelte) exists
+    // for: canDepart() blocks sailing and executeRepairShip() requires a
+    // shipyard city, so auctioning is the only way out of a stuck ship.
+    // Confirms executeAuctionShip has no shipyard restriction (unlike
+    // executeRepairShip) -- its own comment already says "available from
+    // any port".
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = {
+      ...state,
+      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga', durability: 5 } : s)) },
+    };
+    const next = executeAuctionShip(state, shipId);
+    expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
+    expect(next.player.cash).toBeGreaterThan(state.player.cash);
+  });
+
   it('rejects auctioning a ship that is in transit', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;

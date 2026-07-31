@@ -693,6 +693,25 @@
                   <p class="order-note critical">
                     {T.criticalDamageNote(activeShip.name, activeShip.durability)}
                   </p>
+                  {#if !isShipyardCity(portCity)}
+                    <!-- A critical/wrecked ship can't depart (canDepart) and
+                         can't be repaired away from a shipyard city
+                         (executeRepairShip) — without this, it would be
+                         permanently stranded with no available action at
+                         all. Auctioning was already implemented to work
+                         from any port (executeAuctionShip's own comment
+                         says so), but the only UI entry point was buried
+                         inside the Shipyard building panel, which doesn't
+                         even exist at a non-shipyard city. Surfacing it
+                         here, specifically for this stuck case, closes
+                         that soft-lock without changing canDepart or
+                         executeRepairShip's shipyard restriction, both of
+                         which are deliberate (ship-stats.md). -->
+                    <p class="order-note muted">
+                      {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
+                    </p>
+                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                  {/if}
                 {:else if activeShip.repairCooldown > 0}
                   <p class="order-note critical">
                     {T.repairCooldownNote(activeShip.name)}
@@ -1234,6 +1253,12 @@
               <p class="order-note critical">
                 {T.criticalDamageNote(activeShip.name, activeShip.durability)}
               </p>
+              {#if portCity && !isShipyardCity(portCity)}
+                <p class="order-note muted">
+                  {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
+                </p>
+                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+              {/if}
             {:else if activeShip.repairCooldown > 0}
               <p class="order-note critical">
                 {T.repairCooldownNote(activeShip.name)}
