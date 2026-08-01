@@ -1,5 +1,6 @@
 import type { GameState, Child, TraitId } from '../state/types.ts';
 import { isInPort } from './fleet-system.ts';
+import { gainReputation } from './political-system.ts';
 import {
   PARTNER_TYPES,
   MARRIAGE_SUCCESS_CHANCE,
@@ -12,13 +13,22 @@ import {
   HEIR_MIN_AGE,
   birthChance,
   nextChildName,
+  type PartnerType,
 } from '../data/family.ts';
 
-export function executeSeekMarriage(state: GameState): GameState {
+// Offers currently available to court, given net worth (minNetWorth gate)
+// — netWorth is passed in rather than computed here via computeNetWorth
+// (turn-system.ts) to avoid a circular import, same reasoning as
+// achievement-system.ts's evaluateAchievements.
+export function eligiblePartnerTypes(netWorth: number): PartnerType[] {
+  return PARTNER_TYPES.filter(p => p.minNetWorth === undefined || netWorth >= p.minNetWorth);
+}
+
+export function executeSeekMarriage(state: GameState, partnerId: string, netWorth: number): GameState {
   if (state.player.maritalStatus === 'married') return state;
   if (state.player.age < MIN_MARRIAGE_AGE) return state;
 
-  const partnerType = PARTNER_TYPES[0];
+  const partnerType = eligiblePartnerTypes(netWorth).find(p => p.id === partnerId);
   if (!partnerType) return state;
   if (state.player.cash < partnerType.buyoutCost) return state;
   if (Math.random() > MARRIAGE_SUCCESS_CHANCE) return state;
@@ -44,6 +54,16 @@ export function executeSeekMarriage(state: GameState): GameState {
         fleet: { ships: newState.fleet.ships.map(s => (s.id === ship.id ? { ...s, cargo: newCargo } : s)) },
       };
     }
+  }
+
+  if (partnerType.giftReputationCityId && partnerType.giftReputationAmount) {
+    newState = {
+      ...newState,
+      player: {
+        ...newState.player,
+        reputation: gainReputation(newState.player.reputation, partnerType.giftReputationCityId, partnerType.giftReputationAmount, newState.player.traits),
+      },
+    };
   }
 
   return newState;

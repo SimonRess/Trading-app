@@ -41,9 +41,21 @@ feature-brainstorm.md's #4: "detect and record notable moments already implicit 
 The original draft explicitly kept marriage flavor-only, deferring it as blocking future work. It's now a real mechanic, required for children/succession to function:
 
 - A "Seek Marriage" action at the Merchant's House building, available once `maritalStatus === 'single'` and `age >= 16` (a floor not in the original spec, added to avoid a freshly-succeeded 10-year-old heir marrying immediately).
-- **One partner type exists so far**: "the Fisherman's Daughter" (age 22, female, 300 Mark buyout paid to her father, no ships/status of her own, gifts 10 herring — standing in for the originally-requested "fish", which isn't a good in this economy — to a ship docked in Lübeck if one is present at the time; the gift is simply skipped if none is). `PARTNER_TYPES` (`data/family.ts`) is a registry (matching the `SHIP_TYPES`/`GOODS` pattern) so future partner types slot in without restructuring.
-- **Marriage success is 100% for now** (`MARRIAGE_SUCCESS_CHANCE`), structured so a future pass with multiple partner types can make it genuinely probabilistic without a redesign.
-- `PlayerState.gender` was added specifically to make the birth-chance formula ("whichever of player/partner is female") resolve correctly regardless of which side is which in a future mixed-gender partner roster; the player defaults to `'male'` at New Game (no gender-selection UI yet, since only one — female — partner type exists).
+- **Two partner types exist** (`PARTNER_TYPES`, `data/family.ts`, a registry matching the `SHIP_TYPES`/`GOODS` pattern):
+  - **"the Fisherman's Daughter"** (age 22, female, 300 Mark buyout paid to her father, no ships/status of her own, gifts 10 herring — standing in for the originally-requested "fish", which isn't a good in this economy — to a ship docked in Lübeck if one is present at the time; the gift is simply skipped if none is). Always available.
+  - **"the Alderman's Daughter"** (Implemented, v1.3) — age 24, female, 2,000 Mark buyout, gifts +10 reputation in Hamburg immediately (`gainReputation`, same function trade/church donations use) instead of a goods gift. **Gated on `minNetWorth: 6000`** — she isn't offered at all below that net worth, reflecting that an alderman's family wouldn't match a poor merchant. 6,000 was chosen deliberately above a starting player's net worth (~4,660: 500 cash + a ~4,000 Mark ship + starting cargo) and above `RANK_THRESHOLDS`' Council Member tier (4,000), so the gate requires genuine progress rather than being trivially met at New Game.
+  - The Merchant's House now lists every *currently-eligible* offer (`eligiblePartnerTypes(netWorth)`) as its own row, instead of a single hardcoded button — a poor player sees only the Fisherman's Daughter; a wealthy one sees both.
+  - `executeSeekMarriage(state, partnerId, netWorth)` takes the chosen partner's id and looks it up among eligible offers (rejects an id that's unknown or currently ineligible) — was previously hardcoded to `PARTNER_TYPES[0]`. `netWorth` is passed in rather than computed via `computeNetWorth` (`turn-system.ts`) to avoid a circular import, same reasoning as `achievement-system.ts`'s `evaluateAchievements`.
+- **Marriage success is 100% for now** (`MARRIAGE_SUCCESS_CHANCE`, still a single global constant, not per-partner) — kept deterministic even with two partner types now, since the request was specifically "propose a partner" not "add randomness"; per-partner acceptance odds remain a possible future addition, not done here.
+- `PlayerState.gender` was added specifically to make the birth-chance formula ("whichever of player/partner is female") resolve correctly regardless of which side is which in a future mixed-gender partner roster; the player defaults to `'male'` at New Game (no gender-selection UI yet, since both partner types so far are female).
+
+### Open task: more partners and marriage mechanics
+
+Explicitly flagged as future work, not attempted in this pass:
+
+- **More partner types** — a third+ tier (e.g. gated on political rank instead of net worth, or a partner bringing a ship — `PartnerType.ships: never[]` is already reserved for this but unwired), and eventually enough variety that `MARRIAGE_SUCCESS_CHANCE` becoming genuinely probabilistic (and per-partner) would be worth the complexity.
+- **A male player-facing partner roster** — every partner so far is female opposite a male-default player; `PlayerState.gender` support exists, but no partner type targets a female player.
+- **Marriage/divorce consequences beyond the one-time buyout+gift** — e.g. an ongoing upkeep cost for a higher-status spouse, or reputation decay if a marriage of convenience is neglected. Currently marriage is a single transaction with no ongoing effect beyond enabling children.
 
 ## Children & Birth Chance (Implemented — revised from the original draft's proposal below)
 

@@ -7,16 +7,25 @@ export interface PartnerType {
   gender: Gender;
   buyoutCost: number; // Mark paid at marriage
   ships: never[]; // reserved for future partner types that bring ships into the marriage
-  hasStatus: boolean; // reserved for future partner types that bring political/reputation status
+  hasStatus: boolean; // true if this partner grants a reputation gift (giftReputation* below) rather than/in addition to a goods gift
   giftCityId?: CityId;
   giftGoodId?: GoodId;
   giftQuantity?: number;
+  giftReputationCityId?: CityId;
+  giftReputationAmount?: number;
+  // Offers below this net worth aren't shown at all — a poor merchant
+  // isn't a match for an alderman's family. Undefined = always available,
+  // same as the Fisherman's Daughter today. See docs/design/
+  // family-succession.md "Marriage" for the reasoning.
+  minNetWorth?: number;
 }
 
-// Only one partner type exists so far — see docs/design/
-// family-succession.md "Marriage". A future pass adds more entries here and
-// a weighted-random pick between them, mirroring SHIP_TYPES/GOODS' registry
-// pattern.
+// Two partner types exist — see docs/design/family-succession.md
+// "Marriage". Eligible offers (net worth permitting) are shown together in
+// the Merchant's House rather than picked randomly, keeping the mechanic
+// deterministic; a future pass could add a weighted-random element on top
+// of this if that turns out to matter, mirroring SHIP_TYPES/GOODS'
+// registry pattern either way.
 export const PARTNER_TYPES: PartnerType[] = [
   {
     id: 'fishermans-daughter',
@@ -29,6 +38,24 @@ export const PARTNER_TYPES: PartnerType[] = [
     giftCityId: 'lubeck',
     giftGoodId: 'herring',
     giftQuantity: 10,
+  },
+  {
+    id: 'aldermans-daughter',
+    title: "the Alderman's Daughter",
+    age: 24,
+    gender: 'female',
+    buyoutCost: 2000,
+    ships: [],
+    hasStatus: true,
+    giftReputationCityId: 'hamburg',
+    giftReputationAmount: 10,
+    // A starting player's net worth is already ~4,660 (500 cash + a
+    // ~4,000 Mark ship + starting cargo), comfortably past
+    // RANK_THRESHOLDS' Council Member tier (4,000) — a gate anywhere
+    // near that would be trivially met at New Game, defeating the "not
+    // a match for a poor merchant" point. Set between Council Member
+    // and Mayor (10,000) so it requires real progress.
+    minNetWorth: 6000,
   },
 ];
 

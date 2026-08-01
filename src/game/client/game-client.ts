@@ -21,7 +21,7 @@ export type GameAction =
   | { type: 'SET_POSTURE'; shipId: string; posture: Ship['posture'] }
   | { type: 'BUY_WAREHOUSE'; cityId: CityId }
   | { type: 'SELL_WAREHOUSE'; cityId: CityId }
-  | { type: 'SEEK_MARRIAGE' }
+  | { type: 'SEEK_MARRIAGE'; partnerId: string }
   | { type: 'HIRE_TUTOR'; childId: string }
   | { type: 'CHOOSE_HEIR'; childId: string }
   | { type: 'LOAD_SAVE'; state: GameState };
