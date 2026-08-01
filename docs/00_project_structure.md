@@ -378,6 +378,7 @@ This list only covers what's already shipped (✅). Everything not yet started �
 3. **Reversing a decision?** → Write a new superseding ADR; do not edit the old one.
 4. **Code change?** → CLAUDE.md constraints apply. Run `npm test` and `npm run typecheck` before committing.
 5. **Session handoff?** → Ensure open questions are captured in the relevant design doc's "Open Questions" section, not just in chat history.
+6. **Starting work on a new version?** → Branch fresh from `main`, one branch per version (e.g. `claude/v1.4-stores-agents`), not a long-lived branch reused across versions. **Before pushing any commit to an existing branch, confirm its PR is still open** — a PR can be merged by the repo owner mid-session, at any point, without the pushing session knowing. A commit pushed after merge doesn't fail; it just silently never reaches `main`, and looks identical to a successful push until someone notices the deployed app is stale. This bit three PRs in a row in one real session (2026-07-30/31) before the pattern was caught. If a push does land on an already-merged branch, recover by branching fresh from `main` and opening a new PR for the stranded commits — don't try to reuse the old (closed) PR.
 
 ### Keeping docs in line with the app (required)
 

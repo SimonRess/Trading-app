@@ -20,6 +20,9 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+### Changed
+- Documented a branch-per-version convention in `docs/00_project_structure.md` §5 — three PRs in a row got merged mid-session while further commits were still being pushed to the same branch, stranding them outside the merged PR each time. New rule: one branch per version, and confirm a branch's PR is still open before pushing to it.
+
 ## [1.3.0] - 2026-07-30
 
 ### Added
