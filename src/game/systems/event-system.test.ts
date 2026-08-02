@@ -178,7 +178,7 @@ describe('applyEvent shipwreck_salvage', () => {
     const state = buildStartingState('Test');
     const inTransit: GameState = {
       ...state,
-      fleet: { ships: [{ ...state.fleet.ships[0]!, position: { from: 'lubeck', to: 'danzig', turnsRemaining: 1 }, cargo: {} }] },
+      fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, position: { from: 'lubeck', to: 'danzig', turnsRemaining: 1 }, cargo: {} }] },
     };
     const before = inTransit.fleet.ships[0]!.cargo;
     const result = applyEvent('shipwreck_salvage', inTransit);
@@ -194,7 +194,7 @@ describe('applyEvent pirate_raid', () => {
     const state = buildStartingState('Test');
     return {
       ...state,
-      fleet: { ships: [shipInTransit({ id: state.fleet.ships[0]!.id, name: state.fleet.ships[0]!.name, ...shipOverrides })] },
+      fleet: { convoys: [], ships: [shipInTransit({ id: state.fleet.ships[0]!.id, name: state.fleet.ships[0]!.name, ...shipOverrides })] },
     };
   };
 

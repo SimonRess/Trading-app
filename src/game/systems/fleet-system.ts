@@ -63,7 +63,7 @@ export function advanceShips(fleet: FleetState): { fleet: FleetState; arrivals: 
     return { ...ship, position: { ...pos, turnsRemaining: pos.turnsRemaining - 1 } };
   });
 
-  return { fleet: { ships }, arrivals };
+  return { fleet: { ...fleet, ships }, arrivals };
 }
 
 // damageForShip lets the caller (event-system.ts) vary damage per ship
@@ -87,7 +87,7 @@ export function applyStormDamage(
     })
     .filter((s): s is Ship => s !== null);
 
-  return { fleet: { ships }, wrecked };
+  return { fleet: { ...fleet, ships }, wrecked };
 }
 
 // Applies a CombatResult (event-system.ts's pirate_raid, via
@@ -109,7 +109,7 @@ export function applyCombatOutcome(
 
   const newDurability = target.durability - result.durabilityLoss;
   if (newDurability <= 0) {
-    return { fleet: { ships: fleet.ships.filter(s => s.id !== target.id) }, sunk: true, shipName: target.name };
+    return { fleet: { ...fleet, ships: fleet.ships.filter(s => s.id !== target.id) }, sunk: true, shipName: target.name };
   }
 
   let newCargo: Partial<Record<GoodId, number>> = { ...target.cargo };
@@ -137,7 +137,7 @@ export function applyCombatOutcome(
 
   const newShip = { ...target, durability: newDurability, cargo: newCargo };
   return {
-    fleet: { ships: fleet.ships.map(s => (s.id === target.id ? newShip : s)) },
+    fleet: { ...fleet, ships: fleet.ships.map(s => (s.id === target.id ? newShip : s)) },
     sunk: false,
     shipName: target.name,
   };

@@ -15,6 +15,11 @@
   export let portCity: CityId | undefined;
   export let priceHeader: string;
   export let ship: Ship | undefined = undefined;
+  // Convoy-wide trading (docs/design/ship-convoys.md): mutually exclusive
+  // with `ship` — when set, the In-hold column and Buy-disabled check read
+  // the convoy's pooled cargo/space instead of a single ship's.
+  export let convoyCargo: Partial<Record<GoodId, number>> | undefined = undefined;
+  export let convoyCargoSpace: number | undefined = undefined;
   export let buyQty = 1;
   export let sellQty = 1;
   type PreviewFn = (gameState: GameState, cityId: CityId, goodId: GoodId, qty: number) => { totalCost: number; avgUnitPrice: number };
@@ -27,6 +32,10 @@
   export let sellPreview: PreviewFn = noPreview;
 
   const dispatch = createEventDispatcher<{ buy: GoodId; sell: GoodId; sellAll: GoodId }>();
+
+  $: active = ship !== undefined || convoyCargo !== undefined;
+  $: holdQty = (goodId: GoodId) => (ship ? (ship.cargo[goodId] ?? 0) : (convoyCargo?.[goodId] ?? 0));
+  $: availableSpace = ship ? cargoSpace(ship) : (convoyCargoSpace ?? 0);
 </script>
 
 <table class="market-table">
@@ -35,7 +44,7 @@
       <th>{T.colGood}</th>
       <th>{priceHeader}</th>
       <th>{T.colStock}</th>
-      {#if ship}
+      {#if active}
         <th>{T.colInHold}</th>
         <th colspan="2">{T.colTrade}</th>
       {/if}
@@ -47,26 +56,26 @@
         <td>{GOOD_ICONS[goodId]} {goodNames[goodId]}</td>
         <td>{currentPrice(cityMarket[goodId])} M</td>
         <td>{cityMarket[goodId].supply}</td>
-        {#if ship}
-          <td>{ship.cargo[goodId] ?? 0}</td>
+        {#if active}
+          <td>{holdQty(goodId)}</td>
           <td>
             {#if selectedCityId === portCity}
               {@const preview = buyPreview(state, selectedCityId, goodId, buyQty)}
               <button
                 class="trade-btn buy"
                 on:click={() => dispatch('buy', goodId)}
-                disabled={cargoSpace(ship) < buyQty || state.player.cash < preview.totalCost}
+                disabled={availableSpace < buyQty || state.player.cash < preview.totalCost}
                 title={buyQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
               >{T.buyBtn(buyQty, preview.totalCost)}</button>
             {/if}
           </td>
           <td>
-            {#if selectedCityId === portCity && (ship.cargo[goodId] ?? 0) > 0}
+            {#if selectedCityId === portCity && holdQty(goodId) > 0}
               {@const preview = sellPreview(state, selectedCityId, goodId, sellQty)}
               <button
                 class="trade-btn sell"
                 on:click={() => dispatch('sell', goodId)}
-                disabled={(ship.cargo[goodId] ?? 0) < sellQty}
+                disabled={holdQty(goodId) < sellQty}
                 title={sellQty > 1 ? T.tradePreviewTitle(preview.avgUnitPrice.toFixed(1), currentPrice(cityMarket[goodId])) : ''}
               >{T.sellBtn(sellQty, preview.totalCost)}</button>
               <button

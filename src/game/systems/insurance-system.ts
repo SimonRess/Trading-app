@@ -16,7 +16,7 @@ export function executeToggleInsurance(state: GameState, shipId: string): GameSt
   if (!ship) return state;
 
   const newShip = { ...ship, insured: !ship.insured };
-  return { ...state, fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) } };
+  return { ...state, fleet: { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) } };
 }
 
 export function accrueInsurancePremiums(ships: Ship[]): number {

@@ -34,7 +34,7 @@ describe('executeToggleInsurance', () => {
     const shipId = state.fleet.ships[0]!.id;
     const inTransit = {
       ...state,
-      fleet: { ships: [{ ...state.fleet.ships[0]!, position: { from: 'lubeck' as const, to: 'danzig' as const, turnsRemaining: 2 } }] },
+      fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, position: { from: 'lubeck' as const, to: 'danzig' as const, turnsRemaining: 2 } }] },
     };
     const next = executeToggleInsurance(inTransit, shipId);
     expect(next.fleet.ships[0]!.insured).toBe(true);

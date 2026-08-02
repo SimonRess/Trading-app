@@ -24,7 +24,15 @@ export type GameAction =
   | { type: 'SEEK_MARRIAGE'; partnerId: string }
   | { type: 'HIRE_TUTOR'; childId: string }
   | { type: 'CHOOSE_HEIR'; childId: string }
-  | { type: 'LOAD_SAVE'; state: GameState };
+  | { type: 'LOAD_SAVE'; state: GameState }
+  | { type: 'CREATE_CONVOY'; shipIds: string[]; name?: string }
+  | { type: 'ADD_SHIP_TO_CONVOY'; convoyId: string; shipId: string }
+  | { type: 'REMOVE_SHIP_FROM_CONVOY'; shipId: string }
+  | { type: 'DISSOLVE_CONVOY'; convoyId: string }
+  | { type: 'SET_CONVOY_DESTINATION'; convoyId: string; destination: CityId }
+  | { type: 'SET_CONVOY_POSTURE'; convoyId: string; posture: Ship['posture'] }
+  | { type: 'CONVOY_BUY_GOOD'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'CONVOY_SELL_GOOD'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number };
 
 export interface PlayerOrders {
   destinations: Record<string, CityId>;

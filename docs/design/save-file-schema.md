@@ -128,6 +128,7 @@ interface PendingSuccession {
 ```typescript
 interface FleetState {
   ships: Ship[];
+  convoys: Convoy[];              // added v1.4 (ADR-023, ship-convoys.md) — additive, no schema bump; save-system.ts defaults missing values to []
 }
 
 interface Ship {
@@ -140,6 +141,15 @@ interface Ship {
   crew: number;                   // 0-CREW_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to defaultCrew(type)
   cannons: number;                // 0-CANNON_MAX[type], added post-v1 — additive, no schema bump; save-system.ts defaults missing values to 0
   insured: boolean;               // added post-v1 — additive, no schema bump; save-system.ts defaults missing values to false
+}
+
+// Groups ships to travel/fight/trade as one unit — ship-convoys.md, ADR-023.
+// Membership lives only in shipIds; Ship itself has no back-reference.
+interface Convoy {
+  id: string;
+  name: string;
+  shipIds: string[];
+  posture: Ship['posture'];
 }
 
 interface RoutePosition {

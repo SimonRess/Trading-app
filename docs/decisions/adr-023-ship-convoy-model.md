@@ -1,7 +1,7 @@
 # ADR-023: Ship Convoy Data Model and Ship-Addressing Change
 
 **Date:** 2026-08-02
-**Status:** Proposed
+**Status:** Accepted — implemented in v1.4 (`src/game/state/types.ts`'s `Convoy`/`FleetState.convoys`, `src/game/systems/convoy-system.ts`).
 **Deciders:** Simon
 
 ## Context

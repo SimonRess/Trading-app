@@ -99,6 +99,61 @@ export function playerCombatPower(ship: Ship): number {
   return ship.cannons * CANNON_POWER + ship.crew * CREW_POWER_PER_SAILOR + POSTURE_MODIFIER[ship.posture];
 }
 
+// Convoy ships fight as one unit (docs/design/ship-convoys.md "Combat"):
+// power sums across every member, the posture modifier applies once from
+// the convoy's own posture rather than per ship, and a single roll decides
+// the outcome for the whole group. The resulting durabilityLoss/
+// cargoLossFraction are then meant to be applied independently to each
+// member via fleet-system.ts's applyCombatOutcome, same as a solo ship —
+// so a defeat can sink a weak member while stronger ones survive damaged.
+export function convoyCombatPower(ships: Ship[], posture: Ship['posture']): number {
+  if (posture === 'flee') return 0;
+  const shipPower = ships.reduce((sum, s) => sum + s.cannons * CANNON_POWER + s.crew * CREW_POWER_PER_SAILOR, 0);
+  return shipPower + POSTURE_MODIFIER[posture];
+}
+
+// One representative ship (any member — they're co-located) supplies the
+// route for the enemy-power roll.
+export function resolveConvoyCombat(ships: Ship[], posture: Ship['posture'], risk: RiskState, season: Season): CombatResult {
+  if (posture === 'flee' || ships.length === 0) {
+    return {
+      outcome: 'flee',
+      playerPower: null,
+      enemyPower: null,
+      durabilityLoss: 0,
+      cargoLossFraction: randomBetween(FLEE_CARGO_LOSS_MIN, FLEE_CARGO_LOSS_MAX),
+      loot: {},
+    };
+  }
+
+  const representative = ships[0] as Ship;
+  const playerPower = convoyCombatPower(ships, posture);
+  const enemyPower = rollEnemyPower(representative, risk, season);
+  const diff = playerPower - enemyPower + randomBetween(-OUTCOME_RANDOM_SPREAD, OUTCOME_RANDOM_SPREAD);
+
+  if (diff > OUTCOME_THRESHOLD) {
+    return { outcome: 'victory', playerPower, enemyPower, durabilityLoss: 0, cargoLossFraction: 0, loot: rollLoot() };
+  }
+  if (diff < -OUTCOME_THRESHOLD) {
+    return {
+      outcome: 'defeat',
+      playerPower,
+      enemyPower,
+      durabilityLoss: Math.round(randomBetween(DEFEAT_DURABILITY_LOSS_MIN, DEFEAT_DURABILITY_LOSS_MAX)),
+      cargoLossFraction: randomBetween(DEFEAT_CARGO_LOSS_MIN, DEFEAT_CARGO_LOSS_MAX),
+      loot: {},
+    };
+  }
+  return {
+    outcome: 'retreat',
+    playerPower,
+    enemyPower,
+    durabilityLoss: 0,
+    cargoLossFraction: randomBetween(RETREAT_CARGO_LOSS_MIN, RETREAT_CARGO_LOSS_MAX),
+    loot: {},
+  };
+}
+
 // Resolves one pirate encounter for a single targeted ship. Does not
 // mutate the ship or fleet — see fleet-system.ts's applyCombatOutcome for
 // applying the result (durability/cargo changes, ship removal on a fatal

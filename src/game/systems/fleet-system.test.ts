@@ -120,7 +120,7 @@ describe('setDestination', () => {
 
 describe('advanceShips', () => {
   it('counts down turns remaining', () => {
-    const fleet: FleetState = { ships: [koggeInTransit()] };
+    const fleet: FleetState = { ships: [koggeInTransit()], convoys: [] };
     const { fleet: next, arrivals } = advanceShips(fleet);
     expect(arrivals).toHaveLength(0);
     const pos = next.ships[0]!.position as { turnsRemaining: number };
@@ -129,7 +129,7 @@ describe('advanceShips', () => {
 
   it('delivers ship on final turn', () => {
     const ship = koggeInTransit({ position: { from: 'lubeck', to: 'danzig', turnsRemaining: 1 } });
-    const fleet: FleetState = { ships: [ship] };
+    const fleet: FleetState = { ships: [ship], convoys: [] };
     const { fleet: next, arrivals } = advanceShips(fleet);
     expect(arrivals).toHaveLength(1);
     expect(arrivals[0]!.city).toBe('danzig');
@@ -137,7 +137,7 @@ describe('advanceShips', () => {
   });
 
   it('does not move ships in port', () => {
-    const fleet: FleetState = { ships: [koggeInPort()] };
+    const fleet: FleetState = { ships: [koggeInPort()], convoys: [] };
     const { fleet: next, arrivals } = advanceShips(fleet);
     expect(arrivals).toHaveLength(0);
     expect(next.ships[0]!.position).toBe('lubeck');
@@ -146,20 +146,20 @@ describe('advanceShips', () => {
 
 describe('applyStormDamage', () => {
   it('damages ships in transit using the per-ship damage function', () => {
-    const fleet: FleetState = { ships: [koggeInTransit()] };
+    const fleet: FleetState = { ships: [koggeInTransit()], convoys: [] };
     const { fleet: next } = applyStormDamage(fleet, () => 10);
     expect(next.ships[0]!.durability).toBe(90);
   });
 
   it('does not damage ships in port', () => {
-    const fleet: FleetState = { ships: [koggeInPort()] };
+    const fleet: FleetState = { ships: [koggeInPort()], convoys: [] };
     const { fleet: next } = applyStormDamage(fleet, () => 10);
     expect(next.ships[0]!.durability).toBe(100);
   });
 
   it('wrecks ships at 0 durability', () => {
     const ship = koggeInTransit({ durability: 10 });
-    const { fleet: next, wrecked } = applyStormDamage({ ships: [ship] }, () => 10);
+    const { fleet: next, wrecked } = applyStormDamage({ ships: [ship], convoys: [] }, () => 10);
     expect(wrecked).toHaveLength(1);
     expect(next.ships).toHaveLength(0);
   });
@@ -167,7 +167,7 @@ describe('applyStormDamage', () => {
   it('supports per-ship damage amounts', () => {
     const shipA = koggeInTransit({ id: 'a', durability: 100 });
     const shipB = koggeInTransit({ id: 'b', durability: 100 });
-    const { fleet: next } = applyStormDamage({ ships: [shipA, shipB] }, ship => (ship.id === 'a' ? 5 : 20));
+    const { fleet: next } = applyStormDamage({ ships: [shipA, shipB], convoys: [] }, ship => (ship.id === 'a' ? 5 : 20));
     expect(next.ships.find(s => s.id === 'a')!.durability).toBe(95);
     expect(next.ships.find(s => s.id === 'b')!.durability).toBe(80);
   });
@@ -179,7 +179,7 @@ describe('applyCombatOutcome', () => {
   it('removes the ship if durabilityLoss brings it to 0 or below', () => {
     const ship = koggeInTransit({ durability: 20, cargo: { salt: 10 } });
     const result: CombatResult = { ...noopResult, outcome: 'defeat', durabilityLoss: 25 };
-    const { fleet: next, sunk, shipName } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    const { fleet: next, sunk, shipName } = applyCombatOutcome({ ships: [ship], convoys: [] }, ship.id, result);
     expect(sunk).toBe(true);
     expect(shipName).toBe('Wulf');
     expect(next.ships).toHaveLength(0);
@@ -188,7 +188,7 @@ describe('applyCombatOutcome', () => {
   it('applies cargoLossFraction proportionally, floored per good', () => {
     const ship = koggeInTransit({ cargo: { salt: 20, grain: 10 } });
     const result: CombatResult = { ...noopResult, cargoLossFraction: 0.15 };
-    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship], convoys: [] }, ship.id, result);
     expect(sunk).toBe(false);
     const remaining = next.ships[0]!.cargo;
     expect(remaining['salt']).toBe(17); // 20 - floor(20*0.15) = 20-3
@@ -198,7 +198,7 @@ describe('applyCombatOutcome', () => {
   it('adds victory loot, capped by remaining cargo space', () => {
     const ship = koggeInTransit({ cargo: {} }); // 50 capacity, empty
     const result: CombatResult = { ...noopResult, outcome: 'victory', loot: { salt: 10, grain: 45 } };
-    const { fleet: next } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    const { fleet: next } = applyCombatOutcome({ ships: [ship], convoys: [] }, ship.id, result);
     const cargo = next.ships[0]!.cargo;
     expect(cargo['salt']).toBe(10);
     expect(cargo['grain']).toBe(40); // capped: 50 capacity - 10 already granted = 40 space left
@@ -207,13 +207,13 @@ describe('applyCombatOutcome', () => {
   it('reduces durability without removing the ship when it survives', () => {
     const ship = koggeInTransit({ durability: 100 });
     const result: CombatResult = { ...noopResult, outcome: 'defeat', durabilityLoss: 30 };
-    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship] }, ship.id, result);
+    const { fleet: next, sunk } = applyCombatOutcome({ ships: [ship], convoys: [] }, ship.id, result);
     expect(sunk).toBe(false);
     expect(next.ships[0]!.durability).toBe(70);
   });
 
   it('returns unchanged if the target id does not exist in the fleet', () => {
-    const fleet: FleetState = { ships: [koggeInPort()] };
+    const fleet: FleetState = { ships: [koggeInPort()], convoys: [] };
     const { shipName, sunk } = applyCombatOutcome(fleet, 'no-such-ship', noopResult);
     expect(shipName).toBeNull();
     expect(sunk).toBe(false);

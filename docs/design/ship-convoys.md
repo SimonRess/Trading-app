@@ -1,6 +1,12 @@
 # Design: Ship Convoys
 
-**Status:** Draft, spec complete — decisions below reflect direct player answers to the design questions raised when this item was proposed (2026-08-02). Not yet implemented. Data model and ship-addressing: ADR-023 (Proposed). UI design: see "UI Design" below. Three small open questions remain (posture persistence, auction-while-convoyed, convoy default naming — the last now resolved to "Convoy N" by the UI section below, so really two remain); nothing left blocking implementation start.
+**Status:** Implemented (v1.4) — game logic, combat, trading distribution, and UI all live. Data model and ship-addressing: ADR-023 (Accepted). Manually verified live via dev server + Playwright (2026-08-02): create a 2-ship convoy in port, drill into members, exclude a ship, set a convoy-wide destination, toggle posture, and buy goods as a convoy (distributed proportionally across members, single stepped market trade) — see "Implementation Status" below for the two intentional scope narrowings.
+
+### Implementation Status
+
+- The List-view Port screen's persistent trade panel offers convoy-wide trading, destination, and posture, but not a duplicate of the per-ship Shipyard repair/crew/cannon block for convoy members — drill into a member ship (clears convoy selection) to reach those, which is unaffected by convoy membership per this doc's own design.
+- Convoy destination buttons don't show a travel-time preview in the way per-ship ones do (`shipTravelTurns` needs a `Ship`, not a convoy) — the actual travel time (slowest member, applied uniformly) is still computed correctly by `executeSetConvoyDestination`; only the pre-order UI preview is omitted.
+- Both remaining Open Questions below (posture persistence after leaving convoy, auction-while-convoyed) resolved to the "leaning" answer already written: posture stays frozen at whatever the convoy last had, and auctioning a convoyed ship is not offered (exclude first).
 
 ## Purpose
 

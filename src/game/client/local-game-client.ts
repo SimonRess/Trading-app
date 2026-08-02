@@ -24,6 +24,16 @@ import { executeTakeLoan, executeRepayLoan } from '../systems/banking-system.ts'
 import { executeToggleInsurance } from '../systems/insurance-system.ts';
 import { executeBuyWarehouse, executeSellWarehouse } from '../systems/warehouse-system.ts';
 import { executeSeekMarriage, executeHireTutor } from '../systems/family-system.ts';
+import {
+  executeCreateConvoy,
+  executeAddShipToConvoy,
+  executeRemoveShipFromConvoy,
+  executeDissolveConvoy,
+  executeSetConvoyDestination,
+  executeSetConvoyPosture,
+  executeConvoyBuy,
+  executeConvoySell,
+} from '../systems/convoy-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -53,6 +63,7 @@ export class LocalGameClient implements GameClient {
           this.state = {
             ...this.state,
             fleet: {
+              ...this.state.fleet,
               ships: this.state.fleet.ships.map(s => (s.id === action.shipId ? updatedShip : s)),
             },
           };
@@ -138,6 +149,38 @@ export class LocalGameClient implements GameClient {
 
       case 'CHOOSE_HEIR':
         this.state = executeChooseHeir(this.state, action.childId);
+        return Promise.resolve(this.state);
+
+      case 'CREATE_CONVOY':
+        this.state = executeCreateConvoy(this.state, action.shipIds, action.name);
+        return Promise.resolve(this.state);
+
+      case 'ADD_SHIP_TO_CONVOY':
+        this.state = executeAddShipToConvoy(this.state, action.convoyId, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'REMOVE_SHIP_FROM_CONVOY':
+        this.state = executeRemoveShipFromConvoy(this.state, action.shipId);
+        return Promise.resolve(this.state);
+
+      case 'DISSOLVE_CONVOY':
+        this.state = executeDissolveConvoy(this.state, action.convoyId);
+        return Promise.resolve(this.state);
+
+      case 'SET_CONVOY_DESTINATION':
+        this.state = executeSetConvoyDestination(this.state, action.convoyId, action.destination);
+        return Promise.resolve(this.state);
+
+      case 'SET_CONVOY_POSTURE':
+        this.state = executeSetConvoyPosture(this.state, action.convoyId, action.posture);
+        return Promise.resolve(this.state);
+
+      case 'CONVOY_BUY_GOOD':
+        this.state = executeConvoyBuy(this.state, action.convoyId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'CONVOY_SELL_GOOD':
+        this.state = executeConvoySell(this.state, action.convoyId, action.cityId, action.goodId, action.quantity);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {

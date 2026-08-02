@@ -20,12 +20,19 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-02
+
+### Added
+- **Ship convoys** — group several ships into a convoy so the fleet overview shows one entry per convoy instead of one per ship. Drill into a convoy to see its individual ships, exclude one (only while in port), and manage its repair/crew/cannons per-ship as before. See `docs/design/ship-convoys.md`, `docs/decisions/adr-023-ship-convoy-model.md`.
+  - Convoy ships travel together: `Set Destination` is convoy-wide, and travel time is the slowest member's, applied uniformly — a convoy can't depart at all if any member is critically damaged.
+  - Convoy ships fight as one unit against pirates: combat power sums across every member with a single convoy-wide posture modifier, one outcome roll decides the encounter, but the resulting damage/cargo loss is applied independently to each member — a defeat can sink a weak ship while stronger ones survive. A convoy dropping below 2 members auto-dissolves.
+  - Buying/selling goods is convoy-wide: one stepped market trade for the total quantity, then distributed across member ships (proportional to remaining cargo space on a buy, to held quantity on a sell — the distribution strategy is swappable in code).
+  - New `src/ui/FleetList.svelte` (grouped/collapsible convoy cards, shared by the List-view sidebar and the City-view Harbor panel), a "Group into Convoy" checkbox flow, and `TradeTable.svelte`'s new optional `convoyCargo`/`convoyCargoSpace` props for convoy-wide trading.
+  - `executeAuctionShip` now refuses to auction a ship still assigned to a convoy — exclude it first.
+  - 44 new unit tests across `convoy-system.test.ts`, `combat-system.test.ts`, and `turn-system.test.ts`. Verified live via Playwright: created a 2-ship convoy, drilled into members, set a convoy-wide destination, and bought goods as a convoy with distribution confirmed by in-hold totals.
+
 ### Changed
 - Documented a branch-per-version convention in `docs/00_project_structure.md` §5 — three PRs in a row got merged mid-session while further commits were still being pushed to the same branch, stranding them outside the merged PR each time. New rule: one branch per version, and confirm a branch's PR is still open before pushing to it.
-- Redefined `docs/design/roadmap-next-versions.md`'s item 9 as **ship convoys** (group ships, drill-down, exclude, per-ship repair/crew/weapons, convoy-wide goods trading), replacing its previous "saved/repeating trade routes" scope. The original trade-routes idea wasn't dropped — moved to a new item 9c, unscheduled.
-- New `docs/design/ship-convoys.md` fully specifies the ship-convoys game logic: convoy ships travel together (destination and travel time apply to the whole convoy, capped by the slowest member) and fight as one unit (summed combat power, convoy-wide posture, per-ship damage distribution); goods trading is convoy-wide via a single stepped market trade then a swappable proportional-by-default distribution algorithm across member ships; repair/crew/cannons stay per-ship.
-- New `ADR-023` decides the convoy data model: `FleetState.convoys: Convoy[]` with `shipIds` membership, no `convoyId` back-reference on `Ship` (matching the existing `CityEffect[]`/`PendingSuccession.candidates` id-array grouping pattern); new convoy-addressed `GameAction` variants (`SET_CONVOY_DESTINATION`, `CONVOY_BUY_GOOD`, etc.) added alongside the existing ship-addressed ones rather than replacing them, so every current ship action stays untouched.
-- `ship-convoys.md` gained a full "UI Design" section: grouped/collapsible fleet-panel rows (both the List-view sidebar and the Harbor building's list), a `selectedConvoyId`/`activeConvoy` selection pair parallel to the existing ship selection, `TradeTable.svelte` extended with an optional `convoyCargo`/`convoyCargoSpace` prop pair (not duplicated) for convoy-wide trading, and a convoy-wide posture selector replacing the per-ship one while grouped. Design spec (game logic + data model + UI) is now complete; still not implemented.
 
 ## [1.3.0] - 2026-07-30
 
