@@ -36,8 +36,8 @@
     MAX_WAREHOUSES_PER_CITY,
     warehouseSellValue,
   } from '../game/systems/warehouse-system.ts';
-  import { PARTNER_TYPES, MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE } from '../game/data/family.ts';
-  import { traitPurchasePriceFactor } from '../game/systems/family-system.ts';
+  import { MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE } from '../game/data/family.ts';
+  import { traitPurchasePriceFactor, eligiblePartnerTypes } from '../game/systems/family-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
@@ -373,9 +373,9 @@
     else errorMsg = T.err.sellWarehouse;
   }
 
-  async function seekMarriage() {
+  async function seekMarriage(partnerId: string) {
     errorMsg = '';
-    const result = await gameClient.sendAction({ type: 'SEEK_MARRIAGE' });
+    const result = await gameClient.sendAction({ type: 'SEEK_MARRIAGE', partnerId });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.marriage;
   }
@@ -1101,14 +1101,16 @@
             {#if state.player.maritalStatus === 'married' && state.player.partner}
               <p class="order-note muted">{T.marriedTo(state.player.partner.title, state.player.partner.age)}</p>
             {:else if state.player.age >= MIN_MARRIAGE_AGE}
-              <div class="qty-row">
-                <span class="shipyard-info">{T.seekMarriageOffer(PARTNER_TYPES[0]?.title ?? '', PARTNER_TYPES[0]?.buyoutCost ?? 0)}</span>
-                <button
-                  class="shipyard-btn"
-                  on:click={seekMarriage}
-                  disabled={state.player.cash < (PARTNER_TYPES[0]?.buyoutCost ?? 0)}
-                >{T.seekMarriage}</button>
-              </div>
+              {#each eligiblePartnerTypes(netWorth) as partner (partner.id)}
+                <div class="qty-row">
+                  <span class="shipyard-info">{T.seekMarriageOffer(partner.title, partner.buyoutCost)}</span>
+                  <button
+                    class="shipyard-btn"
+                    on:click={() => seekMarriage(partner.id)}
+                    disabled={state.player.cash < partner.buyoutCost}
+                  >{T.seekMarriage}</button>
+                </div>
+              {/each}
             {:else}
               <p class="order-note muted">{T.tooYoungToMarry(MIN_MARRIAGE_AGE)}</p>
             {/if}

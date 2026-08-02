@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildStartingState } from '../data/starting-config.ts';
-import { executeSeekMarriage, executeHireTutor, growChildren, attemptBirth, traitPurchasePriceFactor } from './family-system.ts';
+import { executeSeekMarriage, executeHireTutor, growChildren, attemptBirth, traitPurchasePriceFactor, eligiblePartnerTypes } from './family-system.ts';
 import { HIRE_TUTOR_COST } from '../data/family.ts';
 import type { Child } from '../state/types.ts';
 
@@ -8,7 +8,7 @@ describe('executeSeekMarriage', () => {
   it('marries the player to the Fisherman\'s Daughter and deducts the buyout', () => {
     const state = buildStartingState('TestPlayer');
     const before = state.player.cash;
-    const next = executeSeekMarriage(state);
+    const next = executeSeekMarriage(state, 'fishermans-daughter', 0);
     expect(next.player.maritalStatus).toBe('married');
     expect(next.player.partner?.title).toBe("the Fisherman's Daughter");
     expect(next.player.cash).toBe(before - 300);
@@ -16,28 +16,63 @@ describe('executeSeekMarriage', () => {
 
   it('gifts herring to a ship docked in Lübeck', () => {
     const state = buildStartingState('TestPlayer');
-    const next = executeSeekMarriage(state);
+    const next = executeSeekMarriage(state, 'fishermans-daughter', 0);
     expect(next.fleet.ships[0]!.cargo.herring).toBe(10);
   });
 
   it('rejects marrying while already married', () => {
-    const state = executeSeekMarriage(buildStartingState('TestPlayer'));
-    const next = executeSeekMarriage(state);
+    const state = executeSeekMarriage(buildStartingState('TestPlayer'), 'fishermans-daughter', 0);
+    const next = executeSeekMarriage(state, 'fishermans-daughter', 0);
     expect(next).toBe(state);
   });
 
   it('rejects marrying below the minimum age', () => {
     const state = buildStartingState('TestPlayer');
     const young = { ...state, player: { ...state.player, age: 15 } };
-    const next = executeSeekMarriage(young);
+    const next = executeSeekMarriage(young, 'fishermans-daughter', 0);
     expect(next).toBe(young);
   });
 
   it('rejects marrying without enough cash for the buyout', () => {
     const state = buildStartingState('TestPlayer');
     const poor = { ...state, player: { ...state.player, cash: 100 } };
-    const next = executeSeekMarriage(poor);
+    const next = executeSeekMarriage(poor, 'fishermans-daughter', 0);
     expect(next).toBe(poor);
+  });
+
+  it('rejects an unknown or ineligible partner id', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeSeekMarriage(state, 'nonexistent', 0);
+    expect(next).toBe(state);
+  });
+
+  it('rejects the Alderman\'s Daughter below her net-worth gate', () => {
+    const state = buildStartingState('TestPlayer');
+    const next = executeSeekMarriage(state, 'aldermans-daughter', 1000);
+    expect(next).toBe(state);
+  });
+
+  it('marries the Alderman\'s Daughter once eligible and gifts reputation in Hamburg', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 5000 } };
+    const before = rich.player.reputation.hamburg;
+    const next = executeSeekMarriage(rich, 'aldermans-daughter', 6000);
+    expect(next.player.maritalStatus).toBe('married');
+    expect(next.player.partner?.title).toBe("the Alderman's Daughter");
+    expect(next.player.cash).toBe(5000 - 2000);
+    expect(next.player.reputation.hamburg).toBe(before + 10);
+  });
+});
+
+describe('eligiblePartnerTypes', () => {
+  it('includes only the Fisherman\'s Daughter below the wealth gate', () => {
+    const ids = eligiblePartnerTypes(0).map(p => p.id);
+    expect(ids).toEqual(['fishermans-daughter']);
+  });
+
+  it('includes both partner types once wealthy enough', () => {
+    const ids = eligiblePartnerTypes(6000).map(p => p.id);
+    expect(ids).toEqual(['fishermans-daughter', 'aldermans-daughter']);
   });
 });
 
@@ -142,7 +177,7 @@ describe('attemptBirth', () => {
 
   it('can add a child when married, within the birth chance', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.01);
-    const state = executeSeekMarriage(buildStartingState('TestPlayer'));
+    const state = executeSeekMarriage(buildStartingState('TestPlayer'), 'fishermans-daughter', 0);
     const { children, message } = attemptBirth(state);
     expect(children.length).toBe(1);
     expect(message).not.toBeNull();
@@ -151,7 +186,7 @@ describe('attemptBirth', () => {
 
   it('does not add a child outside the birth chance', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
-    const state = executeSeekMarriage(buildStartingState('TestPlayer'));
+    const state = executeSeekMarriage(buildStartingState('TestPlayer'), 'fishermans-daughter', 0);
     const { children } = attemptBirth(state);
     expect(children.length).toBe(0);
     vi.restoreAllMocks();

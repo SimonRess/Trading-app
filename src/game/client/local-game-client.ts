@@ -15,6 +15,7 @@ import {
   executeChooseHeir,
   executeAuctionShip,
   executeSetPosture,
+  computeNetWorth,
 } from '../systems/turn-system.ts';
 import { setDestination } from '../systems/fleet-system.ts';
 import { saveToLocalStorage, exportToFile, importFromFile } from '../systems/save-system.ts';
@@ -128,7 +129,7 @@ export class LocalGameClient implements GameClient {
         return Promise.resolve(this.state);
 
       case 'SEEK_MARRIAGE':
-        this.state = executeSeekMarriage(this.state);
+        this.state = executeSeekMarriage(this.state, action.partnerId, computeNetWorth(this.state));
         return Promise.resolve(this.state);
 
       case 'HIRE_TUTOR':
