@@ -29,6 +29,7 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 - **Dynasty Chronicle** — a persistent, read-only log of your family's succession history, shown in the Merchant's House. Seeded with a founding entry when a new game starts; gains a new entry every time succession actually resolves (single-heir, multi-heir choice, or dying without an eligible heir). See `docs/design/family-succession.md`.
 - **Price-trend sparklines** — the Town Hall's Supply/Demand table gained a fourth column showing a small trend line of each good's last 10 turns of prices, per city.
 - **Achievements** — badges for 5 milestones (first 1,000/10,000 Mark net worth, first ship lost, first Mayor of Lübeck, reaching a second generation), shown in the Merchant's House above the Dynasty Chronicle.
+- **A second marriage partner** — "the Alderman's Daughter" (2,000 Mark, gifts +10 reputation in Hamburg), available once net worth reaches 6,000 Mark. The Merchant's House now lists every offer you currently qualify for, instead of a single fixed option.
 
 ### Removed
 - **`priceTrend()`** (`market-system.ts`) — implemented and tested but never actually wired into any screen; superseded by the sparkline above, which does the same job better. Removed as dead code rather than left unused.
