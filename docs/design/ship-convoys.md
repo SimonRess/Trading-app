@@ -1,6 +1,6 @@
 # Design: Ship Convoys
 
-**Status:** Draft — decisions below reflect direct player answers to the design questions raised when this item was proposed (2026-08-02); not yet implemented. The data model and ship-addressing question is now covered by ADR-023 (Proposed); still needs a UI-design pass before implementation starts.
+**Status:** Draft, spec complete — decisions below reflect direct player answers to the design questions raised when this item was proposed (2026-08-02). Not yet implemented. Data model and ship-addressing: ADR-023 (Proposed). UI design: see "UI Design" below. Three small open questions remain (posture persistence, auction-while-convoyed, convoy default naming — the last now resolved to "Convoy N" by the UI section below, so really two remain); nothing left blocking implementation start.
 
 ## Purpose
 
@@ -75,6 +75,54 @@ A ship's own `Ship` type is **unchanged** — no `convoyId` field on `Ship`. Mem
   `executeConvoyBuy`/`executeConvoySell` take a strategy as a parameter (defaulting to `PROPORTIONAL_DISTRIBUTION`), so a future alternate (fill-fullest-first, round-robin, manual player allocation) is a new function passed in, not a rewrite of the trade logic itself.
 - A convoy buy is capped by the **sum of all member ships' remaining cargo space** (not any single ship's); if the requested quantity doesn't fit even split proportionally, the order is capped the same way a single ship's buy is already capped by its own `cargoSpace`.
 
+## UI Design (2026-08-02)
+
+Builds on ADR-023's `selectedConvoyId`/`activeConvoy` note. Two existing surfaces already list ships and both need convoy-awareness: the persistent `.fleet-panel` sidebar (List-view, `App.svelte` ~L1178) and the Harbor building's `.fleet-list` (City-view, ~L665) — both currently render one flat `.ship-card` per ship in `state.fleet.ships`.
+
+### Fleet list: grouped rendering
+
+Both surfaces switch from `{#each state.fleet.ships as s}` to a partition computed once (`$: fleetGroups = groupShipsByConvoy(state.fleet.ships, state.fleet.convoys)`, a small pure helper returning `{ convoy: Convoy; ships: Ship[] }[]` plus a leftover `independentShips: Ship[]`):
+
+- **Independent ships** render exactly as today — one flat `.ship-card`, unchanged markup, unchanged click behavior (`selectedShipId = s.id`).
+- **Each convoy** renders one new `.convoy-card`, collapsed by default, showing: convoy name, member count ("3 ships"), the group's current position/destination (identical for every member by construction), a combined durability indicator (worst member's status — "1 ship damaged" if any member isn't full/healthy, since that's the ship holding the whole convoy back per `canDepart`), and a fold chevron — visually the same collapse affordance the `.fleet-panel` itself already uses (`fold-btn`/`fleetCollapsed`), applied one level deeper.
+- Clicking the `.convoy-card` body (not the chevron) sets `selectedConvoyId = convoy.id` and clears `selectedShipId` — this convoy becomes `activeConvoy`, driving the Harbor/Trading Post panels (below).
+- Clicking the chevron expands the card in place, revealing each member's existing `.ship-card` nested/indented beneath it, each still independently clickable (`selectedShipId = s.id`, clears `selectedConvoyId`) — selecting a specific ship this way is how Shipyard actions (repair/crew/cannons/rename/auction) target it, unchanged from today. Each expanded member row also gets an **"Exclude"** button (`REMOVE_SHIP_FROM_CONVOY`), only enabled while the convoy is in port, per the design doc's "Grouping/ungrouping" rule.
+
+### Selection state (`App.svelte`)
+
+```
+let selectedShipId: string;      // existing
+let selectedConvoyId: string | undefined;  // new
+$: activeShip = ...              // existing, unchanged
+$: activeConvoy = state.fleet.convoys.find(c => c.id === selectedConvoyId);
+```
+
+Exactly one of `selectedShipId`/`selectedConvoyId` is meaningfully "active" at a time (selecting either clears the other, per the click handlers above) — mirrors the existing single-`activeShip` pattern rather than introducing a combined "current selection" type, keeping every existing `activeShip`-reading template expression valid unchanged.
+
+### Harbor panel (Set Destination) — convoy-aware
+
+`{#if activeConvoy}` branch, parallel to the existing `{#if activeShip && portCity}` one: shows the same `reachableCities()` list (route-graph-only, doesn't depend on ship type — safe to call with any one member ship, since convoy members are always co-located) but dispatches `SET_CONVOY_DESTINATION` instead of `SET_DESTINATION`; the displayed travel-time-per-destination uses the slowest-member calculation from "Core Logic" above, not a single ship's `shipTravelTurns`. The existing "critically damaged, cannot depart" note becomes "cannot depart — `{shipName}` is critically damaged" naming whichever member is holding the convoy back, reusing this doc's Harbor-panel rescue-Auction pattern (v1.2) for that specific ship if it's stuck at a non-shipyard city — the fix already shipped for solo ships applies unchanged since that ship's `executeAuctionShip` call doesn't care whether it's convoyed (see "Auctioning a convoyed ship" below).
+
+### Trading Post panel — convoy-wide buy/sell
+
+`TradeTable.svelte` (the shared component from v1.2) is extended, not duplicated: it already takes an optional `ship: Ship | undefined` prop to decide whether to render the In-hold/Buy/Sell columns at all. It gains a second, mutually-exclusive way to supply that data:
+
+```typescript
+export let ship: Ship | undefined = undefined;        // existing
+export let convoyCargo: Partial<Record<GoodId, number>> | undefined = undefined;  // new
+export let convoyCargoSpace: number | undefined = undefined;                      // new
+```
+
+When `convoyCargo`/`convoyCargoSpace` are supplied instead of `ship`, the In-hold column reads from `convoyCargo` (summed across every member ship, computed by the caller) and the Buy button's disabled check uses `convoyCargoSpace` (summed remaining capacity) instead of `cargoSpace(ship)`. The dispatched `buy`/`sell`/`sellAll` events are unchanged (`goodId` only) — `App.svelte` decides whether to send `BUY_GOOD`/`SELL_GOOD` (ship active) or `CONVOY_BUY_GOOD`/`CONVOY_SELL_GOOD` (convoy active) based on which of `activeShip`/`activeConvoy` is set, the same branching pattern as the Harbor panel above. This keeps the "one shared table component" fix from v1.2 intact — a convoy-mode trading table is a new *prop combination* on the existing component, not a second copy of it.
+
+### Shipyard panel — unaffected in single-ship mode; convoy posture moves here
+
+Repair/rename/crew/cannon controls are reached exactly as today, only once a specific member ship is selected via the expanded convoy card (or a fully independent ship) — no changes to those action bodies or their markup. The one addition: while `activeConvoy` is set (convoy card selected, not expanded to a member), the Shipyard panel shows a **single convoy-wide posture selector** (`SET_CONVOY_POSTURE`) instead of a per-ship one, since posture is convoy-wide per the Core Logic section — individual members' posture controls are hidden while grouped (their `Ship.posture` field still exists underneath, per the "posture persistence" Open Question below, just not shown/editable directly).
+
+### Creating a convoy
+
+A new **"Group into Convoy"** toggle button in the Harbor panel (only shown when 2+ ships are docked in the same port as `portCity`): toggling it adds a checkbox to each in-port `.ship-card`; checking 2+ and confirming sends `CREATE_CONVOY { shipIds }` with a text input for the convoy's name (defaulting to "Convoy N", the open naming question from below, resolved here as the simplest option since nothing in the request asked for anything fancier). Ships already in a different convoy, or docked elsewhere, or at sea, aren't offered a checkbox — matches "Grouping/ungrouping"'s same-port rule.
+
 ## Edge Cases
 
 - **A ship joins/leaves mid-voyage**: not offered. Convoy membership can only change while every member is in the same port (see "Grouping/ungrouping" above) — no mid-transit split, matching the "ships in a convoy are physically together" premise.
@@ -86,9 +134,7 @@ A ship's own `Ship` type is **unchanged** — no `convoyId` field on `Ship`. Mem
 ## Open Questions
 
 - **What happens to a convoyed ship's individual `posture` field?** It's not read while convoyed (the convoy's own posture is used instead), but does it stay frozen at whatever it was when the ship joined, or reset to a default when the ship later leaves the convoy? Leaning toward "frozen, unchanged" (simplest, no surprise state change) but not decided.
-- **Can a ship in a convoy be auctioned individually** (`executeAuctionShip`), or must it be excluded from the convoy first? Leaning toward "must exclude first" (keeps the "auction requires being addressed as a single ship" invariant clean) but not decided.
-- **Convoy naming/default name generation** — a simple "Convoy N" counter, or something more flavorful matching `nextShipName`'s style? Cosmetic, low priority.
-- **UI**: the fleet panel's collapse-to-one-row-per-convoy, the drill-down view, and how "active ship" vs. "active convoy" selection interacts with the existing `selectedShipId`/`activeShip` reactive pattern in `App.svelte` are all unspecified here — this doc covers the game-logic model, not the UI implementation, which should get its own pass (likely its own section added here, or a UI-focused addendum) once the data model above is confirmed via ADR.
+- **Can a ship in a convoy be auctioned individually** (`executeAuctionShip`), or must it be excluded from the convoy first? Leaning toward "must exclude first" (keeps the "auction requires being addressed as a single ship" invariant clean, and the UI design above only shows the Auction control on an independent/expanded-and-selected member ship's own Shipyard panel, which already implies it — but the game-logic layer doesn't currently *enforce* exclusion-first, so this is still a decision to make, not just a UI default).
 - **Save schema**: `FleetState.convoys` is a new field — additive (defaults to `[]` for older saves, same pattern as `chronicle`/`achievements`), no schema bump needed, but `save-file-schema.md` needs a new row when this ships.
 
 ## Related
@@ -98,3 +144,4 @@ A ship's own `Ship` type is **unchanged** — no `convoyId` field on `Ship`. Mem
 - `docs/design/market-formula.md` "Bulk-Purchase Price Pressure" (`resolveTradeStepped`) — the single-stepped-trade mechanism a convoy buy/sell reuses
 - `ADR-010` (combat mechanic) — the per-ship power formula this doc sums across a convoy
 - `ADR-023` — the convoy data model and ship-addressing decision (`FleetState.convoys`, no `convoyId` on `Ship`, new convoy-addressed action variants alongside the existing ship-addressed ones)
+- `docs/design/city-view.md` and `TradeTable.svelte` (v1.2) — the shared trading-table component this doc's "UI Design" section extends with a `convoyCargo`/`convoyCargoSpace` prop pair rather than duplicating

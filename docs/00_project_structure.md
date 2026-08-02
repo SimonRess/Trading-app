@@ -338,7 +338,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Combat system | Implemented (posture/power-roll flow, first pass; thresholds not yet tuned) | design/ship-stats.md "Combat" |
 | MVP scope | Draft | design/mvp-scope.md |
 | Feature brainstorm (UX & long-term fun) | Proposed (not implemented) | design/feature-brainstorm.md |
-| Ship convoys | Draft (game logic specified; needs an ADR + UI pass before implementation) | design/ship-convoys.md |
+| Ship convoys | Draft, spec complete (game logic + ADR-023 data model + UI design all specified; ready for implementation) | design/ship-convoys.md |
 ---
 
 ## 4b. Implementation Order (Current Plan)
