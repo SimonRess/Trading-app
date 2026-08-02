@@ -22,6 +22,7 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ### Changed
 - Documented a branch-per-version convention in `docs/00_project_structure.md` §5 — three PRs in a row got merged mid-session while further commits were still being pushed to the same branch, stranding them outside the merged PR each time. New rule: one branch per version, and confirm a branch's PR is still open before pushing to it.
+- Redefined `docs/design/roadmap-next-versions.md`'s item 9 as **ship convoys** (group ships, drill-down, exclude, per-ship repair/crew/weapons, convoy-wide goods trading), replacing its previous "saved/repeating trade routes" scope. The original trade-routes idea wasn't dropped — moved to a new item 9c, unscheduled.
 
 ## [1.3.0] - 2026-07-30
 
