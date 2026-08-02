@@ -23,6 +23,7 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 ### Changed
 - Documented a branch-per-version convention in `docs/00_project_structure.md` §5 — three PRs in a row got merged mid-session while further commits were still being pushed to the same branch, stranding them outside the merged PR each time. New rule: one branch per version, and confirm a branch's PR is still open before pushing to it.
 - Redefined `docs/design/roadmap-next-versions.md`'s item 9 as **ship convoys** (group ships, drill-down, exclude, per-ship repair/crew/weapons, convoy-wide goods trading), replacing its previous "saved/repeating trade routes" scope. The original trade-routes idea wasn't dropped — moved to a new item 9c, unscheduled.
+- New `docs/design/ship-convoys.md` fully specifies the ship-convoys game logic: convoy ships travel together (destination and travel time apply to the whole convoy, capped by the slowest member) and fight as one unit (summed combat power, convoy-wide posture, per-ship damage distribution); goods trading is convoy-wide via a single stepped market trade then a swappable proportional-by-default distribution algorithm across member ships; repair/crew/cannons stay per-ship. Not yet implemented — needs an ADR (new `Convoy` data model) and a UI-design pass first.
 
 ## [1.3.0] - 2026-07-30
 
