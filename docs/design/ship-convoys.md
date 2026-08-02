@@ -1,6 +1,6 @@
 # Design: Ship Convoys
 
-**Status:** Draft — decisions below reflect direct player answers to the design questions raised when this item was proposed (2026-08-02); not yet implemented. Needs an ADR before implementation starts (architectural change to how ships are addressed throughout `fleet-system.ts` and the UI), per `00_project_structure.md` §5 rule 2.
+**Status:** Draft — decisions below reflect direct player answers to the design questions raised when this item was proposed (2026-08-02); not yet implemented. The data model and ship-addressing question is now covered by ADR-023 (Proposed); still needs a UI-design pass before implementation starts.
 
 ## Purpose
 
@@ -97,4 +97,4 @@ A ship's own `Ship` type is **unchanged** — no `convoyId` field on `Ship`. Mem
 - `docs/design/ship-stats.md` "Combat" — the per-ship combat model this doc extends to convoy-wide aggregation
 - `docs/design/market-formula.md` "Bulk-Purchase Price Pressure" (`resolveTradeStepped`) — the single-stepped-trade mechanism a convoy buy/sell reuses
 - `ADR-010` (combat mechanic) — the per-ship power formula this doc sums across a convoy
-- An ADR for the convoy data model itself is still needed before implementation (see Status above)
+- `ADR-023` — the convoy data model and ship-addressing decision (`FleetState.convoys`, no `convoyId` on `Ship`, new convoy-addressed action variants alongside the existing ship-addressed ones)

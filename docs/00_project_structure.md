@@ -308,6 +308,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 020 | Net worth includes cannon and warehouse resale value (amends ADR-014) | Accepted | decisions/adr-020-net-worth-resellable-assets.md |
 | 021 | Win condition is Mayor of Lübeck only (supersedes the ADR-016 win OR-clause) | Accepted | decisions/adr-021-mayor-only-win-condition.md |
 | 022 | Health-based mortality replaces the turn-limit lose condition | Accepted | decisions/adr-022-health-based-mortality.md |
+| 023 | Ship convoy data model and ship-addressing change | Proposed | decisions/adr-023-ship-convoy-model.md |
 
 ---
 
