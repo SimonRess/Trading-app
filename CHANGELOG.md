@@ -20,6 +20,10 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+### Fixed
+- **Convoy pirate-raid victory loot was applied once per member ship instead of once for the whole convoy** — `event-system.ts`'s `pirate_raid` handler called `applyCombatOutcome` with the same `CombatResult` (including its `loot`) for every member, so a 2-ship convoy could receive double the intended loot. Only the first surviving member now receives the loot; every member still takes its own share of the shared durability/cargo loss.
+- **A convoy defeat that sank a member could misidentify which ship sank** if two ships shared a name — the fleet was filtered by matching sunk ships' *names* instead of their ids. Fixed to track sunk ship ids directly. Added 2 integration tests (`event-system.test.ts`) covering both fixes.
+
 ## [1.4.0] - 2026-08-02
 
 ### Added

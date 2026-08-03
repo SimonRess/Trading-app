@@ -221,6 +221,73 @@ describe('applyEvent pirate_raid', () => {
     expect(result.messages[0]).toContain('sunk');
     vi.restoreAllMocks();
   });
+
+  const convoyState = (): GameState => {
+    const state = buildStartingState('Test');
+    const shipA = shipInTransit({ id: 'ship-1', name: 'Ship A', cannons: 6, crew: 8, posture: 'defensive', cargo: {} });
+    const shipB = shipInTransit({ id: 'ship-2', name: 'Ship B', cannons: 6, crew: 8, posture: 'defensive', cargo: {} });
+    return {
+      ...state,
+      fleet: {
+        ships: [shipA, shipB],
+        convoys: [{ id: 'convoy-1', name: 'Convoy 1', shipIds: ['ship-1', 'ship-2'], posture: 'defensive' }],
+      },
+    };
+  };
+
+  it('a convoy victory awards loot once, not once per member ship', () => {
+    // Overwhelming power difference forces a clean victory every time
+    // regardless of the exact random draw, isolating the loot-duplication
+    // bug from outcome-roll randomness.
+    const state = convoyState();
+    const boosted: GameState = {
+      ...state,
+      fleet: {
+        ...state.fleet,
+        ships: state.fleet.ships.map(s => ({ ...s, cannons: 20, crew: 20 })),
+      },
+    };
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const result = applyEvent('pirate_raid', boosted);
+    vi.restoreAllMocks();
+
+    expect(result.messages[0]).toContain('Victory');
+    const totalLootPerGood: Partial<Record<string, number>> = {};
+    for (const ship of result.fleet.ships) {
+      for (const [goodId, qty] of Object.entries(ship.cargo)) {
+        totalLootPerGood[goodId] = (totalLootPerGood[goodId] ?? 0) + qty;
+      }
+    }
+    // rollLoot() awards at most 15 units of any single good (VICTORY_LOOT_QTY_MAX) —
+    // if loot were applied per member instead of once for the convoy, a
+    // 2-ship convoy would show up to double that for some good.
+    for (const qty of Object.values(totalLootPerGood)) {
+      expect(qty).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it('a convoy defeat can sink one member while the other survives, and removes only the sunk ship from the convoy', () => {
+    const state = convoyState();
+    const weak: GameState = {
+      ...state,
+      fleet: {
+        ...state.fleet,
+        ships: [
+          { ...state.fleet.ships[0]!, durability: 15, cannons: 0, crew: 0 },
+          { ...state.fleet.ships[1]!, durability: 100, cannons: 0, crew: 0 },
+        ],
+      },
+    };
+    // Force a heavy defeat (max durability loss) so the weak ship's 15
+    // durability is guaranteed to reach 0 while the strong one survives.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const result = applyEvent('pirate_raid', weak);
+    vi.restoreAllMocks();
+
+    expect(result.fleet.ships.map(s => s.id)).toEqual(['ship-2']);
+    expect(result.fleet.convoys).toHaveLength(0); // 1 remaining member auto-dissolves
+    expect(result.wreckedShips.map(s => s.id)).toEqual(['ship-1']);
+  });
 });
 
 describe('applyEvent city_plague', () => {

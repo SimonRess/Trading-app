@@ -243,14 +243,23 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
           ? ` Your strength: ${String(Math.round(combat.playerPower))} vs. their strength: ${String(Math.round(combat.enemyPower))}.`
           : '';
 
-        const sunkNames: string[] = [];
+        // Victory loot is a one-time haul for the whole convoy, not a
+        // per-ship reward — applying `combat` (with its `loot`) to every
+        // member independently would let each one claim the full loot
+        // amount. Only the first surviving member gets the loot; every
+        // member (including that one) still takes its own durability/cargo
+        // loss from the shared `combat` result.
+        const sunkIds: string[] = [];
+        let lootApplied = false;
         for (const member of members) {
-          const applied = applyCombatOutcome(fleet, member.id, combat);
+          const resultForMember = lootApplied ? { ...combat, loot: {} } : combat;
+          const applied = applyCombatOutcome(fleet, member.id, resultForMember);
           fleet = applied.fleet;
-          if (applied.sunk && applied.shipName) sunkNames.push(applied.shipName);
+          if (applied.sunk) sunkIds.push(member.id);
+          else lootApplied = true;
         }
         // A convoy with fewer than 2 remaining members auto-dissolves.
-        const remainingIds = convoy.shipIds.filter(id => !sunkNames.some(name => members.find(m => m.id === id)?.name === name));
+        const remainingIds = convoy.shipIds.filter(id => !sunkIds.includes(id));
         fleet = {
           ...fleet,
           convoys: remainingIds.length < 2
@@ -258,7 +267,8 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
             : fleet.convoys.map(c => (c.id === convoy.id ? { ...c, shipIds: remainingIds } : c)),
         };
 
-        if (sunkNames.length > 0) wreckedShips = members.filter(m => sunkNames.includes(m.name));
+        const sunkNames = members.filter(m => sunkIds.includes(m.id)).map(m => m.name);
+        if (sunkIds.length > 0) wreckedShips = members.filter(m => sunkIds.includes(m.id));
 
         if (combat.outcome === 'victory') {
           const lootDesc = Object.entries(combat.loot)

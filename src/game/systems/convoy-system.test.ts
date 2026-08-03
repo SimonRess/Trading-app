@@ -11,6 +11,10 @@ import {
   executeConvoyBuy,
   executeConvoySell,
   findConvoyForShip,
+  groupShipsByConvoy,
+  convoyCargo,
+  convoyCargoSpace,
+  convoyCargoCapacity,
   PROPORTIONAL_DISTRIBUTION,
 } from './convoy-system.ts';
 
@@ -190,5 +194,37 @@ describe('executeConvoyBuy / executeConvoySell', () => {
     expect(next.player.cash).toBeGreaterThan(cashBefore);
     const total = next.fleet.ships.reduce((sum, s) => sum + (s.cargo.grain ?? 0), 0);
     expect(total).toBe(0);
+  });
+});
+
+describe('convoyCargo / convoyCargoSpace / convoyCargoCapacity', () => {
+  it('pools cargo, space, and capacity across every member', () => {
+    let state = withSecondShip(buildStartingState('P'), { cargo: { grain: 5 } });
+    state = executeCreateConvoy(state, ['ship-1', 'ship-2']);
+    const convoy = state.fleet.convoys[0]!;
+
+    expect(convoyCargo(state.fleet, convoy)).toEqual({ salt: 20, grain: 5 });
+    expect(convoyCargoCapacity(state.fleet, convoy)).toBe(100); // 2 Kogges × 50
+    expect(convoyCargoSpace(state.fleet, convoy)).toBe(75); // 100 - (20 + 5) held
+  });
+});
+
+describe('groupShipsByConvoy', () => {
+  it('buckets convoyed ships under their convoy and leaves the rest independent', () => {
+    let state = withSecondShip(buildStartingState('P'));
+    state = withSecondShip(state, { id: 'ship-3', name: 'Third' });
+    state = executeCreateConvoy(state, ['ship-1', 'ship-2']);
+
+    const { groups, independent } = groupShipsByConvoy(state.fleet);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.ships.map(s => s.id)).toEqual(['ship-1', 'ship-2']);
+    expect(independent.map(s => s.id)).toEqual(['ship-3']);
+  });
+
+  it('returns no groups and every ship independent when there are no convoys', () => {
+    const state = withSecondShip(buildStartingState('P'));
+    const { groups, independent } = groupShipsByConvoy(state.fleet);
+    expect(groups).toHaveLength(0);
+    expect(independent).toHaveLength(2);
   });
 });
