@@ -308,6 +308,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | 020 | Net worth includes cannon and warehouse resale value (amends ADR-014) | Accepted | decisions/adr-020-net-worth-resellable-assets.md |
 | 021 | Win condition is Mayor of Lübeck only (supersedes the ADR-016 win OR-clause) | Accepted | decisions/adr-021-mayor-only-win-condition.md |
 | 022 | Health-based mortality replaces the turn-limit lose condition | Accepted | decisions/adr-022-health-based-mortality.md |
+| 023 | Ship convoy data model and ship-addressing change | Proposed | decisions/adr-023-ship-convoy-model.md |
 
 ---
 
@@ -337,6 +338,7 @@ A living index of decisions and their status. Update this table whenever an ADR 
 | Combat system | Implemented (posture/power-roll flow, first pass; thresholds not yet tuned) | design/ship-stats.md "Combat" |
 | MVP scope | Draft | design/mvp-scope.md |
 | Feature brainstorm (UX & long-term fun) | Proposed (not implemented) | design/feature-brainstorm.md |
+| Ship convoys | Draft, spec complete (game logic + ADR-023 data model + UI design all specified; ready for implementation) | design/ship-convoys.md |
 ---
 
 ## 4b. Implementation Order (Current Plan)
@@ -364,7 +366,8 @@ Per ADR-018: the graphical city view's skeleton is a prerequisite that ships bef
 19. ✅ **v1.3 item 6: Dynasty Chronicle** (`design/family-succession.md` "Dynasty Chronicle") — new `GameState.chronicle: string[]` (additive save field), seeded with a founding entry at New Game, appended at every succession-resolution point (auto-succession, `executeChooseHeir`, no-heir game over), surfaced read-only in the Merchant's House building panel. 2 new unit tests + assertions on 3 existing succession tests.
 20. ✅ **v1.3 item 7: price-history sparkline per good** (`design/market-formula.md` "Revised (2026-07-30, v1.3)") — new `src/ui/Sparkline.svelte` (pure, no game-logic imports), a 4th "Price trend" column on the Town Hall's Supply/Demand table, backed by a UI-local (not `GameState`) 10-turn price buffer rebuilt immutably each turn. Removed `priceTrend()` and its tests as dead code the sparkline supersedes.
 21. ✅ **v1.3 item 8: Achievements** (`design/family-succession.md` "Achievements") — new `GameState.achievements: AchievementId[]` (additive save field), 5 milestones evaluated by a pure `evaluateAchievements()` in `achievement-system.ts`, called from `resolveTurn` and `executeChooseHeir`. Shown as badges in the Merchant's House. 11 new unit tests.
-22. ✅ **v1.3 item 9b: second marriage partner type** (`design/family-succession.md` "Marriage") — "the Alderman's Daughter", gated on `minNetWorth: 6000`, gifts reputation instead of goods (wires up the previously-unused `PartnerType.hasStatus`). `executeSeekMarriage` now takes a `partnerId` instead of hardcoding `PARTNER_TYPES[0]`; Merchant's House lists every currently-eligible offer. 8 new/updated unit tests. Open task noted in the design doc: further partner types, a female-player-facing roster, per-partner odds, ongoing marriage mechanics — none attempted here. The rest of v1.3 (saved trade routes) is still open in `design/roadmap-next-versions.md`.
+22. ✅ **v1.3 item 9b: second marriage partner type** (`design/family-succession.md` "Marriage") — "the Alderman's Daughter", gated on `minNetWorth: 6000`, gifts reputation instead of goods (wires up the previously-unused `PartnerType.hasStatus`). `executeSeekMarriage` now takes a `partnerId` instead of hardcoding `PARTNER_TYPES[0]`; Merchant's House lists every currently-eligible offer. 8 new/updated unit tests. Open task noted in the design doc: further partner types, a female-player-facing roster, per-partner odds, ongoing marriage mechanics — none attempted here.
+23. ✅ **v1.3 item 9: Ship convoys** (`design/ship-convoys.md`, `decisions/adr-023-ship-convoy-model.md`) — group ships into a `FleetState.convoys: Convoy[]` (additive) that travels, fights, and trades as one unit while still allowing per-ship drill-down for repair/crew/cannons. New `src/game/systems/convoy-system.ts` (create/exclude/dissolve, convoy-wide destination/posture, proportional-by-default convoy buy/sell against one stepped market trade), `combat-system.ts`'s `resolveConvoyCombat` (summed power, one roll, independently-applied per-member outcome), 8 new `GameAction` variants, and a new `src/ui/FleetList.svelte` shared by both fleet-listing surfaces. 44 new unit tests. Verified live via Playwright. This closes out v1.3 in full.
    *(order within this list is otherwise not yet prioritized)*
 
 This list only covers what's already shipped (✅). Everything not yet started — the former "Open backlog" here, plus the PRD's former Feature Backlog — now lives in exactly one place: **`docs/design/roadmap-next-versions.md`**, sequenced by target version. Update that file, not this one, when scoping or reprioritizing unbuilt work; update this list only as items actually ship.
@@ -379,6 +382,7 @@ This list only covers what's already shipped (✅). Everything not yet started �
 3. **Reversing a decision?** → Write a new superseding ADR; do not edit the old one.
 4. **Code change?** → CLAUDE.md constraints apply. Run `npm test` and `npm run typecheck` before committing.
 5. **Session handoff?** → Ensure open questions are captured in the relevant design doc's "Open Questions" section, not just in chat history.
+6. **Starting work on a new version?** → Branch fresh from `main`, one branch per version (e.g. `claude/v1.4-stores-agents`), not a long-lived branch reused across versions. **Before pushing any commit to an existing branch, confirm its PR is still open** — a PR can be merged by the repo owner mid-session, at any point, without the pushing session knowing. A commit pushed after merge doesn't fail; it just silently never reaches `main`, and looks identical to a successful push until someone notices the deployed app is stale. This bit three PRs in a row in one real session (2026-07-30/31) before the pattern was caught. If a push does land on an already-merged branch, recover by branching fresh from `main` and opening a new PR for the stranded commits — don't try to reuse the old (closed) PR.
 
 ### Keeping docs in line with the app (required)
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveCombat, playerCombatPower } from './combat-system.ts';
+import { resolveCombat, playerCombatPower, convoyCombatPower, resolveConvoyCombat } from './combat-system.ts';
 import { buildInitialRiskState } from './risk-system.ts';
 import type { Ship } from '../state/types.ts';
 
@@ -34,6 +34,42 @@ describe('playerCombatPower', () => {
     const defensive = shipInTransit({ posture: 'defensive' });
     const aggressive = shipInTransit({ posture: 'aggressive' });
     expect(playerCombatPower(aggressive)).toBeGreaterThan(playerCombatPower(defensive));
+  });
+});
+
+describe('convoyCombatPower', () => {
+  it('sums power across members and applies the posture modifier once', () => {
+    const a = shipInTransit({ id: 'a', cannons: 2, crew: 4 });
+    const b = shipInTransit({ id: 'b', cannons: 3, crew: 4 });
+    const combined = convoyCombatPower([a, b], 'defensive');
+    const soloA = playerCombatPower(a);
+    const soloB = playerCombatPower(b);
+    expect(combined).toBe(soloA + soloB);
+  });
+
+  it('is 0 for a fleeing convoy', () => {
+    const a = shipInTransit({ cannons: 6, crew: 8 });
+    expect(convoyCombatPower([a], 'flee')).toBe(0);
+  });
+});
+
+describe('resolveConvoyCombat', () => {
+  it('always flees without a power roll when posture is flee', () => {
+    const risk = buildInitialRiskState();
+    const a = shipInTransit();
+    const result = resolveConvoyCombat([a], 'flee', risk, 'summer');
+    expect(result.outcome).toBe('flee');
+    expect(result.playerPower).toBeNull();
+  });
+
+  it('rolls one outcome shared by the whole convoy', () => {
+    const risk = buildInitialRiskState();
+    const a = shipInTransit({ cannons: 10, crew: 10 });
+    const b = shipInTransit({ id: 'b', cannons: 10, crew: 10 });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const result = resolveConvoyCombat([a, b], 'aggressive', risk, 'summer');
+    expect(result.outcome).toBe('victory');
+    vi.restoreAllMocks();
   });
 });
 

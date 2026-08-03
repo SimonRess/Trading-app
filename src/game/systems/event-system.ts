@@ -2,7 +2,8 @@ import type { GameState, Season, Ship, RiskState, CityId, GoodId, CityEffect } f
 import type { FleetState, MarketState } from '../state/types.ts';
 import { isInTransit, isInPort, cargoSpace } from './fleet-system.ts';
 import { applyStormDamage, applyCombatOutcome } from './fleet-system.ts';
-import { resolveCombat } from './combat-system.ts';
+import { resolveCombat, resolveConvoyCombat } from './combat-system.ts';
+import { findConvoyForShip, convoyMembers } from './convoy-system.ts';
 import { ROUTES, findRoute } from '../data/routes.ts';
 import { routeRiskModifier, cityRiskModifier } from './risk-system.ts';
 import { durabilityStormChancePenalty } from '../data/ships.ts';
@@ -234,29 +235,79 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
   } else if (eventId === 'pirate_raid') {
     const target = pickPirateTarget(fleet.ships, state.risk, season);
     if (target) {
-      const combat = resolveCombat(target, state.risk, season);
-      const applied = applyCombatOutcome(fleet, target.id, combat);
-      fleet = applied.fleet;
-
-      if (applied.shipName) {
+      const convoy = findConvoyForShip(fleet, target.id);
+      if (convoy) {
+        const members = convoyMembers(fleet, convoy);
+        const combat = resolveConvoyCombat(members, convoy.posture, state.risk, season);
         const strength = combat.playerPower !== null && combat.enemyPower !== null
           ? ` Your strength: ${String(Math.round(combat.playerPower))} vs. their strength: ${String(Math.round(combat.enemyPower))}.`
           : '';
 
-        if (applied.sunk) {
-          wreckedShips = [target];
-          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Overwhelmed — the ${applied.shipName} was sunk with all hands and cargo.`);
-        } else if (combat.outcome === 'victory') {
+        // Victory loot is a one-time haul for the whole convoy, not a
+        // per-ship reward — applying `combat` (with its `loot`) to every
+        // member independently would let each one claim the full loot
+        // amount. Only the first surviving member gets the loot; every
+        // member (including that one) still takes its own durability/cargo
+        // loss from the shared `combat` result.
+        const sunkIds: string[] = [];
+        let lootApplied = false;
+        for (const member of members) {
+          const resultForMember = lootApplied ? { ...combat, loot: {} } : combat;
+          const applied = applyCombatOutcome(fleet, member.id, resultForMember);
+          fleet = applied.fleet;
+          if (applied.sunk) sunkIds.push(member.id);
+          else lootApplied = true;
+        }
+        // A convoy with fewer than 2 remaining members auto-dissolves.
+        const remainingIds = convoy.shipIds.filter(id => !sunkIds.includes(id));
+        fleet = {
+          ...fleet,
+          convoys: remainingIds.length < 2
+            ? fleet.convoys.filter(c => c.id !== convoy.id)
+            : fleet.convoys.map(c => (c.id === convoy.id ? { ...c, shipIds: remainingIds } : c)),
+        };
+
+        const sunkNames = members.filter(m => sunkIds.includes(m.id)).map(m => m.name);
+        if (sunkIds.length > 0) wreckedShips = members.filter(m => sunkIds.includes(m.id));
+
+        if (combat.outcome === 'victory') {
           const lootDesc = Object.entries(combat.loot)
             .map(([goodId, qty]) => `${String(qty)} ${GOODS[goodId as GoodId].name}`)
             .join(', ');
-          messages.push(`⚔️ Pirates intercepted the ${applied.shipName}!${strength} Victory! Captured ${lootDesc || 'nothing — the hold was full'}.`);
+          messages.push(`⚔️ Pirates intercepted ${convoy.name}!${strength} Victory! Captured ${lootDesc || 'nothing — the holds were full'}.`);
         } else if (combat.outcome === 'defeat') {
-          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Defeated — the ${applied.shipName} took damage and lost cargo fighting them off.`);
+          const sunkNote = sunkNames.length > 0 ? ` The ${sunkNames.join(', ')} went down.` : '';
+          messages.push(`🏴‍☠️ Pirates intercepted ${convoy.name}!${strength} Defeated — the convoy took damage and lost cargo fighting them off.${sunkNote}`);
         } else if (combat.outcome === 'flee') {
-          messages.push(`🏳️ Pirates gave chase to the ${applied.shipName} — the crew fled, jettisoning cargo to outrun them.`);
+          messages.push(`🏳️ Pirates gave chase to ${convoy.name} — the crews fled, jettisoning cargo to outrun them.`);
         } else {
-          messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} The crew fought them off and retreated, losing some cargo.`);
+          messages.push(`🏴‍☠️ Pirates intercepted ${convoy.name}!${strength} The convoy fought them off and retreated, losing some cargo.`);
+        }
+      } else {
+        const combat = resolveCombat(target, state.risk, season);
+        const applied = applyCombatOutcome(fleet, target.id, combat);
+        fleet = applied.fleet;
+
+        if (applied.shipName) {
+          const strength = combat.playerPower !== null && combat.enemyPower !== null
+            ? ` Your strength: ${String(Math.round(combat.playerPower))} vs. their strength: ${String(Math.round(combat.enemyPower))}.`
+            : '';
+
+          if (applied.sunk) {
+            wreckedShips = [target];
+            messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Overwhelmed — the ${applied.shipName} was sunk with all hands and cargo.`);
+          } else if (combat.outcome === 'victory') {
+            const lootDesc = Object.entries(combat.loot)
+              .map(([goodId, qty]) => `${String(qty)} ${GOODS[goodId as GoodId].name}`)
+              .join(', ');
+            messages.push(`⚔️ Pirates intercepted the ${applied.shipName}!${strength} Victory! Captured ${lootDesc || 'nothing — the hold was full'}.`);
+          } else if (combat.outcome === 'defeat') {
+            messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} Defeated — the ${applied.shipName} took damage and lost cargo fighting them off.`);
+          } else if (combat.outcome === 'flee') {
+            messages.push(`🏳️ Pirates gave chase to the ${applied.shipName} — the crew fled, jettisoning cargo to outrun them.`);
+          } else {
+            messages.push(`🏴‍☠️ Pirates intercepted the ${applied.shipName}!${strength} The crew fought them off and retreated, losing some cargo.`);
+          }
         }
       }
     }
@@ -290,7 +341,7 @@ export function applyEvent(eventId: EventId, state: GameState): EventResult {
       if (goodId && space > 0) {
         const qty = Math.min(space, 1 + Math.floor(Math.random() * 10));
         const newCargo = { ...target.cargo, [goodId]: (target.cargo[goodId] ?? 0) + qty };
-        fleet = { ships: fleet.ships.map(s => (s.id === target.id ? { ...s, cargo: newCargo } : s)) };
+        fleet = { ...fleet, ships: fleet.ships.map(s => (s.id === target.id ? { ...s, cargo: newCargo } : s)) };
         messages.push(`⚓ The ${target.name} came across drifting wreckage and recovered ${String(qty)} ${GOODS[goodId].name}.`);
       }
     }

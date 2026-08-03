@@ -93,7 +93,7 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
 
   // Step 3b: Tick down repair cooldowns — a repaired ship sits in dock for
   // 1 turn before it can depart again (docs/design/ship-stats.md).
-  fleet = { ships: fleet.ships.map(s => (s.repairCooldown > 0 ? { ...s, repairCooldown: s.repairCooldown - 1 } : s)) };
+  fleet = { ...fleet, ships: fleet.ships.map(s => (s.repairCooldown > 0 ? { ...s, repairCooldown: s.repairCooldown - 1 } : s)) };
 
   // Step 4: Update market (natural economy — before player trades), using
   // last turn's active city effects (market boosts, plague) — this turn's
@@ -371,7 +371,7 @@ export function executeBuy(
 
   const newCargo = { ...ship.cargo, [goodId]: (ship.cargo[goodId] ?? 0) + quantity };
   const newShip = { ...ship, cargo: newCargo };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: nextGoodMarket } };
   const newPlayer = { ...state.player, cash: state.player.cash - totalCost };
 
@@ -400,7 +400,7 @@ export function executeSell(
   const newCargo: typeof ship.cargo = newQty === 0 ? rest : { ...rest, [goodId]: newQty };
 
   const newShip = { ...ship, cargo: newCargo };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newMarket = { ...state.market, [cityId]: { ...state.market[cityId], [goodId]: nextGoodMarket } };
   const newPlayer = {
     ...state.player,
@@ -432,7 +432,7 @@ export function executeBuyShip(state: GameState, cityId: CityId, type: ShipType)
     posture: 'defensive' as const,
   };
 
-  const newFleet = { ships: [...state.fleet.ships, newShip] };
+  const newFleet = { ...state.fleet, ships: [...state.fleet.ships, newShip] };
   const newPlayer = { ...state.player, cash: state.player.cash - price };
 
   return { ...state, player: newPlayer, fleet: newFleet };
@@ -447,7 +447,7 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
   if (state.player.cash < cost) return state;
 
   const newShip = { ...ship, durability: 100, repairCooldown: 1 };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - cost };
 
   return { ...state, player: newPlayer, fleet: newFleet };
@@ -462,9 +462,13 @@ export function executeRepairShip(state: GameState, shipId: string): GameState {
 export function executeAuctionShip(state: GameState, shipId: string): GameState {
   const ship = state.fleet.ships.find(s => s.id === shipId);
   if (!ship || !isInPort(ship)) return state;
+  // A convoyed ship must be excluded first (docs/design/ship-convoys.md
+  // "Open Questions") — auctioning it in place would leave the convoy's
+  // shipIds pointing at a ship that no longer exists.
+  if (state.fleet.convoys.some(c => c.shipIds.includes(shipId))) return state;
 
   const proceeds = auctionSaleValue(SHIP_TYPES[ship.type].purchasePrice, ship.durability);
-  const newFleet = { ships: state.fleet.ships.filter(s => s.id !== shipId) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.filter(s => s.id !== shipId) };
   const newPlayer = { ...state.player, cash: state.player.cash + proceeds };
 
   return { ...state, player: newPlayer, fleet: newFleet };
@@ -481,7 +485,7 @@ export function executeSetPosture(state: GameState, shipId: string, posture: Shi
   if (!ship || ship.posture === posture) return state;
 
   const newShip = { ...ship, posture };
-  return { ...state, fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) } };
+  return { ...state, fleet: { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) } };
 }
 
 const MAX_SHIP_NAME_LENGTH = 30;
@@ -495,7 +499,7 @@ export function executeRenameShip(state: GameState, shipId: string, name: string
   if (!ship || trimmed === ship.name) return state;
 
   const newShip = { ...ship, name: trimmed };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
 
   return { ...state, fleet: newFleet };
 }
@@ -507,7 +511,7 @@ export function executeHireCrew(state: GameState, shipId: string): GameState {
   if (state.player.cash < CREW_HIRE_COST) return state;
 
   const newShip = { ...ship, crew: ship.crew + 1 };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - CREW_HIRE_COST };
 
   return { ...state, player: newPlayer, fleet: newFleet };
@@ -521,7 +525,7 @@ export function executeReleaseCrew(state: GameState, shipId: string): GameState 
   if (ship.crew <= 0) return state;
 
   const newShip = { ...ship, crew: ship.crew - 1 };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
 
   return { ...state, fleet: newFleet };
 }
@@ -538,7 +542,7 @@ export function executeBuyCannon(state: GameState, shipId: string): GameState {
   const newShip = { ...ship, cannons: ship.cannons + 1 };
   if (cargoTotal(newShip) > cargoCapacity(newShip)) return state;
 
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash - CANNON_PRICE };
 
   return { ...state, player: newPlayer, fleet: newFleet };
@@ -550,7 +554,7 @@ export function executeSellCannon(state: GameState, shipId: string): GameState {
   if (ship.cannons <= 0) return state;
 
   const newShip = { ...ship, cannons: ship.cannons - 1 };
-  const newFleet = { ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
+  const newFleet = { ...state.fleet, ships: state.fleet.ships.map(s => (s.id === shipId ? newShip : s)) };
   const newPlayer = { ...state.player, cash: state.player.cash + cannonSellValue() };
 
   return { ...state, player: newPlayer, fleet: newFleet };

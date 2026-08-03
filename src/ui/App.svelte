@@ -38,10 +38,12 @@
   } from '../game/systems/warehouse-system.ts';
   import { MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE } from '../game/data/family.ts';
   import { traitPurchasePriceFactor, eligiblePartnerTypes } from '../game/systems/family-system.ts';
+  import { findConvoyForShip, convoyMembers, convoyCargo as convoyCargoOf, convoyCargoSpace as convoyCargoSpaceOf } from '../game/systems/convoy-system.ts';
   import { GOOD_ICONS } from './icons.ts';
   import MapView from './MapView.svelte';
   import CityView from './CityView.svelte';
   import TradeTable from './TradeTable.svelte';
+  import FleetList from './FleetList.svelte';
   import Sparkline from './Sparkline.svelte';
   import type { BuildingId } from '../render/city-scene.ts';
   import pkg from '../../package.json';
@@ -68,6 +70,11 @@
   let errorMsg = '';
   let pendingDest: Record<string, CityId> = {};
   let fleetCollapsed = false;
+  let selectedConvoyId: string | undefined;
+  let expandedConvoyIds = new Set<string>();
+  let groupingMode = false;
+  let groupSelection = new Set<string>();
+  const CONVOY_POSTURES: Array<Ship['posture']> = ['aggressive', 'defensive', 'flee'];
   let showSaveMenu = false;
   let saveMsg = '';
   let showSeasonInfo = false;
@@ -231,11 +238,18 @@
 
   async function buy(goodId: GoodId) {
     errorMsg = '';
+    const qty = Number(buyQty);
+    if (!qty || qty < 1) return;
+    if (activeConvoy) {
+      if (!convoyPortCity || selectedCityId !== convoyPortCity) return;
+      const result = await gameClient.sendAction({ type: 'CONVOY_BUY_GOOD', convoyId: activeConvoy.id, cityId: convoyPortCity, goodId, quantity: qty });
+      if ('player' in result) state = result as GameState;
+      else errorMsg = T.err.buy;
+      return;
+    }
     const ship = shipById(selectedShipId);
     const city = shipCity(ship);
     if (!city || selectedCityId !== city) return;
-    const qty = Number(buyQty);
-    if (!qty || qty < 1) return;
     const result = await gameClient.sendAction({ type: 'BUY_GOOD', shipId: selectedShipId, cityId: city, goodId, quantity: qty });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.buy;
@@ -243,6 +257,15 @@
 
   async function sell(goodId: GoodId, qtyOverride?: number) {
     errorMsg = '';
+    if (activeConvoy) {
+      if (!convoyPortCity || selectedCityId !== convoyPortCity) return;
+      const qty = qtyOverride ?? Number(sellQty);
+      if (!qty || qty < 1) return;
+      const result = await gameClient.sendAction({ type: 'CONVOY_SELL_GOOD', convoyId: activeConvoy.id, cityId: convoyPortCity, goodId, quantity: qty });
+      if ('player' in result) state = result as GameState;
+      else errorMsg = T.err.sell;
+      return;
+    }
     const ship = shipById(selectedShipId);
     const city = shipCity(ship);
     if (!city || selectedCityId !== city) return;
@@ -254,9 +277,91 @@
   }
 
   function sellAll(goodId: GoodId): void {
+    if (activeConvoy) {
+      const held = convoyCargoOf(state.fleet, activeConvoy)[goodId] ?? 0;
+      if (held > 0) void sell(goodId, held);
+      return;
+    }
     const ship = shipById(selectedShipId);
     const held = ship?.cargo[goodId] ?? 0;
     if (held > 0) void sell(goodId, held);
+  }
+
+  function selectShip(shipId: string) {
+    selectedShipId = shipId;
+    selectedConvoyId = undefined;
+    const c = shipCity(shipById(shipId));
+    if (c) selectedCityId = c;
+  }
+
+  function selectConvoy(convoyId: string) {
+    selectedConvoyId = convoyId;
+    const convoy = state.fleet.convoys.find(c => c.id === convoyId);
+    const members = convoy ? convoyMembers(state.fleet, convoy) : [];
+    const first = members[0];
+    if (first) {
+      const c = shipCity(first);
+      if (c) selectedCityId = c;
+    }
+  }
+
+  function toggleConvoyExpanded(convoyId: string) {
+    const next = new Set(expandedConvoyIds);
+    if (next.has(convoyId)) next.delete(convoyId);
+    else next.add(convoyId);
+    expandedConvoyIds = next;
+  }
+
+  async function excludeFromConvoy(shipId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'REMOVE_SHIP_FROM_CONVOY', shipId });
+    if ('player' in result) {
+      state = result as GameState;
+      selectShip(shipId);
+    }
+  }
+
+  async function dissolveConvoy(convoyId: string) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'DISSOLVE_CONVOY', convoyId });
+    if ('player' in result) {
+      state = result as GameState;
+      if (selectedConvoyId === convoyId) selectedConvoyId = undefined;
+    }
+  }
+
+  function toggleGroupSelection(shipId: string) {
+    const next = new Set(groupSelection);
+    if (next.has(shipId)) next.delete(shipId);
+    else next.add(shipId);
+    groupSelection = next;
+  }
+
+  async function confirmCreateConvoy() {
+    errorMsg = '';
+    const shipIds = [...groupSelection];
+    if (shipIds.length < 2) return;
+    const result = await gameClient.sendAction({ type: 'CREATE_CONVOY', shipIds });
+    if ('player' in result) {
+      state = result as GameState;
+      groupingMode = false;
+      groupSelection = new Set();
+    } else {
+      errorMsg = T.err.createConvoy;
+    }
+  }
+
+  async function setConvoyPosture(convoyId: string, posture: Ship['posture']) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SET_CONVOY_POSTURE', convoyId, posture });
+    if ('player' in result) state = result as GameState;
+  }
+
+  async function orderConvoyDest(convoyId: string, destination: CityId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'SET_CONVOY_DESTINATION', convoyId, destination });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.setDestination;
   }
 
   async function buyShip(shipType: ShipType) {
@@ -499,15 +604,18 @@
     return `${CITIES[pos.from].name} → ${CITIES[pos.to].name} (${pos.turnsRemaining}t)`;
   }
 
-  function reachableCities(ship: Ship): CityId[] {
-    if (!isInPort(ship)) return [];
-    const here = ship.position as CityId;
+  function reachableCitiesFromCity(here: CityId): CityId[] {
     const connected = new Set<CityId>();
     for (const r of ROUTES) {
       if (r.from === here) connected.add(r.to);
       if (r.to === here) connected.add(r.from);
     }
     return [...connected];
+  }
+
+  function reachableCities(ship: Ship): CityId[] {
+    if (!isInPort(ship)) return [];
+    return reachableCitiesFromCity(ship.position as CityId);
   }
 
   function travelTurns(from: CityId | undefined, to: CityId | undefined): number | undefined {
@@ -530,15 +638,24 @@
 
   $: activeShip = state.fleet.ships.find((s) => s.id === selectedShipId);
   $: portCity = activeShip && isInPort(activeShip) ? (activeShip.position as CityId) : undefined;
+  $: activeConvoy = state.fleet.convoys.find((c) => c.id === selectedConvoyId);
+  $: convoyPortCity = activeConvoy
+    ? (() => {
+        const members = convoyMembers(state.fleet, activeConvoy);
+        const first = members[0];
+        return first && isInPort(first) ? (first.position as CityId) : undefined;
+      })()
+    : undefined;
   $: netWorth = computeNetWorth(state);
   $: cityMarket = state.market[selectedCityId];
-  $: atShipyard = portCity !== undefined && isShipyardCity(portCity);
+  $: atShipyard = effectivePortCity !== undefined && isShipyardCity(effectivePortCity);
   // All of the player's ships docked at this shipyard city, not just the
   // currently selected one — repair/crew are per-ship, and a player with
   // multiple ships in the same port should be able to manage each without
   // switching selection first (reported by a player as "I only see one
   // ship in the repair and crew list" after buying a second ship).
-  $: shipyardShips = portCity === undefined ? [] : state.fleet.ships.filter(s => isInPort(s) && s.position === portCity);
+  $: effectivePortCity = portCity ?? convoyPortCity;
+  $: shipyardShips = effectivePortCity === undefined ? [] : state.fleet.ships.filter(s => isInPort(s) && s.position === effectivePortCity);
 </script>
 
 {#if screen === 'new-game'}
@@ -662,31 +779,54 @@
         <div class="turn-summary-card building-panel">
           {#if selectedBuilding === 'harbor'}
             <h2>{T.harbor}</h2>
-            <div class="fleet-list">
-              {#each state.fleet.ships as s (s.id)}
-                <div
-                  class="ship-card"
-                  class:selected={s.id === selectedShipId}
-                  on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
-                  role="button"
-                  tabindex="0"
-                  on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
-                >
-                  <strong>{s.name}</strong>
-                  <span class="tag">{SHIP_TYPES[s.type].name}</span>
-                  <span class="tag">{positionLabel(s)}</span>
-                  {#if pendingDest[s.id]}
-                    <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
-                  {/if}
-                  <span class="tag durability-{durabilityStatus(s.durability)}">
-                    {T.durLabel} {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
-                  </span>
-                  <span class="tag">{T.cargoLabel} {cargoTotal(s)}/{cargoCapacity(s)}{s.cannons > 0 ? T.cargoUsedByCannons(s.cannons * 2) : ''}</span>
-                </div>
-              {/each}
-            </div>
 
-            {#if activeShip && portCity}
+            {#if groupingMode}
+              <div class="dest-section">
+                <p class="order-note muted">{T.convoySelectAtLeastTwo}</p>
+                <div class="qty-row">
+                  <button class="shipyard-btn" disabled={groupSelection.size < 2} on:click={confirmCreateConvoy}>{T.createConvoyBtn}</button>
+                  <button class="link-btn" on:click={() => { groupingMode = false; groupSelection = new Set(); }}>{T.cancelGrouping}</button>
+                </div>
+              </div>
+            {:else}
+              <div class="qty-row">
+                <button class="shipyard-btn" on:click={() => { groupingMode = true; }}>{T.groupIntoConvoy}</button>
+              </div>
+            {/if}
+
+            <FleetList
+              {T}
+              {state}
+              {selectedShipId}
+              {selectedConvoyId}
+              {pendingDest}
+              {positionLabel}
+              {shipTravelTurns}
+              {shipCity}
+              {groupingMode}
+              {groupSelection}
+              on:selectShip={(e) => selectShip(e.detail)}
+              on:selectConvoy={(e) => selectConvoy(e.detail)}
+              on:exclude={(e) => excludeFromConvoy(e.detail)}
+              on:toggleGroup={(e) => toggleGroupSelection(e.detail)}
+            />
+
+            {#if activeConvoy && convoyPortCity}
+              <div class="dest-section">
+                <h3>{T.setDestination}</h3>
+                <div class="dest-btns">
+                  {#each reachableCitiesFromCity(convoyPortCity) as dest}
+                    <button class="dest-btn" on:click={() => orderConvoyDest(activeConvoy.id, dest)}>{CITIES[dest].name}</button>
+                  {/each}
+                </div>
+                <p class="order-note muted">{T.convoyPosture}:
+                  {#each CONVOY_POSTURES as posture}
+                    <button class="dest-btn" class:ordered={activeConvoy.posture === posture} on:click={() => setConvoyPosture(activeConvoy.id, posture)}>{posture}</button>
+                  {/each}
+                </p>
+                <button class="link-btn" on:click={() => dissolveConvoy(activeConvoy.id)}>{T.dissolveConvoy}</button>
+              </div>
+            {:else if activeShip && portCity}
               <div class="dest-section">
                 <h3>{T.setDestination}</h3>
                 {#if !canDepart(activeShip.durability)}
@@ -749,7 +889,31 @@
               {/each}
             </div>
 
-            {#if activeShip && portCity}
+            {#if activeConvoy && convoyPortCity}
+              <TradeTable
+                {T}
+                goodIds={GOOD_IDS}
+                goodNames={GOOD_NAMES}
+                {cityMarket}
+                {state}
+                {selectedCityId}
+                portCity={convoyPortCity}
+                priceHeader={T.colPrice}
+                convoyCargo={convoyCargoOf(state.fleet, activeConvoy)}
+                convoyCargoSpace={convoyCargoSpaceOf(state.fleet, activeConvoy)}
+                {buyQty}
+                {sellQty}
+                {buyPreview}
+                {sellPreview}
+                on:buy={(e) => buy(e.detail)}
+                on:sell={(e) => sell(e.detail)}
+                on:sellAll={(e) => sellAll(e.detail)}
+              />
+              <div class="qty-row">
+                <label>{T.buyQty} <input type="number" bind:value={buyQty} min="1" max="50" /></label>
+                <label>{T.sellQty} <input type="number" bind:value={sellQty} min="1" max="50" /></label>
+              </div>
+            {:else if activeShip && portCity}
               <TradeTable
                 {T}
                 goodIds={GOOD_IDS}
@@ -1187,32 +1351,73 @@
           >{fleetCollapsed ? '▶' : '◀'}</button>
         </div>
         {#if !fleetCollapsed}
-          {#each state.fleet.ships as s (s.id)}
-            <div
-              class="ship-card"
-              class:selected={s.id === selectedShipId}
-              on:click={() => { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; }}
-              role="button"
-              tabindex="0"
-              on:keydown={e => { if (e.key === 'Enter') { selectedShipId = s.id; const c = shipCity(s); if (c) selectedCityId = c; } }}
-            >
-              <strong>{s.name}</strong>
-              <span class="tag">{SHIP_TYPES[s.type].name}</span>
-              <span class="tag">{positionLabel(s)}</span>
-              {#if pendingDest[s.id]}
-                <span class="tag order">⚓ → {CITIES[pendingDest[s.id]].name} ({shipTravelTurns(s, shipCity(s), pendingDest[s.id])}t)</span>
-              {/if}
-              <span class="tag durability-{durabilityStatus(s.durability)}">
-                {T.durLabel} {s.durability}/100 · {DURABILITY_LABELS[durabilityStatus(s.durability)]}
-              </span>
-              <span class="tag">{T.cargoLabel} {cargoTotal(s)}/{cargoCapacity(s)}{s.cannons > 0 ? T.cargoUsedByCannons(s.cannons * 2) : ''}</span>
-            </div>
-          {/each}
+          <FleetList
+            {T}
+            {state}
+            {selectedShipId}
+            {selectedConvoyId}
+            {pendingDest}
+            {positionLabel}
+            {shipTravelTurns}
+            {shipCity}
+            on:selectShip={(e) => selectShip(e.detail)}
+            on:selectConvoy={(e) => selectConvoy(e.detail)}
+            on:exclude={(e) => excludeFromConvoy(e.detail)}
+          />
         {/if}
       </section>
 
       <section class="panel trade-panel">
-        {#if activeShip && portCity}
+        {#if activeConvoy && convoyPortCity}
+          <h2>{T.portOf(CITIES[convoyPortCity].name)} — {activeConvoy.name}</h2>
+
+          <div class="city-select">
+            {#each CITY_IDS as cId}
+              <button class="city-btn" class:active={selectedCityId === cId} on:click={() => { selectedCityId = cId; }}>{CITIES[cId].name}</button>
+            {/each}
+          </div>
+
+          <TradeTable
+            {T}
+            goodIds={GOOD_IDS}
+            goodNames={GOOD_NAMES}
+            {cityMarket}
+            {state}
+            {selectedCityId}
+            portCity={convoyPortCity}
+            priceHeader={T.colPrice}
+            convoyCargo={convoyCargoOf(state.fleet, activeConvoy)}
+            convoyCargoSpace={convoyCargoSpaceOf(state.fleet, activeConvoy)}
+            {buyQty}
+            {sellQty}
+            {buyPreview}
+            {sellPreview}
+            on:buy={(e) => buy(e.detail)}
+            on:sell={(e) => sell(e.detail)}
+            on:sellAll={(e) => sellAll(e.detail)}
+          />
+
+          <div class="qty-row">
+            <label>{T.buyQty} <input type="number" bind:value={buyQty} min="1" max="50" /></label>
+            <label>{T.sellQty} <input type="number" bind:value={sellQty} min="1" max="50" /></label>
+          </div>
+
+          <div class="dest-section">
+            <h3>{T.setDestination}</h3>
+            <div class="dest-btns">
+              {#each reachableCitiesFromCity(convoyPortCity) as dest}
+                <button class="dest-btn" on:click={() => orderConvoyDest(activeConvoy.id, dest)}>{CITIES[dest].name}</button>
+              {/each}
+            </div>
+            <p class="order-note muted">{T.convoyPosture}:
+              {#each CONVOY_POSTURES as posture}
+                <button class="dest-btn" class:ordered={activeConvoy.posture === posture} on:click={() => setConvoyPosture(activeConvoy.id, posture)}>{posture}</button>
+              {/each}
+            </p>
+            <button class="link-btn" on:click={() => dissolveConvoy(activeConvoy.id)}>{T.dissolveConvoy}</button>
+          </div>
+
+        {:else if activeShip && portCity}
           <h2>{T.portOf(CITIES[portCity].name)}</h2>
 
           <div class="city-select">
@@ -1709,7 +1914,6 @@
     gap: 0.25rem;
     background: #201810;
   }
-  .ship-card.selected { border-color: #c09040; background: #2a1e0c; }
   .ship-card.static {
     cursor: default;
     flex-direction: row;
@@ -1750,11 +1954,6 @@
   .chronicle-list li { border-bottom: 1px solid #2a2018; padding-bottom: 0.4rem; }
   .chronicle-list li:last-child { border-bottom: none; }
   .tag { font-size: 0.75rem; color: #8a7a60; }
-  .tag.order { color: #d4a843; }
-  .tag.durability-seaworthy { color: #8a7a60; }
-  .tag.durability-worn { color: #d4b843; }
-  .tag.durability-damaged { color: #d48a43; }
-  .tag.durability-critical { color: #e06060; font-weight: bold; }
 
   .city-select { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
   .city-btn {

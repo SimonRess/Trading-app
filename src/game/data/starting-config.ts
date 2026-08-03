@@ -42,6 +42,7 @@ export function buildStartingState(playerName: string): GameState {
           posture: 'defensive',
         },
       ],
+      convoys: [],
     },
     // churchCompletion seeded per city (docs/design/church-donations.md) —
     // Lübeck, the political home base, starts furthest along; the rest are

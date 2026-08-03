@@ -239,6 +239,16 @@ export interface Translation {
   portOf: (city: string) => string;
   expandFleetPanel: string;
   collapseFleetPanel: string;
+
+  // Ship convoys (docs/design/ship-convoys.md)
+  convoyMemberCount: (n: number) => string;
+  groupIntoConvoy: string;
+  cancelGrouping: string;
+  createConvoyBtn: string;
+  excludeFromConvoy: string;
+  dissolveConvoy: string;
+  convoyPosture: string;
+  convoySelectAtLeastTwo: string;
   noShipSelected: string;
 
   // Footer / turn actions
@@ -280,7 +290,7 @@ export interface Translation {
     setPosture: string; renameShip: string; hireCrew: string; releaseCrew: string;
     buyCannon: string; sellCannon: string; insurance: string; buyWarehouse: string;
     sellWarehouse: string; marriage: string; heir: string; tutor: string; loan: string;
-    repay: string; donate: string; saveFile: string;
+    repay: string; donate: string; saveFile: string; setDestination: string; createConvoy: string;
   };
 }
 
@@ -484,6 +494,15 @@ const en: Translation = {
   portOf: (city) => `Port of ${city}`,
   expandFleetPanel: 'Expand fleet panel',
   collapseFleetPanel: 'Collapse fleet panel',
+
+  convoyMemberCount: (n) => `${String(n)} ships`,
+  groupIntoConvoy: 'Group into Convoy',
+  cancelGrouping: 'Cancel',
+  createConvoyBtn: 'Create Convoy',
+  excludeFromConvoy: 'Exclude',
+  dissolveConvoy: 'Dissolve Convoy',
+  convoyPosture: 'Convoy Posture',
+  convoySelectAtLeastTwo: 'Select at least 2 ships to group.',
   noShipSelected: 'No ship selected.',
 
   endTurn: 'End Turn →',
@@ -522,6 +541,7 @@ const en: Translation = {
     sellWarehouse: 'Cannot sell warehouse.', marriage: 'Cannot marry right now.', heir: 'Cannot choose that heir.',
     tutor: 'Cannot hire a tutor right now.', loan: 'Cannot take loan.', repay: 'Cannot repay loan.',
     donate: 'Cannot donate.', saveFile: 'Could not load that save file.',
+    setDestination: 'Cannot set convoy destination.', createConvoy: 'Cannot create convoy.',
   },
 };
 
@@ -706,6 +726,15 @@ const de: Translation = {
   portOf: (city) => `Hafen von ${city}`,
   expandFleetPanel: 'Flottenpanel ausklappen',
   collapseFleetPanel: 'Flottenpanel einklappen',
+
+  convoyMemberCount: (n) => `${String(n)} Schiffe`,
+  groupIntoConvoy: 'Zu Konvoi zusammenfassen',
+  cancelGrouping: 'Abbrechen',
+  createConvoyBtn: 'Konvoi bilden',
+  excludeFromConvoy: 'Ausschließen',
+  dissolveConvoy: 'Konvoi auflösen',
+  convoyPosture: 'Konvoi-Haltung',
+  convoySelectAtLeastTwo: 'Wählt mindestens 2 Schiffe zum Gruppieren.',
   noShipSelected: 'Kein Schiff ausgewählt.',
 
   endTurn: 'Runde beenden →',
@@ -747,6 +776,7 @@ const de: Translation = {
     heir: 'Dieser Erbe kann nicht gewählt werden.', tutor: 'Hauslehrer momentan nicht verfügbar.',
     loan: 'Kredit nicht möglich.', repay: 'Tilgung nicht möglich.', donate: 'Spende nicht möglich.',
     saveFile: 'Diese Speicherdatei konnte nicht geladen werden.',
+    setDestination: 'Konvoi-Ziel kann nicht gesetzt werden.', createConvoy: 'Konvoi kann nicht gebildet werden.',
   },
 };
 

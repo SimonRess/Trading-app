@@ -23,7 +23,7 @@ describe('evaluateAchievements', () => {
 
   it('unlocks first-ship-lost when the fleet shrinks', () => {
     const prev = buildStartingState('Tester');
-    const next = { ...prev, fleet: { ships: [] } };
+    const next = { ...prev, fleet: { convoys: [], ships: [] } };
     expect(evaluateAchievements(prev, next, 0)).toContain('first-ship-lost');
   });
 

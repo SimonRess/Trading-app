@@ -138,7 +138,10 @@ function parseSaveFile(raw: string): GameState | null {
       cannons: rawShips[i]?.cannons ?? 0,
       insured: rawShips[i]?.insured ?? false,
     }));
-    const fleet = { ...file.state.fleet, ships };
+    // convoys was added after schema v1 shipped — additive, same pattern;
+    // an older save simply has no convoys grouped on load.
+    const rawFleet = file.state.fleet as Partial<GameState['fleet']>;
+    const fleet = { ...file.state.fleet, ships, convoys: rawFleet.convoys ?? [] };
 
     return {
       ...file.state,

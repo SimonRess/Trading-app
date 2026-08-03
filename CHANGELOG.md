@@ -20,6 +20,24 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+### Fixed
+- **Convoy pirate-raid victory loot was applied once per member ship instead of once for the whole convoy** — `event-system.ts`'s `pirate_raid` handler called `applyCombatOutcome` with the same `CombatResult` (including its `loot`) for every member, so a 2-ship convoy could receive double the intended loot. Only the first surviving member now receives the loot; every member still takes its own share of the shared durability/cargo loss.
+- **A convoy defeat that sank a member could misidentify which ship sank** if two ships shared a name — the fleet was filtered by matching sunk ships' *names* instead of their ids. Fixed to track sunk ship ids directly. Added 2 integration tests (`event-system.test.ts`) covering both fixes.
+
+## [1.4.0] - 2026-08-02
+
+### Added
+- **Ship convoys** — group several ships into a convoy so the fleet overview shows one entry per convoy instead of one per ship. Drill into a convoy to see its individual ships, exclude one (only while in port), and manage its repair/crew/cannons per-ship as before. See `docs/design/ship-convoys.md`, `docs/decisions/adr-023-ship-convoy-model.md`.
+  - Convoy ships travel together: `Set Destination` is convoy-wide, and travel time is the slowest member's, applied uniformly — a convoy can't depart at all if any member is critically damaged.
+  - Convoy ships fight as one unit against pirates: combat power sums across every member with a single convoy-wide posture modifier, one outcome roll decides the encounter, but the resulting damage/cargo loss is applied independently to each member — a defeat can sink a weak ship while stronger ones survive. A convoy dropping below 2 members auto-dissolves.
+  - Buying/selling goods is convoy-wide: one stepped market trade for the total quantity, then distributed across member ships (proportional to remaining cargo space on a buy, to held quantity on a sell — the distribution strategy is swappable in code).
+  - New `src/ui/FleetList.svelte` (grouped/collapsible convoy cards, shared by the List-view sidebar and the City-view Harbor panel), a "Group into Convoy" checkbox flow, and `TradeTable.svelte`'s new optional `convoyCargo`/`convoyCargoSpace` props for convoy-wide trading.
+  - `executeAuctionShip` now refuses to auction a ship still assigned to a convoy — exclude it first.
+  - 44 new unit tests across `convoy-system.test.ts`, `combat-system.test.ts`, and `turn-system.test.ts`. Verified live via Playwright: created a 2-ship convoy, drilled into members, set a convoy-wide destination, and bought goods as a convoy with distribution confirmed by in-hold totals.
+
+### Changed
+- Documented a branch-per-version convention in `docs/00_project_structure.md` §5 — three PRs in a row got merged mid-session while further commits were still being pushed to the same branch, stranding them outside the merged PR each time. New rule: one branch per version, and confirm a branch's PR is still open before pushing to it.
+
 ## [1.3.0] - 2026-07-30
 
 ### Added

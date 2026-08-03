@@ -52,7 +52,7 @@ describe('computeNetWorth', () => {
 
   it('includes cannons at resale value', () => {
     const state = buildStartingState('TestPlayer');
-    const withCannons = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cannons: 2 }] } };
+    const withCannons = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, cannons: 2 }] } };
     expect(computeNetWorth(withCannons)).toBe(computeNetWorth(state) + 2 * cannonSellValue());
   });
 
@@ -192,7 +192,7 @@ describe('executeRepairShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 60 } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 60 } : s)) },
     };
     const before = state.player.cash;
     const next = executeRepairShip(state, shipId);
@@ -211,7 +211,7 @@ describe('executeRepairShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50, position: 'riga' as const } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50, position: 'riga' as const } : s)) },
     };
     const next = executeRepairShip(state, shipId);
     expect(next).toBe(state);
@@ -223,7 +223,7 @@ describe('executeRepairShip', () => {
     state = {
       ...state,
       player: { ...state.player, cash: 0 },
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
     };
     const next = executeRepairShip(state, shipId);
     expect(next).toBe(state);
@@ -268,7 +268,7 @@ describe('executeAuctionShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, durability: 50 } : s)) },
     };
     const before = state.player.cash;
     const next = executeAuctionShip(state, shipId);
@@ -285,6 +285,14 @@ describe('executeAuctionShip', () => {
     expect(next.player.cash).toBe(before + 3200); // 4000 * 0.8
   });
 
+  it('refuses to auction a ship that is still part of a convoy', () => {
+    let state = buildStartingState('TestPlayer');
+    const shipId = state.fleet.ships[0]!.id;
+    state = { ...state, fleet: { ...state.fleet, convoys: [{ id: 'c1', name: 'Convoy 1', shipIds: [shipId, 'ship-2'], posture: 'defensive' as const }] } };
+    const next = executeAuctionShip(state, shipId);
+    expect(next).toBe(state);
+  });
+
   it('works for a critical-durability ship docked at a non-shipyard city', () => {
     // The scenario the Harbor panel's rescue action (App.svelte) exists
     // for: canDepart() blocks sailing and executeRepairShip() requires a
@@ -296,7 +304,7 @@ describe('executeAuctionShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga', durability: 5 } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga', durability: 5 } : s)) },
     };
     const next = executeAuctionShip(state, shipId);
     expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
@@ -308,7 +316,7 @@ describe('executeAuctionShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: { from: 'lubeck', to: 'hamburg', turnsRemaining: 1 } } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: { from: 'lubeck', to: 'hamburg', turnsRemaining: 1 } } : s)) },
     };
     const next = executeAuctionShip(state, shipId);
     expect(next).toBe(state);
@@ -325,7 +333,7 @@ describe('executeAuctionShip', () => {
     const shipId = state.fleet.ships[0]!.id;
     state = {
       ...state,
-      fleet: { ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga' as const } : s)) },
+      fleet: { convoys: [], ships: state.fleet.ships.map(s => (s.id === shipId ? { ...s, position: 'riga' as const } : s)) },
     };
     const next = executeAuctionShip(state, shipId);
     expect(next.fleet.ships.find(s => s.id === shipId)).toBeUndefined();
@@ -350,7 +358,7 @@ describe('executeRenameShip', () => {
   it('is available regardless of ship position (not shipyard-restricted)', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
     const next = executeRenameShip(state, shipId, 'Seemöwe');
     expect(next.fleet.ships[0]!.name).toBe('Seemöwe');
   });
@@ -442,7 +450,7 @@ describe('executeHireCrew', () => {
   it('rejects hiring beyond the type\'s crew max', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, crew: 8 }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, crew: 8 }] } };
     const next = executeHireCrew(state, shipId);
     expect(next).toBe(state);
   });
@@ -450,7 +458,7 @@ describe('executeHireCrew', () => {
   it('rejects hiring outside a shipyard city', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
     const next = executeHireCrew(state, shipId);
     expect(next).toBe(state);
   });
@@ -478,7 +486,7 @@ describe('executeReleaseCrew', () => {
   it('rejects releasing below 0', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, crew: 0 }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, crew: 0 }] } };
     const next = executeReleaseCrew(state, shipId);
     expect(next).toBe(state);
   });
@@ -497,7 +505,7 @@ describe('executeBuyCannon', () => {
   it('rejects buying beyond the type\'s cannon max', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cannons: 6 }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, cannons: 6 }] } };
     const next = executeBuyCannon(state, shipId);
     expect(next).toBe(state);
   });
@@ -505,7 +513,7 @@ describe('executeBuyCannon', () => {
   it('rejects buying outside a shipyard city', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, position: 'riga' as const }] } };
     const next = executeBuyCannon(state, shipId);
     expect(next).toBe(state);
   });
@@ -522,7 +530,7 @@ describe('executeBuyCannon', () => {
     let state = buildStartingState('TestPlayer');
     const shipId = state.fleet.ships[0]!.id;
     // Kogge holds 50; loaded to exactly 50 leaves no room for -2 cargo space.
-    state = { ...state, fleet: { ships: [{ ...state.fleet.ships[0]!, cargo: { salt: 50 } }] } };
+    state = { ...state, fleet: { convoys: [], ships: [{ ...state.fleet.ships[0]!, cargo: { salt: 50 } }] } };
     const next = executeBuyCannon(state, shipId);
     expect(next).toBe(state);
   });

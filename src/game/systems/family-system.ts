@@ -51,7 +51,7 @@ export function executeSeekMarriage(state: GameState, partnerId: string, netWort
       const newCargo = { ...ship.cargo, [goodId]: (ship.cargo[goodId] ?? 0) + qty };
       newState = {
         ...newState,
-        fleet: { ships: newState.fleet.ships.map(s => (s.id === ship.id ? { ...s, cargo: newCargo } : s)) },
+        fleet: { ...newState.fleet, ships: newState.fleet.ships.map(s => (s.id === ship.id ? { ...s, cargo: newCargo } : s)) },
       };
     }
   }

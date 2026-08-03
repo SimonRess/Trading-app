@@ -104,8 +104,22 @@ export interface Ship {
   repairCooldown: number;
 }
 
+// Groups several ships to travel/fight/trade as one unit — see
+// docs/design/ship-convoys.md, ADR-023. Membership lives only in
+// `shipIds`; there is deliberately no back-reference on `Ship` itself
+// (ADR-023's decision), matching how `CityEffect`/`PendingSuccession`
+// already reference other entities by id rather than a normalized
+// two-way link.
+export interface Convoy {
+  id: string;
+  name: string;
+  shipIds: string[];
+  posture: Ship['posture'];
+}
+
 export interface FleetState {
   ships: Ship[];
+  convoys: Convoy[];
 }
 
 export interface CityState {
