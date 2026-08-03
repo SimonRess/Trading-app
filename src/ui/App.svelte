@@ -342,11 +342,24 @@
     const shipIds = [...groupSelection];
     if (shipIds.length < 2) return;
     const result = await gameClient.sendAction({ type: 'CREATE_CONVOY', shipIds });
-    if ('player' in result) {
-      state = result as GameState;
+    // As with auctionShip: a rejected CREATE_CONVOY still returns a valid
+    // (unchanged) GameState, so 'player' in result alone can't tell success
+    // from a silently-blocked creation — find the actual new convoy instead.
+    const newState = 'player' in result ? (result as GameState) : undefined;
+    const created = newState?.fleet.convoys.find(
+      c => c.shipIds.length === shipIds.length && shipIds.every(id => c.shipIds.includes(id)),
+    );
+    if (newState && created) {
+      state = newState;
       groupingMode = false;
       groupSelection = new Set();
+      // Select the convoy that was just formed — without this, buying/
+      // selling goods right after grouping would still target whichever
+      // single ship was selected before, silently filling only that one
+      // ship instead of distributing across the convoy.
+      selectConvoy(created.id);
     } else {
+      if (newState) state = newState;
       errorMsg = T.err.createConvoy;
     }
   }
@@ -390,10 +403,17 @@
     const price = auctionSaleValue(SHIP_TYPES[ship.type].purchasePrice, ship.durability);
     const date = `${SEASON_LABEL[state.calendar.season]} ${state.calendar.year}`;
     const result = await gameClient.sendAction({ type: 'AUCTION_SHIP', shipId });
-    if ('player' in result) {
+    // executeAuctionShip returns the *unchanged* state (still a valid
+    // GameState, so 'player' in result is still true) when a guard blocks
+    // the sale — e.g. the ship is still assigned to a convoy. Checking
+    // that the ship actually left the fleet is the only reliable signal
+    // the auction really happened; without it this popup could falsely
+    // claim a ship was sold when the action was silently rejected.
+    if ('player' in result && !(result as GameState).fleet.ships.some(s => s.id === shipId)) {
       state = result as GameState;
       auctionResult = { shipName: ship.name, price, date };
     } else {
+      if ('player' in result) state = result as GameState;
       errorMsg = T.err.auctionShip;
     }
   }
@@ -850,7 +870,7 @@
                     <p class="order-note muted">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
                     </p>
-                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)} disabled={!!findConvoyForShip(state.fleet, activeShip.id)}>{T.auction}</button>
                   {/if}
                 {:else if activeShip.repairCooldown > 0}
                   <p class="order-note critical">
@@ -1034,7 +1054,7 @@
                     <span class="shipyard-info">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability), SHIP_TYPES[s.type].purchasePrice, s.durability)}
                     </span>
-                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)} disabled={!!findConvoyForShip(state.fleet, s.id)}>{T.auction}</button>
                   </div>
                 </div>
               {/each}
@@ -1464,7 +1484,7 @@
                 <p class="order-note muted">
                   {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
                 </p>
-                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)} disabled={!!findConvoyForShip(state.fleet, activeShip.id)}>{T.auction}</button>
               {/if}
             {:else if activeShip.repairCooldown > 0}
               <p class="order-note critical">
@@ -1572,7 +1592,7 @@
                     <span class="shipyard-info">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability), SHIP_TYPES[s.type].purchasePrice, s.durability)}
                     </span>
-                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)} disabled={!!findConvoyForShip(state.fleet, s.id)}>{T.auction}</button>
                   </div>
                 </div>
               {/each}
