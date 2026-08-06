@@ -44,8 +44,8 @@ Player-facing history/feedback features. Mostly UI-layer, reading existing state
 
 The single biggest "targeted v1.1, never built" gap from the original vision (`prd.md` #3). Bigger effort, deserves its own ADR before implementation given it's a new core system (permanent per-city inventory + hired-agent skill/loyalty simulation).
 
-10. **Stores & agents in cities** (`prd.md` #3).
-11. **Per-city warehouse income/price variance**, since it's closely related storage/economy surface area (`prd.md` #10).
+10. **Stores & agents in cities** (`prd.md` #3). **Stores half now specified** (2026-08-06): recon pass (`13a` below) confirmed this splits into two separable pieces; goods storage — owned-warehouse capacity, rented overflow up to a per-city cap, direct/ship/convoy store trading — is fully spec'd in `docs/design/city-stores.md` (ADR-024), not yet implemented. Agents (autonomous NPCs with skill/loyalty) remain unscoped, deliberately sequenced after stores per the recon report.
+11. **Per-city warehouse income/price variance**, since it's closely related storage/economy surface area (`prd.md` #10) — `city-stores.md`'s new `CityDefinition.warehouseCapacity` (total warehouses per city, scaled by population) is itself a per-city variance point this item may want to build on.
 12. **Combat loot realism** — simulated enemy fleet instead of a fixed loot pool (`prd.md` #1), natural follow-on now that combat (v1.0) has shipped and stabilized.
 13. **Ability to initiate combat** — hunt pirates for loot/reputation (`prd.md` #2).
 13a. **Use a dedicated `Explore`/`Plan` subagent pass before scoping the ADR** (audit #10) — this is the first roadmap item big enough to justify it: a new core system (permanent per-city inventory + hired-agent skill/loyalty simulation) benefits from a focused reconnaissance pass that doesn't consume the main session's context before the real design work starts.
