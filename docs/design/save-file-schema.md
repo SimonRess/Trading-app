@@ -56,6 +56,7 @@ interface PersistedGameState {
   risk: RiskState;         // added in ADR-015; additive, no schema bump needed
   hasWon: boolean;         // added alongside "winning no longer ends the session"; additive, no schema bump needed — save-system.ts defaults to false if absent
   warehouses: Partial<Record<CityId, number>>;  // owned per city, added post-v1; additive, no schema bump — save-system.ts defaults to {} if absent
+  cityStores: Partial<Record<CityId, Partial<Record<GoodId, number>>>>;  // goods stored per city per good, added v1.5 (ADR-024, city-stores.md) — additive, no schema bump; save-system.ts defaults to {} if absent
   cityEffects: CityEffect[];  // active plague/embargo/market-boost effects, added post-v1; additive, no schema bump — save-system.ts defaults to [] if absent
   pendingSuccession: PendingSuccession | null;  // set when the player died with 2+ heir-eligible children, awaiting a CHOOSE_HEIR action; added post-v1; additive, no schema bump — save-system.ts defaults to null if absent
   chronicle: string[];  // persistent Dynasty Chronicle log (family-succession.md), added v1.3; additive, no schema bump — save-system.ts defaults to [] if absent (an older save simply starts with no history rather than backfilling a founding entry)

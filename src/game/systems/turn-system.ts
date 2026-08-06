@@ -27,7 +27,7 @@ import { evaluateRankUp, gainReputation, loseReputation, rankUpMessage } from '.
 import { advanceChurchProgress } from './church-system.ts';
 import { accrueLoanInterest } from './banking-system.ts';
 import { accrueInsurancePremiums, computeInsurancePayouts } from './insurance-system.ts';
-import { accrueWarehouseIncome, warehouseSellValue } from './warehouse-system.ts';
+import { accrueWarehouseIncome, accrueStorageRent, warehouseSellValue } from './warehouse-system.ts';
 import { evaluateAchievements, achievementMessage } from './achievement-system.ts';
 import { applyHealthDecay } from './health-system.ts';
 import { growChildren, attemptBirth, traitPurchasePriceFactor } from './family-system.ts';
@@ -54,11 +54,20 @@ export function computeNetWorth(state: GameState): number {
   const cannonValue = state.fleet.ships.reduce((sum, ship) => sum + ship.cannons * cannonSellValue(), 0);
   const warehouseValue = Object.values(state.warehouses).reduce((sum, count) => sum + count * warehouseSellValue(), 0);
 
+  // Store contents are a resellable asset too, same treatment as cargoValue
+  // above (docs/design/city-stores.md, ADR-024).
+  const storeValue = Object.values(state.cityStores).reduce((sum, cityStore) => {
+    for (const [goodId, qty] of Object.entries(cityStore) as Array<[GoodId, number]>) {
+      sum += GOODS[goodId].basePrice * qty;
+    }
+    return sum;
+  }, 0);
+
   // Outstanding loan principal is a liability (ADR-014 amendment, see
   // ADR-019 and docs/design/banking-loans.md) — otherwise an unpaid loan
   // would look like free cash in the player's own net-worth readout.
   return Math.round(
-    state.player.cash + shipValue + cargoValue + cannonValue + warehouseValue - state.player.loan,
+    state.player.cash + shipValue + cargoValue + cannonValue + warehouseValue + storeValue - state.player.loan,
   );
 }
 
@@ -194,10 +203,19 @@ export function resolveTurn(state: GameState, orders: PlayerOrders): TurnResult 
   // insurance premiums above. Originally silent (like market drift) to
   // avoid a noisy event every turn, but reported per player feedback that
   // every cash-affecting change should show up in the turn summary.
-  const warehouseIncome = accrueWarehouseIncome(newState.warehouses);
+  const warehouseIncome = accrueWarehouseIncome(newState.warehouses, newState.cityStores);
   if (warehouseIncome > 0) {
     newState = { ...newState, player: { ...newState.player, cash: newState.player.cash + warehouseIncome } };
     events.push(`🏬 Earned ${String(warehouseIncome)} Mark in warehouse income.`);
+  }
+
+  // Step 5f2: Charge rent for city-store overflow beyond owned warehouse
+  // capacity (docs/design/city-stores.md, ADR-024) — same per-turn cash
+  // effect shape as warehouse income above, opposite sign.
+  const storageRent = accrueStorageRent(newState.warehouses, newState.cityStores);
+  if (storageRent > 0) {
+    newState = { ...newState, player: { ...newState.player, cash: newState.player.cash - storageRent } };
+    events.push(`🏬 Paid ${String(storageRent)} Mark in city storage rent.`);
   }
 
   // Step 5i: Yearly family update (Spring rollover only) — age the player

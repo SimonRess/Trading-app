@@ -150,6 +150,10 @@ function parseSaveFile(raw: string): GameState | null {
       fleet,
       hasWon: rawState.hasWon ?? false,
       warehouses: rawState.warehouses ?? {},
+      // cityStores was added after schema v1 shipped — additive, same
+      // pattern as warehouses above; an older save simply has no goods
+      // stored anywhere on load.
+      cityStores: rawState.cityStores ?? {},
       cityEffects: rawState.cityEffects ?? [],
       pendingSuccession: rawState.pendingSuccession ?? null,
       // chronicle was added after schema v1 shipped — additive, same

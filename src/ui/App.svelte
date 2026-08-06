@@ -35,6 +35,10 @@
     WAREHOUSE_INCOME_PER_TURN,
     MAX_WAREHOUSES_PER_CITY,
     warehouseSellValue,
+    occupiedWarehouses,
+    totalStoreCapacity,
+    storeCapacityRemaining,
+    STORAGE_RENT_PER_10_GOODS_PER_TURN,
   } from '../game/systems/warehouse-system.ts';
   import { MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE } from '../game/data/family.ts';
   import { traitPurchasePriceFactor, eligiblePartnerTypes } from '../game/systems/family-system.ts';
@@ -66,6 +70,7 @@
   let selectedCityId: CityId = 'lubeck';
   let buyQty = 1;
   let sellQty = 1;
+  let storeQty = 1;
   let busyTurn = false;
   let errorMsg = '';
   let pendingDest: Record<string, CityId> = {};
@@ -496,6 +501,38 @@
     const result = await gameClient.sendAction({ type: 'SELL_WAREHOUSE', cityId });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.sellWarehouse;
+  }
+
+  async function storeBuy(goodId: GoodId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'STORE_BUY_GOOD', cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeSell(goodId: GoodId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'STORE_SELL_GOOD', cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeDeposit(goodId: GoodId) {
+    errorMsg = '';
+    const result = activeConvoy
+      ? await gameClient.sendAction({ type: 'CONVOY_STORE_DEPOSIT', convoyId: activeConvoy.id, cityId: selectedCityId, goodId, quantity: storeQty })
+      : await gameClient.sendAction({ type: 'STORE_DEPOSIT', shipId: selectedShipId, cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeWithdraw(goodId: GoodId) {
+    errorMsg = '';
+    const result = activeConvoy
+      ? await gameClient.sendAction({ type: 'CONVOY_STORE_WITHDRAW', convoyId: activeConvoy.id, cityId: selectedCityId, goodId, quantity: storeQty })
+      : await gameClient.sendAction({ type: 'STORE_WITHDRAW', shipId: selectedShipId, cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
   }
 
   async function seekMarriage(partnerId: string) {
@@ -1178,6 +1215,10 @@
 
           {:else if selectedBuilding === 'warehouse-district'}
             {@const owned = state.warehouses[selectedCityId] ?? 0}
+            {@const occupied = occupiedWarehouses(owned, state.cityStores[selectedCityId])}
+            {@const cityStore = state.cityStores[selectedCityId] ?? {}}
+            {@const capacityRemaining = storeCapacityRemaining(state, selectedCityId)}
+            {@const canMoveCargo = (activeConvoy && convoyPortCity === selectedCityId) || (activeShip && portCity === selectedCityId)}
             <h2>{T.warehouseOf(CITIES[selectedCityId].name)}</h2>
             <div class="city-select">
               {#each CITY_IDS as cId}
@@ -1200,6 +1241,52 @@
                 disabled={owned >= MAX_WAREHOUSES_PER_CITY || state.player.cash < WAREHOUSE_PRICE}
               >{T.buyFor(WAREHOUSE_PRICE)}</button>
             </div>
+
+            <h3 class="counting-house-subhead">{T.cityStoreHeading}</h3>
+            <p class="order-note muted">
+              {T.storeBreakdown(occupied, owned, totalStoreCapacity(selectedCityId), STORAGE_RENT_PER_10_GOODS_PER_TURN)}
+            </p>
+
+            <table class="market-table">
+              <thead>
+                <tr>
+                  <th>{T.colGood}</th>
+                  <th>{T.storeQtyLabel}</th>
+                  <th colspan="2">{T.colTrade}</th>
+                  {#if canMoveCargo}
+                    <th colspan="2">{T.storeMoveLabel}</th>
+                  {/if}
+                </tr>
+              </thead>
+              <tbody>
+                {#each GOOD_IDS as goodId}
+                  <tr>
+                    <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                    <td>{cityStore[goodId] ?? 0}</td>
+                    <td>
+                      <button class="trade-btn buy" on:click={() => storeBuy(goodId)} disabled={capacityRemaining < storeQty}>{T.storeBuyBtn}</button>
+                    </td>
+                    <td>
+                      <button class="trade-btn sell" on:click={() => storeSell(goodId)} disabled={(cityStore[goodId] ?? 0) < storeQty}>{T.storeSellBtn}</button>
+                    </td>
+                    {#if canMoveCargo}
+                      <td>
+                        <button class="trade-btn buy" on:click={() => storeDeposit(goodId)}>{T.depositBtn}</button>
+                      </td>
+                      <td>
+                        <button class="trade-btn sell" on:click={() => storeWithdraw(goodId)} disabled={(cityStore[goodId] ?? 0) < storeQty}>{T.withdrawBtn}</button>
+                      </td>
+                    {/if}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+            <div class="qty-row">
+              <label>{T.storeQtyLabel} <input type="number" bind:value={storeQty} min="1" max="500" /></label>
+            </div>
+            {#if !canMoveCargo}
+              <p class="order-note muted">{T.storeNoShipNote}</p>
+            {/if}
 
             {#if errorMsg}
               <p class="error">{errorMsg}</p>

@@ -194,6 +194,15 @@ export interface Translation {
   ownedHere: (owned: number, max: number, income: number) => string;
   sellFor: (mark: number) => string;
   buyFor: (mark: number) => string;
+  cityStoreHeading: string;
+  storeBreakdown: (occupied: number, owned: number, totalCapacity: number, rentRate: number) => string;
+  storeQtyLabel: string;
+  storeMoveLabel: string;
+  storeBuyBtn: string;
+  storeSellBtn: string;
+  depositBtn: string;
+  withdrawBtn: string;
+  storeNoShipNote: string;
 
   // Town Hall
   townHall: string;
@@ -290,7 +299,7 @@ export interface Translation {
     setPosture: string; renameShip: string; hireCrew: string; releaseCrew: string;
     buyCannon: string; sellCannon: string; insurance: string; buyWarehouse: string;
     sellWarehouse: string; marriage: string; heir: string; tutor: string; loan: string;
-    repay: string; donate: string; saveFile: string; setDestination: string; createConvoy: string;
+    repay: string; donate: string; saveFile: string; setDestination: string; createConvoy: string; storeTrade: string;
   };
 }
 
@@ -447,6 +456,16 @@ const en: Translation = {
   ownedHere: (owned, max, income) => `Owned here: ${String(owned)}/${String(max)} · each generates ${String(income)} Mark/turn, no upkeep.`,
   sellFor: (mark) => `Sell (${String(mark)} Mark)`,
   buyFor: (mark) => `Buy (${String(mark)} Mark)`,
+  cityStoreHeading: 'City Store',
+  storeBreakdown: (occupied, owned, totalCapacity, rentRate) =>
+    `${String(occupied)}/${String(owned)} owned warehouses in use · total city capacity ${String(totalCapacity)} goods · overflow beyond owned capacity costs ${String(rentRate)} Mark per 10 goods per turn.`,
+  storeQtyLabel: 'Qty',
+  storeMoveLabel: 'Move',
+  storeBuyBtn: 'Buy',
+  storeSellBtn: 'Sell',
+  depositBtn: 'Deposit',
+  withdrawBtn: 'Withdraw',
+  storeNoShipNote: 'Select a ship or convoy docked here to deposit or withdraw cargo.',
 
   townHall: 'Town Hall',
   currentRank: 'Current rank:',
@@ -542,6 +561,7 @@ const en: Translation = {
     tutor: 'Cannot hire a tutor right now.', loan: 'Cannot take loan.', repay: 'Cannot repay loan.',
     donate: 'Cannot donate.', saveFile: 'Could not load that save file.',
     setDestination: 'Cannot set convoy destination.', createConvoy: 'Cannot create convoy.',
+    storeTrade: 'Cannot complete that store transaction.',
   },
 };
 
@@ -679,6 +699,16 @@ const de: Translation = {
   ownedHere: (owned, max, income) => `Hier im Besitz: ${String(owned)}/${String(max)} · jedes bringt ${String(income)} Mark/Runde, keine Unterhaltskosten.`,
   sellFor: (mark) => `Verkaufen (${String(mark)} Mark)`,
   buyFor: (mark) => `Kaufen (${String(mark)} Mark)`,
+  cityStoreHeading: 'Städtisches Lager',
+  storeBreakdown: (occupied, owned, totalCapacity, rentRate) =>
+    `${String(occupied)}/${String(owned)} eigene Lagerhäuser belegt · Gesamtkapazität der Stadt ${String(totalCapacity)} Waren · Überschuss über die eigene Kapazität kostet ${String(rentRate)} Mark je 10 Waren pro Runde.`,
+  storeQtyLabel: 'Menge',
+  storeMoveLabel: 'Bewegen',
+  storeBuyBtn: 'Kaufen',
+  storeSellBtn: 'Verkaufen',
+  depositBtn: 'Einlagern',
+  withdrawBtn: 'Entnehmen',
+  storeNoShipNote: 'Wählt ein hier liegendes Schiff oder einen Konvoi, um Ladung ein- oder auszulagern.',
 
   townHall: 'Rathaus',
   currentRank: 'Aktueller Rang:',
@@ -777,6 +807,7 @@ const de: Translation = {
     loan: 'Kredit nicht möglich.', repay: 'Tilgung nicht möglich.', donate: 'Spende nicht möglich.',
     saveFile: 'Diese Speicherdatei konnte nicht geladen werden.',
     setDestination: 'Konvoi-Ziel kann nicht gesetzt werden.', createConvoy: 'Konvoi kann nicht gebildet werden.',
+    storeTrade: 'Diese Lagertransaktion ist nicht möglich.',
   },
 };
 

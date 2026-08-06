@@ -1,6 +1,13 @@
 # Design: City Stores
 
-**Status:** Spec complete (2026-08-06), not yet implemented. Data model: ADR-024 (Accepted). Requirements confirmed directly by the product owner; two open questions remain (see below) but nothing blocks starting implementation.
+**Status:** Implemented (2026-08-06). Data model: ADR-024 (Accepted). Manually verified live via dev server + Playwright: bought a warehouse, deposited cargo from a docked ship, bought goods directly into the store with no ship involved, confirmed the occupied warehouse stopped earning passive income, and confirmed overflow storage rent (85 Mark for 170 goods over capacity — 17 bands of 10 × 5 Mark) was charged and reported correctly in the turn summary. The two Open Questions below remain genuinely open (UI reused the existing table markup directly rather than a dedicated component; stores are not raidable) — neither blocked shipping.
+
+### Implementation Status
+
+- ✅ `GameState.cityStores`, `CityDefinition.warehouseCapacity`, capacity/occupancy/rent helpers (`warehouse-system.ts`), all 6 new `GameAction` variants (`store-system.ts`), `computeNetWorth`'s `storeValue` term, `resolveTurn`'s rent step alongside the existing (now occupancy-aware) warehouse-income step.
+- ✅ UI: the Warehouse District panel extended in place (not a new building) with an owned/occupied breakdown line, a stock table (buy/sell direct against the market, deposit/withdraw against a docked ship or convoy), gated correctly on the selected ship/convoy being in port at the selected city.
+- ✅ 30 new unit tests (`store-system.test.ts`, plus additions to `warehouse-system.test.ts` and `turn-system.test.ts`) — 357 tests total, all passing.
+- Not attempted: **Agents** (roadmap item 10's other half) — still a separate, later design doc, unchanged from this doc's original scoping.
 
 ## Purpose
 

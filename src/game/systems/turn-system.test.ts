@@ -62,6 +62,12 @@ describe('computeNetWorth', () => {
     expect(computeNetWorth(withWarehouse)).toBe(computeNetWorth(state) + 700);
   });
 
+  it('includes city store contents at base price, same as ship cargo', () => {
+    const state = buildStartingState('TestPlayer');
+    const withStore = { ...state, cityStores: { lubeck: { grain: 5 } } };
+    expect(computeNetWorth(withStore)).toBe(computeNetWorth(state) + 5 * 6); // grain basePrice 6
+  });
+
   it('drifts only by known crew wages when holding cargo across turns without trading', () => {
     let state = buildStartingState('TestPlayer');
     state = executeBuy(state, state.fleet.ships[0]!.id, 'lubeck', 'furs', 10);
@@ -656,6 +662,26 @@ describe('resolveTurn', () => {
     const state = buildStartingState('TestPlayer');
     const { summary } = resolveTurn(state, { destinations: {} });
     expect(summary.events.some(e => e.toLowerCase().includes('warehouse'))).toBe(false);
+  });
+
+  it('does not pay warehouse income for a warehouse currently occupied by stored goods', () => {
+    const state = buildStartingState('TestPlayer');
+    const rich = { ...state, player: { ...state.player, cash: 2_000 } };
+    const withWarehouse = executeBuyWarehouse(rich, 'lubeck');
+    const occupied = { ...withWarehouse, cityStores: { lubeck: { grain: 10 } } };
+    const beforeCash = occupied.player.cash;
+    const { state: next } = resolveTurn(occupied, { destinations: {} });
+    expect(next.player.cash).toBe(beforeCash - 8); // no +15 income, only -8 crew wages
+  });
+
+  it('charges city storage rent each turn for storage beyond owned warehouse capacity, reported in the summary', () => {
+    const state = buildStartingState('TestPlayer');
+    // no warehouses owned in Hamburg — all 30 stored there is rented overflow
+    const withStore = { ...state, cityStores: { hamburg: { grain: 30 } } };
+    const beforeCash = withStore.player.cash;
+    const { state: next, summary } = resolveTurn(withStore, { destinations: {} });
+    expect(next.player.cash).toBe(beforeCash - 8 - 3 * 5); // -8 crew wages, -15 rent (3 bands of 10 * 5 Mark)
+    expect(summary.events.some(e => e.toLowerCase().includes('storage rent'))).toBe(true);
   });
 
   it('does not win on net worth alone — only reaching Mayor wins (ADR-021)', () => {

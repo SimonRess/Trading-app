@@ -199,6 +199,12 @@ export interface GameState {
   // Milestones unlocked so far, in unlock order — see
   // achievement-system.ts's evaluateAchievements. Additive save field.
   achievements: AchievementId[];
+  // Goods physically stored in each city — sparse per city, sparse per
+  // good within a city, same shape as Ship.cargo just city-scoped instead
+  // of ship-scoped. Fills owned warehouse capacity first, then rented
+  // overflow up to that city's fixed warehouseCapacity (cities.ts) — see
+  // docs/design/city-stores.md, ADR-024.
+  cityStores: Partial<Record<CityId, Partial<Record<GoodId, number>>>>;
 }
 
 // A fixed, small, enumerable set — unlike chronicle's freeform narrative
