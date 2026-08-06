@@ -2,7 +2,7 @@
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
   import { resolveTradeStepped, currentPrice } from '../game/systems/market-system.ts';
-  import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
+  import { isInPort, isInTransit, cargoTotal, cargoCapacity, cargoSpace } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT, MAX_MARK_PER_TURN, PROGRESS_CAP_PER_TURN } from '../game/systems/church-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
@@ -1219,6 +1219,9 @@
             {@const cityStore = state.cityStores[selectedCityId] ?? {}}
             {@const capacityRemaining = storeCapacityRemaining(state, selectedCityId)}
             {@const canMoveCargo = (activeConvoy && convoyPortCity === selectedCityId) || (activeShip && portCity === selectedCityId)}
+            {@const movableCargo = activeConvoy ? convoyCargoOf(state.fleet, activeConvoy) : (activeShip?.cargo ?? {})}
+            {@const movableSpace = activeConvoy ? convoyCargoSpaceOf(state.fleet, activeConvoy) : (activeShip ? cargoSpace(activeShip) : 0)}
+            {@const buyPreviewCost = (goodId) => resolveTradeStepped(state.market[selectedCityId][goodId], storeQty, 1, traitPurchasePriceFactor(state.player.traits)).totalCost}
             <h2>{T.warehouseOf(CITIES[selectedCityId].name)}</h2>
             <div class="city-select">
               {#each CITY_IDS as cId}
@@ -1264,17 +1267,29 @@
                     <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
                     <td>{cityStore[goodId] ?? 0}</td>
                     <td>
-                      <button class="trade-btn buy" on:click={() => storeBuy(goodId)} disabled={capacityRemaining < storeQty}>{T.storeBuyBtn}</button>
+                      <button
+                        class="trade-btn buy"
+                        on:click={() => storeBuy(goodId)}
+                        disabled={capacityRemaining < storeQty || state.player.cash < buyPreviewCost(goodId)}
+                      >{T.storeBuyBtn}</button>
                     </td>
                     <td>
                       <button class="trade-btn sell" on:click={() => storeSell(goodId)} disabled={(cityStore[goodId] ?? 0) < storeQty}>{T.storeSellBtn}</button>
                     </td>
                     {#if canMoveCargo}
                       <td>
-                        <button class="trade-btn buy" on:click={() => storeDeposit(goodId)}>{T.depositBtn}</button>
+                        <button
+                          class="trade-btn buy"
+                          on:click={() => storeDeposit(goodId)}
+                          disabled={(movableCargo[goodId] ?? 0) < storeQty || capacityRemaining < storeQty}
+                        >{T.depositBtn}</button>
                       </td>
                       <td>
-                        <button class="trade-btn sell" on:click={() => storeWithdraw(goodId)} disabled={(cityStore[goodId] ?? 0) < storeQty}>{T.withdrawBtn}</button>
+                        <button
+                          class="trade-btn sell"
+                          on:click={() => storeWithdraw(goodId)}
+                          disabled={(cityStore[goodId] ?? 0) < storeQty || movableSpace < storeQty}
+                        >{T.withdrawBtn}</button>
                       </td>
                     {/if}
                   </tr>
