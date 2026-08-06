@@ -112,6 +112,7 @@ The existing Warehouse District panel (`App.svelte`, City-view only, no List-vie
 
 - **UI component reuse**: extend `TradeTable.svelte` again, or build a dedicated store-trading component given it needs buy/sell/deposit/withdraw (four actions) rather than TradeTable's existing buy/sell (two)? Leaning toward a dedicated component to avoid overloading `TradeTable.svelte`'s prop surface further, but not decided.
 - **Can a store be raided or otherwise targeted by an event** (storm, plague, embargo already covers trade-blocking)? Leaning toward no — stores are ashore, only ships/cargo at sea are exposed to `pirate_raid`/`storm` — but this should be an explicit call once the event system is touched again, not an oversight.
+- **Remote store access**: `STORE_BUY_GOOD`/`STORE_SELL_GOOD` currently work from any city with no ship there and no warehouse owned there. Decided 2026-08-06: this should eventually require physical presence (leaning toward "owns at least one warehouse in that city"), but is deliberately staying as-is for now — see `docs/design/roadmap-next-versions.md` item 11a for the tracked follow-up.
 
 ## Related
 
