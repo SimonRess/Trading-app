@@ -32,7 +32,13 @@ export type GameAction =
   | { type: 'SET_CONVOY_DESTINATION'; convoyId: string; destination: CityId }
   | { type: 'SET_CONVOY_POSTURE'; convoyId: string; posture: Ship['posture'] }
   | { type: 'CONVOY_BUY_GOOD'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number }
-  | { type: 'CONVOY_SELL_GOOD'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number };
+  | { type: 'CONVOY_SELL_GOOD'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'STORE_BUY_GOOD'; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'STORE_SELL_GOOD'; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'STORE_DEPOSIT'; shipId: string; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'STORE_WITHDRAW'; shipId: string; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'CONVOY_STORE_DEPOSIT'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number }
+  | { type: 'CONVOY_STORE_WITHDRAW'; convoyId: string; cityId: CityId; goodId: GoodId; quantity: number };
 
 export interface PlayerOrders {
   destinations: Record<string, CityId>;

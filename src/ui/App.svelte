@@ -2,7 +2,7 @@
   import type { GameClient } from '../game/client/game-client.ts';
   import type { GameState, TurnResult, Ship, CityId, GoodId, ShipType } from '../game/state/types.ts';
   import { resolveTradeStepped, currentPrice } from '../game/systems/market-system.ts';
-  import { isInPort, isInTransit, cargoTotal, cargoCapacity } from '../game/systems/fleet-system.ts';
+  import { isInPort, isInTransit, cargoTotal, cargoCapacity, cargoSpace } from '../game/systems/fleet-system.ts';
   import { computeNetWorth } from '../game/systems/turn-system.ts';
   import { DONATION_COST_PER_PERCENT, REPUTATION_COST_PER_POINT, MAX_MARK_PER_TURN, PROGRESS_CAP_PER_TURN } from '../game/systems/church-system.ts';
   import { RANK_THRESHOLDS } from '../game/systems/political-system.ts';
@@ -35,6 +35,10 @@
     WAREHOUSE_INCOME_PER_TURN,
     MAX_WAREHOUSES_PER_CITY,
     warehouseSellValue,
+    occupiedWarehouses,
+    totalStoreCapacity,
+    storeCapacityRemaining,
+    STORAGE_RENT_PER_10_GOODS_PER_TURN,
   } from '../game/systems/warehouse-system.ts';
   import { MIN_MARRIAGE_AGE, HIRE_TUTOR_COST, HEIR_MIN_AGE } from '../game/data/family.ts';
   import { traitPurchasePriceFactor, eligiblePartnerTypes } from '../game/systems/family-system.ts';
@@ -66,6 +70,7 @@
   let selectedCityId: CityId = 'lubeck';
   let buyQty = 1;
   let sellQty = 1;
+  let storeQty = 1;
   let busyTurn = false;
   let errorMsg = '';
   let pendingDest: Record<string, CityId> = {};
@@ -342,11 +347,24 @@
     const shipIds = [...groupSelection];
     if (shipIds.length < 2) return;
     const result = await gameClient.sendAction({ type: 'CREATE_CONVOY', shipIds });
-    if ('player' in result) {
-      state = result as GameState;
+    // As with auctionShip: a rejected CREATE_CONVOY still returns a valid
+    // (unchanged) GameState, so 'player' in result alone can't tell success
+    // from a silently-blocked creation — find the actual new convoy instead.
+    const newState = 'player' in result ? (result as GameState) : undefined;
+    const created = newState?.fleet.convoys.find(
+      c => c.shipIds.length === shipIds.length && shipIds.every(id => c.shipIds.includes(id)),
+    );
+    if (newState && created) {
+      state = newState;
       groupingMode = false;
       groupSelection = new Set();
+      // Select the convoy that was just formed — without this, buying/
+      // selling goods right after grouping would still target whichever
+      // single ship was selected before, silently filling only that one
+      // ship instead of distributing across the convoy.
+      selectConvoy(created.id);
     } else {
+      if (newState) state = newState;
       errorMsg = T.err.createConvoy;
     }
   }
@@ -390,10 +408,17 @@
     const price = auctionSaleValue(SHIP_TYPES[ship.type].purchasePrice, ship.durability);
     const date = `${SEASON_LABEL[state.calendar.season]} ${state.calendar.year}`;
     const result = await gameClient.sendAction({ type: 'AUCTION_SHIP', shipId });
-    if ('player' in result) {
+    // executeAuctionShip returns the *unchanged* state (still a valid
+    // GameState, so 'player' in result is still true) when a guard blocks
+    // the sale — e.g. the ship is still assigned to a convoy. Checking
+    // that the ship actually left the fleet is the only reliable signal
+    // the auction really happened; without it this popup could falsely
+    // claim a ship was sold when the action was silently rejected.
+    if ('player' in result && !(result as GameState).fleet.ships.some(s => s.id === shipId)) {
       state = result as GameState;
       auctionResult = { shipName: ship.name, price, date };
     } else {
+      if ('player' in result) state = result as GameState;
       errorMsg = T.err.auctionShip;
     }
   }
@@ -476,6 +501,38 @@
     const result = await gameClient.sendAction({ type: 'SELL_WAREHOUSE', cityId });
     if ('player' in result) state = result as GameState;
     else errorMsg = T.err.sellWarehouse;
+  }
+
+  async function storeBuy(goodId: GoodId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'STORE_BUY_GOOD', cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeSell(goodId: GoodId) {
+    errorMsg = '';
+    const result = await gameClient.sendAction({ type: 'STORE_SELL_GOOD', cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeDeposit(goodId: GoodId) {
+    errorMsg = '';
+    const result = activeConvoy
+      ? await gameClient.sendAction({ type: 'CONVOY_STORE_DEPOSIT', convoyId: activeConvoy.id, cityId: selectedCityId, goodId, quantity: storeQty })
+      : await gameClient.sendAction({ type: 'STORE_DEPOSIT', shipId: selectedShipId, cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
+  }
+
+  async function storeWithdraw(goodId: GoodId) {
+    errorMsg = '';
+    const result = activeConvoy
+      ? await gameClient.sendAction({ type: 'CONVOY_STORE_WITHDRAW', convoyId: activeConvoy.id, cityId: selectedCityId, goodId, quantity: storeQty })
+      : await gameClient.sendAction({ type: 'STORE_WITHDRAW', shipId: selectedShipId, cityId: selectedCityId, goodId, quantity: storeQty });
+    if ('player' in result) state = result as GameState;
+    else errorMsg = T.err.storeTrade;
   }
 
   async function seekMarriage(partnerId: string) {
@@ -850,7 +907,7 @@
                     <p class="order-note muted">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
                     </p>
-                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)} disabled={!!findConvoyForShip(state.fleet, activeShip.id)}>{T.auction}</button>
                   {/if}
                 {:else if activeShip.repairCooldown > 0}
                   <p class="order-note critical">
@@ -1034,7 +1091,7 @@
                     <span class="shipyard-info">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability), SHIP_TYPES[s.type].purchasePrice, s.durability)}
                     </span>
-                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)} disabled={!!findConvoyForShip(state.fleet, s.id)}>{T.auction}</button>
                   </div>
                 </div>
               {/each}
@@ -1158,6 +1215,13 @@
 
           {:else if selectedBuilding === 'warehouse-district'}
             {@const owned = state.warehouses[selectedCityId] ?? 0}
+            {@const occupied = occupiedWarehouses(owned, state.cityStores[selectedCityId])}
+            {@const cityStore = state.cityStores[selectedCityId] ?? {}}
+            {@const capacityRemaining = storeCapacityRemaining(state, selectedCityId)}
+            {@const canMoveCargo = (activeConvoy && convoyPortCity === selectedCityId) || (activeShip && portCity === selectedCityId)}
+            {@const movableCargo = activeConvoy ? convoyCargoOf(state.fleet, activeConvoy) : (activeShip?.cargo ?? {})}
+            {@const movableSpace = activeConvoy ? convoyCargoSpaceOf(state.fleet, activeConvoy) : (activeShip ? cargoSpace(activeShip) : 0)}
+            {@const buyPreviewCost = (goodId) => resolveTradeStepped(state.market[selectedCityId][goodId], storeQty, 1, traitPurchasePriceFactor(state.player.traits)).totalCost}
             <h2>{T.warehouseOf(CITIES[selectedCityId].name)}</h2>
             <div class="city-select">
               {#each CITY_IDS as cId}
@@ -1180,6 +1244,64 @@
                 disabled={owned >= MAX_WAREHOUSES_PER_CITY || state.player.cash < WAREHOUSE_PRICE}
               >{T.buyFor(WAREHOUSE_PRICE)}</button>
             </div>
+
+            <h3 class="counting-house-subhead">{T.cityStoreHeading}</h3>
+            <p class="order-note muted">
+              {T.storeBreakdown(occupied, owned, totalStoreCapacity(selectedCityId), STORAGE_RENT_PER_10_GOODS_PER_TURN)}
+            </p>
+
+            <table class="market-table">
+              <thead>
+                <tr>
+                  <th>{T.colGood}</th>
+                  <th>{T.storeQtyLabel}</th>
+                  <th colspan="2">{T.colTrade}</th>
+                  {#if canMoveCargo}
+                    <th colspan="2">{T.storeMoveLabel}</th>
+                  {/if}
+                </tr>
+              </thead>
+              <tbody>
+                {#each GOOD_IDS as goodId}
+                  <tr>
+                    <td>{GOOD_ICONS[goodId]} {GOOD_NAMES[goodId]}</td>
+                    <td>{cityStore[goodId] ?? 0}</td>
+                    <td>
+                      <button
+                        class="trade-btn buy"
+                        on:click={() => storeBuy(goodId)}
+                        disabled={capacityRemaining < storeQty || state.player.cash < buyPreviewCost(goodId)}
+                      >{T.storeBuyBtn}</button>
+                    </td>
+                    <td>
+                      <button class="trade-btn sell" on:click={() => storeSell(goodId)} disabled={(cityStore[goodId] ?? 0) < storeQty}>{T.storeSellBtn}</button>
+                    </td>
+                    {#if canMoveCargo}
+                      <td>
+                        <button
+                          class="trade-btn buy"
+                          on:click={() => storeDeposit(goodId)}
+                          disabled={(movableCargo[goodId] ?? 0) < storeQty || capacityRemaining < storeQty}
+                        >{T.depositBtn}</button>
+                      </td>
+                      <td>
+                        <button
+                          class="trade-btn sell"
+                          on:click={() => storeWithdraw(goodId)}
+                          disabled={(cityStore[goodId] ?? 0) < storeQty || movableSpace < storeQty}
+                        >{T.withdrawBtn}</button>
+                      </td>
+                    {/if}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+            <div class="qty-row">
+              <label>{T.storeQtyLabel} <input type="number" bind:value={storeQty} min="1" max="500" /></label>
+            </div>
+            {#if !canMoveCargo}
+              <p class="order-note muted">{T.storeNoShipNote}</p>
+            {/if}
 
             {#if errorMsg}
               <p class="error">{errorMsg}</p>
@@ -1464,7 +1586,7 @@
                 <p class="order-note muted">
                   {T.auctionLine(auctionSaleValue(SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability), SHIP_TYPES[activeShip.type].purchasePrice, activeShip.durability)}
                 </p>
-                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)}>{T.auction}</button>
+                <button class="shipyard-btn" on:click={() => auctionShip(activeShip.id)} disabled={!!findConvoyForShip(state.fleet, activeShip.id)}>{T.auction}</button>
               {/if}
             {:else if activeShip.repairCooldown > 0}
               <p class="order-note critical">
@@ -1572,7 +1694,7 @@
                     <span class="shipyard-info">
                       {T.auctionLine(auctionSaleValue(SHIP_TYPES[s.type].purchasePrice, s.durability), SHIP_TYPES[s.type].purchasePrice, s.durability)}
                     </span>
-                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)}>{T.auction}</button>
+                    <button class="shipyard-btn" on:click={() => auctionShip(s.id)} disabled={!!findConvoyForShip(state.fleet, s.id)}>{T.auction}</button>
                   </div>
                 </div>
               {/each}

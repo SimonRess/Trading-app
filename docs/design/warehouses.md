@@ -15,7 +15,7 @@ A passive-income real-estate layer: the player can buy a warehouse in a city and
 
 ## Non-Goals (this pass)
 
-- No warehouse *storage* mechanic (using it to stash cargo, avoid market price impact, etc.) — despite the name, this is a pure income-generating asset in v2, not a cargo-management feature. A storage mechanic is a plausible v3+ extension once the reason for it (e.g. seasonal price arbitrage) is clearer.
+- ~~No warehouse *storage* mechanic~~ — **superseded 2026-08-06**: storage is now specified in `docs/design/city-stores.md` (ADR-024), not yet implemented. This doc's own mechanic (buy/sell warehouse slots, flat passive income) is unchanged; `city-stores.md` layers goods storage, rent for overflow beyond owned capacity, and direct/ship/convoy store trading on top of it — see that doc for the full mechanic.
 - No per-warehouse vacancy/tenant simulation — "generate small passive income each round as they are all rented out for now" is explicit in the request; a single flat per-turn income figure, no occupancy variance.
 - No warehouse upgrades/tiers — one type, one price, one income rate, matching the MVP's own "start minimal, extend later" philosophy (`mvp-scope.md`).
 - No city-specific price/income variance in this first pass — see Open Questions for whether that's worth adding once the base mechanic exists.
@@ -58,6 +58,7 @@ A passive-income real-estate layer: the player can buy a warehouse in a city and
 
 - ADR-018 (Feature delivery sequencing — this mechanic ships with the Warehouse District building, gated on the city-view skeleton)
 - ADR-020 (Net worth includes cannon and warehouse resale value — amends ADR-014)
+- ADR-024, `docs/design/city-stores.md` (goods storage, rent, and store trading layered on top of this doc's warehouse-slot mechanic — supersedes the Non-Goals bullet above)
 - `docs/design/mvp-scope.md` (out-of-scope table — target v2)
 - `docs/design/family-succession.md` (warehouses as an asset class that plausibly carries cleanly across a succession event, unlike ships)
 - `docs/design/church-donations.md` (sibling v1.1/v2 economic-sink/source feature, same "small new building section" UI pattern)

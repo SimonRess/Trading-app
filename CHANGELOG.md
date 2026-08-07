@@ -20,7 +20,21 @@ in the app header and the in-app changelog viewer, reading `package.json`.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-06
+
+### Added
+- **City Stores** — goods can now be stored in a city, not just carried as cargo. See `docs/design/city-stores.md`, `docs/decisions/adr-024-city-store-goods-model.md`.
+  - Storage fills owned warehouse capacity first (100 goods per owned warehouse); once that's full, overflow rents from the rest of the city's fixed total warehouse capacity (scaled by city size) at 5 Mark per 10 goods per turn, charged and reported every turn.
+  - An owned warehouse holding any stored goods stops earning its usual passive `WAREHOUSE_INCOME_PER_TURN` income — it can't be rented out to someone else while the player is using it.
+  - Goods can be bought/sold directly against the city market with no ship involved, or moved for free between the store and a docked ship's or convoy's cargo (convoy moves reuse the existing proportional distribution strategy from ship convoys).
+  - Store contents count toward net worth, same treatment as cargo.
+  - The Warehouse District panel now shows an owned/occupied breakdown and a full stock table (buy/sell/deposit/withdraw) alongside the existing warehouse buy/sell controls.
+  - 30 new unit tests (357 total). Verified live via Playwright.
+  - Agents (the other half of this feature's roadmap item) remain unscoped for a later pass.
+
 ### Fixed
+- **Buying/selling goods right after forming a convoy only ever affected the first ship** — `CREATE_CONVOY` never selected the new convoy in the UI, so `App.svelte` kept trading against whichever single ship was selected beforehand instead of switching to `CONVOY_BUY_GOOD`/`CONVOY_SELL_GOOD`. Once that one ship's hold filled up, further purchases silently did nothing, looking exactly like "the convoy doesn't work as one ship." Fixed by auto-selecting the newly created convoy; verified live that a 60-unit buy (more than one ship's 50 cargo capacity) now distributes across both members.
+- **The Auction popup could falsely claim a ship was sold** when the auction was actually blocked (e.g. the ship is still part of a convoy) — `executeAuctionShip`'s guard returns the *unchanged* `GameState`, which still satisfies `'player' in result`, so the UI treated every guarded no-op as a success. Fixed `auctionShip()` to check the ship actually left the fleet before showing the popup, and disabled the Auction button entirely for ships still assigned to a convoy (exclude first). The same false-success gap existed in `confirmCreateConvoy()` and is fixed there too.
 - **Convoy pirate-raid victory loot was applied once per member ship instead of once for the whole convoy** — `event-system.ts`'s `pirate_raid` handler called `applyCombatOutcome` with the same `CombatResult` (including its `loot`) for every member, so a 2-ship convoy could receive double the intended loot. Only the first surviving member now receives the loot; every member still takes its own share of the shared durability/cargo loss.
 - **A convoy defeat that sank a member could misidentify which ship sank** if two ships shared a name — the fleet was filtered by matching sunk ships' *names* instead of their ids. Fixed to track sunk ship ids directly. Added 2 integration tests (`event-system.test.ts`) covering both fixes.
 

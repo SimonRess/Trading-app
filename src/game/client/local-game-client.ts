@@ -34,6 +34,14 @@ import {
   executeConvoyBuy,
   executeConvoySell,
 } from '../systems/convoy-system.ts';
+import {
+  executeStoreBuy,
+  executeStoreSell,
+  executeStoreDeposit,
+  executeStoreWithdraw,
+  executeConvoyStoreDeposit,
+  executeConvoyStoreWithdraw,
+} from '../systems/store-system.ts';
 
 export class LocalGameClient implements GameClient {
   private state: GameState;
@@ -181,6 +189,30 @@ export class LocalGameClient implements GameClient {
 
       case 'CONVOY_SELL_GOOD':
         this.state = executeConvoySell(this.state, action.convoyId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'STORE_BUY_GOOD':
+        this.state = executeStoreBuy(this.state, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'STORE_SELL_GOOD':
+        this.state = executeStoreSell(this.state, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'STORE_DEPOSIT':
+        this.state = executeStoreDeposit(this.state, action.shipId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'STORE_WITHDRAW':
+        this.state = executeStoreWithdraw(this.state, action.shipId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'CONVOY_STORE_DEPOSIT':
+        this.state = executeConvoyStoreDeposit(this.state, action.convoyId, action.cityId, action.goodId, action.quantity);
+        return Promise.resolve(this.state);
+
+      case 'CONVOY_STORE_WITHDRAW':
+        this.state = executeConvoyStoreWithdraw(this.state, action.convoyId, action.cityId, action.goodId, action.quantity);
         return Promise.resolve(this.state);
 
       case 'END_TURN': {
