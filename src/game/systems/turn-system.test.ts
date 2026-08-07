@@ -839,12 +839,18 @@ describe('resolveTurn', () => {
   });
 
   it('expires city effects after their duration and applies event-created ones', () => {
+    // Pin Math.random so no random event (e.g. diplomatic_embargo, which
+    // could re-embargo hamburg/salt by chance) fires this turn — keeps the
+    // pre-existing effect's expiry deterministic. Same pattern as the
+    // political-rank/win tests above.
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const state = buildStartingState('TestPlayer');
     const effect: CityEffect = { cityId: 'hamburg', goodId: 'salt', type: 'embargo', turnsRemaining: 1 };
     const withEffect = { ...state, cityEffects: [effect] };
     const { state: next } = resolveTurn(withEffect, { destinations: {} });
     // The pre-existing effect (turnsRemaining 1) should have expired.
     expect(next.cityEffects.some(e => e.cityId === 'hamburg' && e.goodId === 'salt')).toBe(false);
+    vi.restoreAllMocks();
   });
 
   it('advances a full year (age, birth chance, child growth) on the Spring rollover', () => {
